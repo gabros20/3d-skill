@@ -47,9 +47,11 @@ Rule: T1-T4 before any screen-space effect. Costs marked [U] are unmeasured: mea
 
 ## Stack by budget
 
-- Mobile: T1 (128-256 px env), T2, T3 (KTX2), T4, T6 contact, T11 MSAA/SMAA, T9 half-res, T10 static grain. Skip T12-T16. DPR 1.5-2 max.
-- Laptop: add T3 lobes, T7 half-res, T6 accumulative, T8 x1-2, T13 planar, SMAA.
-- Desktop WebGPU: add T7 full, T11 TRAA, T14 medium, T13 `ssr`, T12, T15, T16.
+Post passes (full-screen) are T7, T9, T11 when SMAA/TRAA, T12, T13 (`SSRPass`, `ssr()`), T14, T15. T10 costs no pass when LUT, grain and dither are folded into the final tone-map/grade pass. MSAA, planar reflectors, T6 and T8 are not post passes (planar and shadows cost extra scene renders). Every stack below must fit the post-pass count in [shared-performance](shared-performance.md); pick within it, do not add.
+
+- Mobile (0-1 passes): T1 (128-256 px env), T2, T3 (KTX2), T4, T6 contact, MSAA instead of an AA pass, T10 as static grain in the final pass. Spend the one pass on T9 half-res, only if the brief has glow. Skip T7, T12-T16. DPR 1.5-2 max.
+- Laptop (2 passes): same non-pass base plus T3 lobes, T6 accumulative, T8 x1-2, planar T13. Pick two of: T7 half-res, T9, T11 SMAA. T10 folded into the final pass.
+- Desktop WebGPU (2 passes): pick two of T7, T9, T11 TRAA, T13 `ssr`, T14, T12, T15 by the defect list. T16 as material cost. Anything beyond two is a documented overrun in `3D.md`, not a default.
 - Offline-in-browser: T18 with a denoiser, for stills; clips only as a brief change (B3).
 
 Numeric budgets stay in [shared-performance](shared-performance.md).

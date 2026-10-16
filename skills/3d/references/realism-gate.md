@@ -30,6 +30,8 @@ One table pass over the refspec; no renders. Re-run when pipeline, target tier, 
 6. Statement to the user, at most 150 words, with the approach yes: reference kind and how it is treated, expected ceiling per category, offline-only features by G id, planned T ids, ship bar, iteration budget (default 3 critic rounds per gate, at most 2 versions per technique; adjustable at intake). If a must-have sits above the ceiling, say so and offer, inside the core, the pipeline with the higher ceiling (baked lighting if static, path-traced idle refine) or a brief change worded as a change.
 7. Write `.3d/feasibility.json`: `{schema:"feasibility.v1", pipeline, dynamics, target, provenance, features[{g,category,visibility,tier,technique}], ceiling{}, reference_target{}, ship_bar{}, budget{rounds}, accepted}`. Validate with `<skill>/scripts/spec-check`. Add one decision line to `3D.md`. No build before `accepted: true`.
 
+`reference_target` per category = the score the reference itself would earn as the target (normally 3; lower it where the reference has artefacts R#).
+
 The critic scores against the reference anchors; the stop rules judge against `ship_bar`.
 
 ## Defect labels

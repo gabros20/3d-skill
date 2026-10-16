@@ -12,6 +12,36 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-16
+
+Realism know-how, a feasibility gate and a stop mechanism, built from a live test where real-time
+three.js could not match an AI-generated, path-traced-looking reference, and from mining that
+session's transcript.
+
+### Added
+- `realism-gap` (22 features in five tiers: live-native, live-with-technique, bake-only,
+  offline-only, reference artefact), `realism-toolbox` (18 ranked techniques, WebGL vs WebGPU r186,
+  realism stacks within the post-pass budget, in-browser path tracing as refine-when-idle) and
+  `realism-gate` (provenance → tiers → ceiling per category → achievable ship bars → a ≤150-word
+  statement before any build → `.3d/feasibility.json`).
+- Defect labels FIXABLE(T#) / CEILING(G#) / ARTEFACT(R#); a path-traced twin
+  (`preview capture --pathtrace`, three-gpu-pathtracer WebGPU, Cycles fallback via
+  `render_shots.py --import --world`) splits design gap from real-time gap.
+- Deterministic stop: `preview rounds` (S1 nothing fixable · S2 plateau · S3 small gain or pipeline
+  change · S4 budget), per-technique cap, best-version-so-far, and a MAX REACHED report with a
+  direction menu inside the brief's core.
+- `preview match --json`, `preview sweep`, `preview compare --stack`, `new-version --technique`,
+  params via `?p=` / `readParams` / `setParams`; `ref-extract --motion-json` (period, speed,
+  amplitude per region and kymo line, oscillating vs travelling); `fit-camera` (camera solve from
+  anchor points); `spec-check` for feasibility.v1 and rounds.v1.
+- Bake-for-web and Matching Blender recipes; realism recipes in threejs-lookdev / threejs-postfx.
+
+### Changed
+- Ship bars are the achievable ceiling (per category min(2, ceiling); average min(2.3, mean − 0.2)).
+- Numbers before images (≤ 4 image views per iteration, never the same path twice); checkpoint and
+  hand off at user gates and past ~300k context; tunables live in one params block.
+- Rule 7: a CEILING gap is reported, never faked.
+
 ## [0.4.0] — 2026-10-16
 
 Rules from the live test's post-mortem, so the skill blocks the mistakes that test made.
