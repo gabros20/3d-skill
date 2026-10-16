@@ -98,6 +98,12 @@ def lens_for(cam_data, pose):
         cam_data.lens = cam_data.sensor_height / (2 * math.tan(math.radians(float(pose["fov"])) / 2))
 
 
+def vfov(pose):
+    if "fov" in pose:
+        return float(pose["fov"])
+    return math.degrees(2 * math.atan(12.0 / float(pose["focal_mm"])))
+
+
 def place(cam, cam_data, pose):
     cam.location = to_blender(pose["position"])
     aim(cam, to_blender(pose["target"]), float(pose.get("roll_deg", 0)))
@@ -187,9 +193,13 @@ def main() -> int:
                 for k in ("position", "target"):
                     if k in end:
                         pose[k] = [a + (b - a) * t for a, b in zip(shot[k], end[k])]
-                for k in ("roll_deg", "focal_mm", "fov", "ortho_height"):
+                for k in ("roll_deg", "ortho_height"):
                     if k in end:
                         pose[k] = float(shot.get(k, 0)) + (float(end[k]) - float(shot.get(k, 0))) * t
+                if "focal_mm" in end or "fov" in end:  # mix as vertical fov so mixed lens keys work
+                    f0, f1 = vfov(shot), vfov(end)
+                    pose.pop("focal_mm", None)
+                    pose["fov"] = f0 + (f1 - f0) * t
                 place(cam, cam_data, pose)
                 path = os.path.join(o["out"], "%s_%04d.png" % (sid, f + 1))
                 render(sc, path)
@@ -205,6 +215,8 @@ def main() -> int:
         sc.collection.objects.link(pivot)
         pivot.location = first[1]
         place(cam, cam_data, shots[0])
+        if bpy.data.actions:
+            sys.stderr.write("warning: scene has animation; turntable frames also play it\n")
         for ob in [cam] + [x for x in sc.objects if x.type == "LIGHT"]:
             mw = ob.matrix_world.copy()
             ob.parent = pivot

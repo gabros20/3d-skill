@@ -28,19 +28,19 @@ Pre-render when the viewer does not drive the camera or state AND device or weig
 
 | Use | Strategy | Choose when | Read next |
 |---|---|---|---|
-| HERO live | Real-time three.js or R3F scene, compressed GLB, poster first | interactivity, brand-reactive, crisp at any size | `threejs-renderer.md`, `threejs-r3f-next.md` (Next/React), `threejs-lookdev.md`, `threejs-loading.md`, `asset-pipeline.md` |
-| HERO simple, VIDEO loop | Pre-rendered WebM/MP4 (or frame sequence) from Blender, poster image | no interaction, photoreal wanted, zero GPU risk | `blender-lookdev-render.md`, `blender-channels.md`, `shared-performance.md` (weight) |
-| SCROLL world | Real-time scene driven by normalised scroll progress; camera path from `shots.json` | camera freedom, interactivity, copy synced to state | `scroll-conductor.md`, `scroll-adapters.md`, `threejs-r3f-next.md` or `threejs-renderer.md` |
-| SCROLL scrub | Pre-rendered frames or keyframe-dense video scrubbed by progress | photoreal, no interaction, mobile risk | `blender-lookdev-render.md`, `scroll-conductor.md`, `scroll-adapters.md` |
-| PROD stills, turntable | Offline Blender render, comp tweaks | highest fidelity, no runtime budget | `blender-lookdev-render.md`, `blender-modeling.md` |
-| Spline | Spline scene or `@splinetool/react-spline` embed | designer-owned, non-engineer editable, fast prototype | `spline.md` |
-| SPLAT | Gaussian-splat viewer (capture, clean, compress) | a real place or object captured from photos or video | `splats-xr.md` |
-| AR | GLB plus USDZ (Quick Look) or WebXR | try-in-space on phones | `splats-xr.md`, `asset-pipeline.md` (AR budget in [shared-performance](shared-performance.md)) |
-| GAME asset | glTF or engine-native handoff; engine work is out of scope | asset only | `blender-modeling.md`, `blender-export.md`, `asset-pipeline.md` |
-| PRINT | Offline render at 300 dpi or more, 16-bit, ICC | fidelity | `blender-lookdev-render.md` |
-| CAD part | CAD to mesh; printing or manufacturing handled elsewhere | physical part | `cad-print.md` |
+| HERO live | Real-time three.js or R3F scene, compressed GLB, poster first | interactivity, brand-reactive, crisp at any size | [threejs-renderer](threejs-renderer.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md) |
+| HERO simple, VIDEO loop | Pre-rendered WebM/MP4 (or frame sequence) from Blender, poster image | no interaction, photoreal wanted, zero GPU risk | [blender-lookdev-render](blender-lookdev-render.md), [blender-channels](blender-channels.md), [shared-performance](shared-performance.md) (weight) |
+| SCROLL world | Real-time scene driven by normalised scroll progress; camera path from `shots.json` | camera freedom, interactivity, copy synced to state | [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md), [threejs-r3f-next](threejs-r3f-next.md) or [threejs-renderer](threejs-renderer.md) |
+| SCROLL scrub | Pre-rendered frames or keyframe-dense video scrubbed by progress | photoreal, no interaction, mobile risk | [blender-lookdev-render](blender-lookdev-render.md), [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md) |
+| PROD stills, turntable | Offline Blender render, comp tweaks | highest fidelity, no runtime budget | [blender-lookdev-render](blender-lookdev-render.md), [blender-modeling](blender-modeling.md) |
+| Spline | Spline scene or `@splinetool/react-spline` embed | designer-owned, non-engineer editable, fast prototype | [spline](spline.md) |
+| SPLAT | Gaussian-splat viewer (capture, clean, compress) | a real place or object captured from photos or video | [splats-xr](splats-xr.md) |
+| AR | GLB plus USDZ (Quick Look) or WebXR | try-in-space on phones | [splats-xr](splats-xr.md), [asset-pipeline](asset-pipeline.md) (AR budget in [shared-performance](shared-performance.md)) |
+| GAME asset | glTF or engine-native handoff; engine work is out of scope | asset only | [blender-modeling](blender-modeling.md), [blender-export](blender-export.md), [asset-pipeline](asset-pipeline.md) |
+| PRINT | Offline render at 300 dpi or more, 16-bit, ICC | fidelity | [blender-lookdev-render](blender-lookdev-render.md) |
+| CAD part | CAD to mesh; printing or manufacturing handled elsewhere | physical part | [cad-print](cad-print.md) |
 
-Always add: `design-art-direction.md` for look decisions, `asset-acquire.md` when geometry or textures must be sourced, [shared-verification](shared-verification.md) for the exit criteria.
+Always add: [design-art-direction](design-art-direction.md) for look decisions, [asset-acquire](asset-acquire.md) when geometry or textures must be sourced, [shared-verification](shared-verification.md) for the exit criteria.
 
 ## Fallback ladder
 
@@ -59,7 +59,7 @@ Brief → style frames or lookdev → greybox with cameras (`shots.json`) → as
 
 ## Adjacent skills
 
-Recommend, never invoke, and work without them: `scroll-animation` when installed owns scroll authority, pin and reduced-motion collapse; `manufacturing-workflow` for CAD to print; `generate-image` and `generate-video` for stills and clips; `fluid-design` for viewport-fluid layout around the canvas. Project rules (for example a motion doc) win over this reference.
+Recommend, never invoke: see the universal rules in [SKILL.md](../SKILL.md). Project rules (for example a motion doc) win over this reference.
 
 ## Traps
 

@@ -8,7 +8,7 @@ Read when:
 
 Skip when:
 - An approved `.3d/brief.md` exists and the request fits it (→ [brief-approach](brief-approach.md) or the build area).
-- The user supplied only a reference to decode (→ [intake-references](intake-references.md) first, then return here with the spec).
+- The user supplied only a reference to decode: run [intake-references](intake-references.md) first, then return here with the spec. With any attached or linked reference, that pass always precedes the questions.
 - A one-line fix to an existing scene (→ the area reference).
 
 Inputs:
@@ -19,23 +19,25 @@ Produces:
 
 ## Contents
 
-- Protocol · Look-up vs ask · Question bank · Vague words · Traps
+- Protocol · Look-up vs ask · Question bank · Traps
 
 ## Protocol
 
 1. **Triage, no questions yet.** Sort the 18 dimensions below into `given` / `inferable` / `open`. Detect the target use (HERO, SCROLL, PROD, AR, GAME, PRINT, VIDEO, SPLAT): it sets defaults and the pipeline ([brief-approach](brief-approach.md)).
-2. **Look up facts.** Run `scripts/capabilities` and read `.3d/capabilities.md`; read `package.json` (three, R3F, scroll libs, framework), brand tokens and fonts, existing `*.glb *.blend *.spline`, Figma links, `3D.md`, an existing `.3d/`. State what you found as "I found X"; never ask it.
+2. **Look up facts, then decompose references.** If any reference is attached or linked, run [intake-references](intake-references.md) first (`scripts/ref-extract` plus vision passes) and mark the dimensions it fills `given`, evidence-tagged; ask only each reference's intent (match vs style) and the dimensions still `open`. Run `scripts/capabilities` and read `.3d/capabilities.md`; read `package.json` (three, R3F, scroll libs, framework), brand tokens and fonts, existing `*.glb *.blend *.spline`, Figma links, `3D.md`, an existing `.3d/`. State what you found as "I found X"; never ask it.
 3. **Hypothesis line**: one sentence plus confidence %, plus what is missing when under 70%. Example: "Scroll-pinned chip reveal on the homepage; 45%; unknown: scroll vs autoplay, style, budget."
-4. **Round 1: the gating frontier, at most 6 questions.** Target use and placement, subject truth (real product or invented; CAD/photo/Figma available), the one feeling or action wanted, style anchor, hard constraints (device floor, weight, brand, deadline, reduced motion), deliverable formats. Every question carries a recommended answer worded so "yes" accepts it.
+4. **Round 1: the gating frontier, at most 6 questions.** Target use and placement, subject truth (real product or invented; CAD/photo/Figma available), the one feeling or action wanted, style anchor, hard constraints (device floor, weight, brand, deadline, reduced motion), deliverable formats. Pick from bank rows 1, 2, 3, 4, 15, 16/17; the bank never lets you exceed 6. Every question carries a recommended answer worded so "yes" accepts it.
 5. **Round 2: what round 1 unlocked, at most 6 questions.** Camera and motion beats, lighting and colour, materials, set, FX, interaction. Only dimensions still `open` after defaults. If the user says "your call" and the default is low-regret, record `[assumed]` and move on.
 6. **Cap.** Vague prompt: at most 2 rounds / 12 questions. At least 60% of dimensions `given`: 1 round / 6 questions. After the cap, proceed on `[assumed]` defaults and list them for veto.
-7. **Ungrillable look and feel.** When the user cannot articulate style, stop asking. Offer 3 labelled style frames and ask "A, B or C plus one change":
+7. **Open or ungrillable look.** When the look is open or the user cannot articulate it, stop asking. Offer THREE labelled directions that differ in direction (concept, light, palette, camera logic), never three polishes of one idea, and ask "A, B or C plus one change":
    - cheapest: three named presets from [design-lookdev-presets](design-lookdev-presets.md) on a greybox of the subject;
    - stills: if the `generate-image` skill is installed, recommend it for the 3 frames; the user runs it. Never invoke it.
-8. **Challenge pass, inside the rounds.** Name contradictions (photoreal plus a 60 KB budget; parallax plus "calm"; 4K video plus mobile data), vague words (below), and claims about a real product the user has not evidenced (ports, labels, numbers).
-9. **Restate and gate.** Write the brief: Outcome, Audience, Use, Style, Constraints, Deliverables, every guess tagged `[assumed]`, and `Out of scope`. Ask for an explicit yes. "Whatever you think" or "sounds good" is delegation, not approval: re-ask the 2-3 riskiest assumptions as A/B. A structured ask tool fits only this closing yes/no. End the turn on the question; start no build work in the same message.
-10. **Headless (no one to answer).** Write the brief with all assumptions, mark `status: needs-confirmation`, and do not build.
-11. **Record.** Save `.3d/brief.md`. After approval, changes are a new dated version plus a log line; never edit history silently.
+8. **3D-specific items are asked or defaulted, never skipped**: device class, asset budget, scroll length (SCROLL), fallback and poster, reduced motion. Defaults resolve through `3D.md`, then [shared-performance](shared-performance.md).
+   **Facts file rule**: numbers (budgets, durations, sizes, prices, specs) live only in `3D.md` and the brief's facts; nothing else invents them. Label neutral defaults `[assumed]`.
+9. **Challenge pass, inside the rounds.** Name contradictions (photoreal plus a 60 KB budget; parallax plus "calm"; 4K video plus mobile data), vague words (below), and claims about a real product the user has not evidenced (ports, labels, numbers).
+10. **Restate and gate.** Write the brief: Outcome, Audience, Use, Style, Constraints, Deliverables, every guess tagged `[assumed]`, and `Out of scope`. Ask for an explicit yes. "Whatever you think" or "sounds good" is delegation, not approval: re-ask the 2-3 riskiest assumptions as A/B. A structured ask tool fits only this closing yes/no. End the turn on the question; start no build work in the same message.
+11. **Headless (no one to answer).** Write the brief with all assumptions, mark `status: needs-confirmation`, and do not build.
+12. **Record.** Save `.3d/brief.md`. After approval, changes are a new dated version plus a log line; never edit history silently.
 
 ## Look-up vs ask
 
@@ -71,15 +73,9 @@ Default = what to recommend when the user does not care. Budgets always resolve 
 | 17 | Constraints | Brand rules, claims, deadline, accessibility, browsers | `prefers-reduced-motion` gets a static composition; no flashing over 3 per second |
 | 18 | Success | How do we know it is good? | Per-shot framing, budget numbers, reduced-motion path works ([shared-verification](shared-verification.md)) |
 
-Stuck user probes: "Which three sites, films or products look like what you mean?" · "Which of these stills is closest?" · "What must not happen?" · "Which one frame would you screenshot?"
-
-## Vague words
-
-"cool / premium / modern / futuristic / clean / cinematic / techy": ask for two references or A/B/C. "Smooth": easing, duration, fps floor. "Interactive": which input, what changes. "Realistic": photoreal or stylised PBR, and what must be exact.
+Stuck probes: "Which three sites, films or products look like it?" · "What must not happen?" · "Which one frame would you screenshot?" Vague words ("premium", "cinematic", "techy"): ask for two references or A/B/C. "Smooth": easing, duration, fps floor. "Interactive": which input, what changes. "Realistic": photoreal or stylised PBR, and what must be exact.
 
 ## Traps
 
 - Asking facts you could read from the repo.
-- Asking one question per turn on independent dimensions; use frontier rounds unless the user asked for one at a time.
-- Treating the user's words about a brand as licence to invent product details.
 - Starting the build in the same turn as the restate.

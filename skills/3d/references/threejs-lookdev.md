@@ -27,7 +27,7 @@ Produces:
 4. Materials by role: `MeshStandardMaterial` default; `MeshPhysicalMaterial` only for clearcoat, transmission, sheen, iridescence. Share materials per role; `clone()` before per-instance edits (glTF materials are cached and shared).
 5. Textures: `colorSpace` per [threejs-renderer](threejs-renderer.md); AO/light maps use `texture.channel = 1` for `uv1`; `anisotropy` 4–8 on large floors.
 6. Shadows (budget in [shared-performance](shared-performance.md)):
-   - `renderer.shadowMap.enabled = true; type = PCFShadowMap` (or `VSMShadowMap`; VSM makes every receiver also cast). `PCFSoftShadowMap` is deprecated.
+   - `renderer.shadowMap.enabled = true; type = PCFShadowMap` (or `VSMShadowMap`; VSM makes every receiver also cast). `PCFSoftShadowMap` is deprecated (r186).
    - Tighten the shadow camera (`left/right/top/bottom/near/far`) before raising `mapSize`. Tune `bias` (≈ -0.0005) and `normalBias` (≈ 0.02) to kill acne and floating.
    - Add `light.target` to the scene or its matrix never updates. Inspect with `CameraHelper`.
    - Static scene: `renderer.shadowMap.autoUpdate = false`, set `needsUpdate = true` on change. Largest cheap win.
@@ -43,6 +43,6 @@ Produces:
 
 ## Traps
 
-- ACES (R3F default) vs `NoToneMapping` (three default) changes every exposure judgement: confirm which is active.
+- Tone-mapping defaults differ (R3F vs three): confirm which is active; see [design-lookdev-presets](design-lookdev-presets.md).
 - Hex colour → `Color` converts to linear; raw uniform vectors are already linear. Do not convert twice.
 - Look drift across r181/r185/r186 PMREM changes: re-tune after upgrading.

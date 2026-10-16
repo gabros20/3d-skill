@@ -5,6 +5,7 @@ Reports meshes, primitives, triangles (instance-weighted and unique), a draw-cal
 (primitives x node instances), materials, textures (dimensions and format decoded from PNG / JPEG /
 WebP / KTX2 headers), extensions used and required, and file size. Verdict PASS / WARN / FAIL against
 the chosen budget. Exit 0 PASS or WARN, 1 FAIL or unreadable file, 2 usage error. Stdlib only.
+Run it by path with your project root as the working directory; FILE is resolved against it.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import base64
 import json
 import struct
 import sys
+import urllib.parse
 from pathlib import Path
 
 MB = 1024 * 1024  # "MB" everywhere in this script and its budgets means MiB (1,048,576 bytes)
@@ -53,6 +55,8 @@ def load(path: Path) -> tuple[dict, bytes | None, int]:
         end = min(length, len(raw))
         while offset + 8 <= end:
             clen, ctype = struct.unpack_from("<II", raw, offset)
+            if offset + 8 + clen > len(raw):
+                raise ReportError("truncated GLB chunk")
             body = raw[offset + 8: offset + 8 + clen]
             if ctype == 0x4E4F534A:
                 doc = json.loads(body.decode("utf-8"))
@@ -61,11 +65,16 @@ def load(path: Path) -> tuple[dict, bytes | None, int]:
             offset += 8 + clen + (-clen % 4)
         if doc is None:
             raise ReportError("GLB has no JSON chunk")
+        if not isinstance(doc, dict):
+            raise ReportError("glTF JSON root must be an object")
         return doc, binchunk, len(raw)
     try:
-        return json.loads(raw.decode("utf-8")), None, len(raw)
+        doc = json.loads(raw.decode("utf-8"))
     except ValueError as exc:
         raise ReportError(f"not a GLB or glTF JSON file: {exc}")
+    if not isinstance(doc, dict):
+        raise ReportError("glTF JSON root must be an object")
+    return doc, None, len(raw)
 
 
 def read_uri(uri: str, base: Path) -> bytes | None:
@@ -74,18 +83,23 @@ def read_uri(uri: str, base: Path) -> bytes | None:
             return base64.b64decode(uri.split(",", 1)[1])
         except (IndexError, ValueError):
             return None
-    target = base / uri.replace("%20", " ")
     try:
+        root = base.resolve()
+        target = (root / urllib.parse.unquote(uri)).resolve()
+        target.relative_to(root)  # refuse absolute and ".." escapes
         return target.read_bytes()
-    except OSError:
+    except (OSError, ValueError):
         return None
 
 
-def buffers_of(doc: dict, glb_bin: bytes | None, base: Path) -> list[bytes | None]:
+def buffers_of(doc: dict, glb_bin: bytes | None, base: Path, external: dict[str, int | None]) -> list[bytes | None]:
     out: list[bytes | None] = []
     for i, buf in enumerate(doc.get("buffers", [])):
         if "uri" in buf:
-            out.append(read_uri(buf["uri"], base))
+            data = read_uri(buf["uri"], base)
+            if not buf["uri"].startswith("data:"):
+                external[buf["uri"]] = len(data) if data is not None else None
+            out.append(data)
         else:
             out.append(glb_bin if i == 0 else None)
     return out
@@ -150,26 +164,36 @@ def prim_triangles(doc: dict, prim: dict) -> int:
     return 0  # points / lines are not triangles
 
 
-def node_instances(doc: dict) -> dict[int, int]:
-    """How many times each mesh is instanced across scene-reachable nodes (all nodes if no scene)."""
+def node_instances(doc: dict) -> dict[int, list[int]]:
+    """mesh index -> [draw instances, triangle multiplier] over scene-reachable nodes (all nodes if no scene).
+    EXT_mesh_gpu_instancing multiplies triangles by its instance count but stays one draw per primitive."""
     nodes = doc.get("nodes", [])
-    counts: dict[int, int] = {}
+    counts: dict[int, list[int]] = {}
     scenes = doc.get("scenes", [])
     if scenes:
         start = scenes[doc.get("scene", 0)].get("nodes", []) if doc.get("scene", 0) < len(scenes) else []
     else:
         children = {c for n in nodes for c in n.get("children", [])}
         start = [i for i in range(len(nodes)) if i not in children]
-    seen_stack, guard = list(start), 0
-    while seen_stack and guard < 10_000_000:
-        guard += 1
-        i = seen_stack.pop()
-        if not 0 <= i < len(nodes):
+    stack, visited = list(start), set()
+    while stack:
+        i = stack.pop()
+        if not isinstance(i, int) or not 0 <= i < len(nodes):
             continue
+        if i in visited:
+            raise ReportError("node graph is not a tree (cycle or shared node)")
+        visited.add(i)
         node = nodes[i]
         if "mesh" in node:
-            counts[node["mesh"]] = counts.get(node["mesh"], 0) + 1
-        seen_stack.extend(node.get("children", []))
+            gi = (node.get("extensions") or {}).get("EXT_mesh_gpu_instancing")
+            mult = 1
+            if isinstance(gi, dict):
+                attrs = gi.get("attributes") or {}
+                mult = max([accessor_count(doc, a) for a in attrs.values()] or [1]) or 1
+            c = counts.setdefault(node["mesh"], [0, 0])
+            c[0] += 1
+            c[1] += mult
+        stack.extend(node.get("children", []))
     return counts
 
 
@@ -183,10 +207,11 @@ def analyse(path: Path) -> dict:
         tris = sum(prim_triangles(doc, p) for p in prims)
         unique_tris += tris
         prims_total += len(prims)
-        n = inst.get(mi, 0)
-        inst_tris += tris * n
+        n, mult = inst.get(mi, [0, 0])
+        inst_tris += tris * mult
         draws += len(prims) * n
-    bufs = buffers_of(doc, glb_bin, path.parent)
+    external: dict[str, int | None] = {}
+    bufs = buffers_of(doc, glb_bin, path.parent, external)
     views = doc.get("bufferViews", [])
     textures = []
     for ii, img in enumerate(doc.get("images", [])):
@@ -203,6 +228,8 @@ def analyse(path: Path) -> dict:
                 data = None
         elif "uri" in img:
             data = read_uri(img["uri"], path.parent)
+            if not img["uri"].startswith("data:"):
+                external[img["uri"]] = len(data) if data is not None else None
             where = "data-uri" if img["uri"].startswith("data:") else img["uri"]
         dims = image_dims(data) if data else None
         textures.append({
@@ -212,8 +239,11 @@ def analyse(path: Path) -> dict:
             "format": dims[2] if dims else (img.get("mimeType", "").split("/")[-1] or "unknown"),
             "bytes": len(data) if data else None,
         })
+    ext_bytes = sum(v for v in external.values() if v)
+    missing = sorted(k for k, v in external.items() if v is None)
     return {
-        "file": str(path), "bytes": size, "generator": doc.get("asset", {}).get("generator", ""),
+        "file": str(path), "bytes": size + ext_bytes, "json_bytes": size, "external_bytes": ext_bytes,
+        "missing_files": missing, "generator": doc.get("asset", {}).get("generator", ""),
         "meshes": len(meshes), "primitives": prims_total, "nodes": len(doc.get("nodes", [])),
         "triangles": inst_tris, "unique_triangles": unique_tris, "draw_calls": draws,
         "materials": len(doc.get("materials", [])), "textures": textures,
@@ -249,6 +279,8 @@ def verdict(report: dict, budget: str, target: str = "desktop") -> dict:
         checks.append({"metric": key, "value": value, "limit": limit, "state": state})
         if state == "FAIL" or (state == "WARN" and worst == "PASS"):
             worst = state
+    if report["missing_files"] and worst == "PASS":
+        worst = "WARN"  # size is a lower bound when external files are missing
     return {"budget": budget, "target": target, "verdict": worst, "checks": checks}
 
 
@@ -260,6 +292,10 @@ def render(report: dict, v: dict) -> str:
     lines = [f"{report['file']}  ({fmt_bytes(report['bytes'])})"]
     if report["generator"]:
         lines.append(f"generator: {report['generator']}")
+    if report["external_bytes"] or report["missing_files"]:
+        lines.append(f"size counts the file plus {fmt_bytes(report['external_bytes'])} of external buffers/images")
+    if report["missing_files"]:
+        lines.append(f"WARN missing external files (size is a lower bound): {', '.join(report['missing_files'])}")
     lines.append(f"meshes {report['meshes']} · primitives {report['primitives']} · nodes {report['nodes']}"
                  f" · animations {report['animations']} · skins {report['skins']}")
     lines.append(f"triangles {report['triangles']:,} (unique {report['unique_triangles']:,}) · "
@@ -278,7 +314,7 @@ def render(report: dict, v: dict) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Report triangles, draw calls, textures and size of a GLB/glTF. Sizes in budgets are MiB (1024*1024 bytes).")
+    ap = argparse.ArgumentParser(description="Report triangles, draw calls, textures and size of a GLB/glTF. Sizes in budgets are MiB (1024*1024 bytes). For .gltf the size includes external buffers and images. Run by path with your project root as the working directory; relative paths and defaults resolve against it.")
     ap.add_argument("file")
     ap.add_argument("--budget", choices=sorted(BUDGETS), default="hero")
     ap.add_argument("--target", choices=["desktop", "mobile"], default="desktop",
@@ -288,8 +324,8 @@ def main() -> int:
     path = Path(args.file)
     try:
         report = analyse(path)
-    except (OSError, ReportError, KeyError, ValueError) as exc:
-        print(f"glb-report: cannot read {path}: {exc}", file=sys.stderr)
+    except (OSError, ReportError, KeyError, ValueError, TypeError, AttributeError, IndexError) as exc:
+        print(f"glb-report: cannot read {path}: {type(exc).__name__ if not isinstance(exc, ReportError) else 'invalid file'}: {exc}", file=sys.stderr)
         return 1
     v = verdict(report, args.budget, args.target)
     if args.json:

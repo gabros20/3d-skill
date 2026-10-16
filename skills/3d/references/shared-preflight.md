@@ -11,7 +11,7 @@ Skip when:
 - Debugging one symptom (→ [shared-debug](shared-debug.md)).
 
 Inputs:
-- The project root, `scripts/capabilities` output, the agent's own MCP tool list.
+- The project root, `<skill>/scripts/capabilities` output, the agent's own MCP tool list.
 
 Produces:
 - `.3d/capabilities.md`, a filled `3D.md` (decisions, budgets, colour, scroll owner), and at most one batched question to the user.
@@ -25,7 +25,7 @@ Produces:
 
 ## Procedure
 
-1. Run `scripts/capabilities` from the skill root against the project (`--root DIR` if elsewhere). Read `.3d/capabilities.md`; grep it, do not paste it. It never installs.
+1. Run `<skill>/scripts/capabilities` with the project root as the working directory (`--root DIR` if elsewhere; never from the skill directory). Read `.3d/capabilities.md`; grep it, do not paste it. It never installs.
 2. List your own MCP tools. Scripts cannot see MCP servers: a `blender` or `Spline` tool namespace is evidence, a config file mentioning one is only a hint.
 3. Read the project, about two minutes, inspect before asking:
 
@@ -58,7 +58,7 @@ Q2 ktx >= 4.4 (free): KTX2 textures. Release .pkg from KhronosGroup/KTX-Software
    No: WebP/JPEG textures, larger download.
 ```
 
-Cost labels: **free**, **free-account** (needs a login), **PAID**. Batch all questions; one round. `sudo`, logins and system-wide installs stay with the user (suggest `! <command>`). After a yes: run the one command, verify with `<tool> --version`, re-run `scripts/capabilities`, note it in `3D.md`.
+Cost labels: **free**, **free-account** (needs a login), **PAID**. Batch all questions; one round. `sudo`, logins and system-wide installs stay with the user (suggest `! <command>`). After a yes: run the one command, verify with `<tool> --version`, re-run `<skill>/scripts/capabilities`, note it in `3D.md`.
 
 ## Tools
 
@@ -69,8 +69,8 @@ Cost labels: **free**, **free-account** (needs a login), **PAID**. Batch all que
 | `uv` / `uvx` | community Blender MCP | official installer from astral.sh (not `pip install uv`) | free |
 | `gltf-transform` | inspect, dedup, prune, meshopt/draco, KTX2 | `npm i -g @gltf-transform/cli` | free |
 | `gltfpack` | meshopt alternative | `npm i -g gltfpack` (official wasm build; no texture compression; Homebrew has no formula) | free |
-| `ktx` ≥ 4.4.0 (KTX-Software; not `toktx`) | KTX2 via `gltf-transform etc1s`/`uastc` | official release .pkg from github.com/KhronosGroup/KTX-Software/releases (v4.4.2): `sudo installer -pkg <file>.pkg -target /` (user runs it; not in Homebrew); confirm `ktx --version` | free |
-| `ffmpeg` / `ffprobe` | `scripts/ref-extract`, `preview diff`, contact sheets | `brew install ffmpeg` | free |
+| `ktx` ≥ 4.4.0 (KTX-Software; not `toktx`) | KTX2 via `gltf-transform etc1s`/`uastc` | official latest 4.x release .pkg from github.com/KhronosGroup/KTX-Software/releases: `sudo installer -pkg <file>.pkg -target /` (user runs it; not in Homebrew); confirm `ktx --version` | free |
+| `ffmpeg` / `ffprobe` | `<skill>/scripts/ref-extract`, `preview diff`, contact sheets | `brew install ffmpeg` | free |
 | python `playwright` + Chrome | `preview capture` (uses the installed Chrome channel, no browser download) | `python3 -m pip install playwright` | free |
 | `gltf-validator` | spec conformance | `npm i gltf-validator` (Node API, project-local; stale since 2024) | free |
 

@@ -1,8 +1,79 @@
 [
   {
-    "id": "representative-ablation",
-    "prompt": "TODO: add a request that exercises a load-bearing instruction.",
-    "variants": ["no-skill", "current", "compressed-candidate"],
-    "preserve": ["task success", "safety", "artifact completeness", "required-reference recall"]
+    "id": "solo-no-skill-baseline-glb",
+    "prompt": "Shrink this 24 MB GLB for the web.",
+    "variants": [
+      "no-skill",
+      "current",
+      "compressed-candidate"
+    ],
+    "preserve": [
+      "no bare gltf-transform optimize",
+      "meshopt or Draco, never both",
+      "master copy kept",
+      "glb-report before and after",
+      "installs proposed, not run"
+    ]
+  },
+  {
+    "id": "front-door-vague",
+    "prompt": "/3d a 3D hero for our product page.",
+    "variants": [
+      "no-skill",
+      "current",
+      "compressed-candidate"
+    ],
+    "preserve": [
+      "facts looked up, not asked",
+      "≤ 6 questions per round with recommended answers",
+      "explicit yes before build",
+      "brief written to .3d/brief.md"
+    ]
+  },
+  {
+    "id": "scroll-ownership",
+    "prompt": "Make the camera fly through five chapters as the user scrolls; the site already uses GSAP ScrollTrigger.",
+    "variants": [
+      "no-skill",
+      "current",
+      "compressed-candidate"
+    ],
+    "preserve": [
+      "one conductor fed by one adapter",
+      "no scrub on the feeding trigger",
+      "range wrapper measured, not the pin",
+      "reduced-motion poster plan",
+      "scroll-animation recommended, not invoked"
+    ]
+  },
+  {
+    "id": "iterate-loop",
+    "prompt": "Here are my notes on v002; make the changes.",
+    "variants": [
+      "no-skill",
+      "current",
+      "compressed-candidate"
+    ],
+    "preserve": [
+      "new version, not an edit",
+      "every shot captured",
+      "fresh critic judges evidence without being told the fix",
+      "notes mapped by id",
+      "dev server never started",
+      "version-log line in 3D.md"
+    ]
+  },
+  {
+    "id": "non-activation-2d-reveal",
+    "prompt": "Fade the feature cards in on scroll with a stagger.",
+    "variants": [
+      "no-skill",
+      "current"
+    ],
+    "preserve": [
+      "skill does not activate",
+      "no .3d/ or 3D.md created",
+      "task completed without 3D references"
+    ]
   }
 ]

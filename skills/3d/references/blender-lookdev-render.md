@@ -21,7 +21,7 @@ Produces:
 3. Principled v2 names: `Subsurface Weight`, `Specular IOR Level`, `Transmission Weight`, `Coat Weight`, `Sheen Weight`, `Emission Color` plus `Emission Strength` (default 0). Find nodes by `type`, not localised name. `use_nodes` is a no-op; nodes always exist.
 4. Metallic is 0 or 1 except transition pixels; vary roughness ±0.1–0.2. Keep IOR 1.5 for dielectrics. Normal map or displacement, never both.
 5. glTF packing: R=occlusion, G=roughness, B=metallic; OpenGL normals; never JPEG normals.
-6. Glass: `surface_render_method` `DITHERED` or `BLENDED`; exports as KHR transmission/ior/volume.
+6. Glass: Transmission Weight exports `KHR_materials_transmission` + `KHR_materials_ior`; Alpha < 1 exports `alphaMode BLEND`. `surface_render_method` affects only Blender's own render; thickness/attenuation (volume) is not exported from a plain Principled.
 
 ## UV and bake
 
@@ -36,21 +36,21 @@ Produces:
 
 ## Lighting and cameras
 
-1. Compose and lock the camera first, then lights, then materials. Value separation first; check desaturated.
-2. Size and distance are the controls: key at least head-sized relative to the subject; every light motivated; rim on the key side. Product rig: key about 45° to the side and 30–40° up, fill opposite at about a third, rim behind, grey backdrop.
+1. Compose and lock the camera first, then lights, then materials; check value separation desaturated.
+2. Product rig: key about 45° to the side and 30–40° up, fill opposite at about a third, rim behind, grey backdrop.
 3. Brightness through `view_settings.exposure`, not by scaling lamps. Read the EXR: AgX hides clipping.
 4. Cameras from shots: `assets/blender/render_shots.py` reads the `shots.v1` file `.3d/shots.json` ([brief-spec](brief-spec.md)): Y-up three.js axes in, converted to Z-up inside; `--moves` renders `to` end poses as eased frames. Typical lenses: 85–135 mm product (3/4 view, 10–25° up), 24–35 mm interiors with a level camera.
 
 ## Colour management
 
-The policy and the pairing with three.js live in [design-lookdev-presets](design-lookdev-presets.md) (D8): Khronos PBR Neutral for brand and product colour, AgX for cinematic looks. In Blender set `scene.view_settings.view_transform` (`Khronos PBR Neutral`, `AgX`, `Standard`; names come from the OCIO config, check the enum) and record the choice in `3D.md`. One view transform per project.
+The policy and the pairing with three.js live in [design-lookdev-presets](design-lookdev-presets.md) (D8): Khronos PBR Neutral for brand and product colour, AgX for cinematic looks. In Blender set `scene.view_settings.view_transform` (`Khronos PBR Neutral`, `AgX`, `Standard`; it is a dynamic enum: assign inside try/except and read the valid names from the `TypeError`, see [blender-version-traps](blender-version-traps.md)) and record the choice in `3D.md`. One view transform per project.
 
 ## Engine
 
 - EEVEE: `scene.render.engine = 'BLENDER_EEVEE'` (not `_NEXT`). Fast; needs a GL context even headless. Use it to iterate.
-- Cycles: truth for glass and close-ups; 3 bounces, no caustics, 100 samples test / 500–1,500 final, adaptive sampling, OIDN once. Keep EEVEE within about 30% of Cycles on the subject.
+- Cycles: truth for glass and close-ups; 3 bounces, no caustics, 100 samples test / 500–1,500 final, adaptive sampling, OIDN once.
 - Workbench: no GPU, good for silhouettes and wire in CI.
-- Apple Silicon: Cycles `METAL` only; about 12–20 s per 1080p frame at 48–64 samples.
+- Apple Silicon: Cycles `METAL` only (adding CPU slows it). Rule of thumb, measured once: 12–20 s per 1080p frame at 48–64 samples.
 
 ## Stills, turntables, loops
 
@@ -63,5 +63,4 @@ The policy and the pairing with three.js live in [design-lookdev-presets](design
 
 ## Traps
 
-- Compositor tree is `scene.compositing_node_group` in 5.x ([blender-version-traps](blender-version-traps.md)).
 - A web scene with baked procedurals must be re-rendered in three, not trusted from Blender stills.

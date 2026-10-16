@@ -35,8 +35,8 @@ Produces:
 
 1. Set before first render; patch by string-replacing a chunk marker (e.g. `#include <begin_vertex>`, `#include <color_fragment>`) and append uniforms to `shader.uniforms`.
 2. Chunk names change between versions: print `shader.fragmentShader` once, replace with a guard (assert the marker exists, throw otherwise), render-test after each three bump.
-3. When different variants of the patch exist, set `material.customProgramCacheKey = () => 'dissolve-v2-' + variant`. Without it three reuses one program for all materials of the same type and your variants collide.
-4. Cloned materials copy `onBeforeCompile`; patched uniforms live in your closure, so keep a reference per instance.
+3. When different variants of the patch exist, set `material.customProgramCacheKey = () => 'dissolve-v2-' + variant`. The default key is the function's source text, so variants collide when the same patch text closes over different values.
+4. `clone()` does NOT copy `onBeforeCompile` (nor `customProgramCacheKey`): a cloned patched material renders unpatched. Re-assign both on every clone and keep a uniform reference per instance.
 5. R3F: `onBeforeCompile` prop is fine; store the shader ref to update uniforms in `useFrame`.
 
 ## Recipes

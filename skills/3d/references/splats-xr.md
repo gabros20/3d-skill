@@ -20,10 +20,10 @@ Produces:
 
 Spark 2.x (`@sparkjsdev/spark`, MIT, World Labs) is the default library: three.js-native, WebGL2, streamed level-of-detail for very large scenes. `@mkkellogg/gaussian-splats-3d` is no longer developed; `gsplat.js` is a lighter alternative that lacks spherical harmonics in `.splat`.
 
-1. Add `new SparkRenderer({ renderer })` to the scene once, then `new SplatMesh({ url })` per splat. Dispose via `SparkRenderer.dispose()` on unmount.
+1. Add `new SparkRenderer({ renderer })` to the scene once, then `new SplatMesh({ url })` per splat. Dispose each `SplatMesh` and the `SparkRenderer` on unmount.
 2. Formats: `.ply` (full precision, huge), `.splat` (compact, no SH), `.ksplat` (tool-specific), `.spz` (small, preferred for web), `.sog` (PlayCanvas), `.rad` (streamed LoD). Ship `.spz` or a pre-built LoD file; avoid raw `.ply` in production.
 3. Clean, crop and compress in SuperSplat (PlayCanvas, MIT) before shipping: floaters and bounding noise cost sort time.
-4. Starting budgets (practitioner figures, measure on device): phones 1-3M splats, desktop 1-20M, headset about 1M. Set `antialias:false` on the renderer. Prefer pre-built LoD over runtime LoD.
+4. Starting budgets (practitioner figures, measure on device): phones 1-3M splats, desktop 1-5M (10-20M on strong GPUs), headset about 1M. Set `antialias:false` on the renderer. Prefer pre-built LoD over runtime LoD.
 5. Splats have no physical shading or shadows; mix with meshes only when depth order is tested. Provide a poster image fallback.
 6. R3F: use `extend({ SparkRenderer, SplatMesh })`. The official R3F/Next examples date from 2025-07 and pin Spark 0.1.x: re-verify against 2.x. Mark Spark modules `"use client"`. Spark's WASM `new URL()` is fragile under webpack (works under Vite/Turbopack): test the production build.
 7. Capture (photos/video → splat) is done outside the web stack; ask which tool the user has and take the `.ply` from there. Untested here.
@@ -45,7 +45,7 @@ Use `<model-viewer>` (`@google/model-viewer` 4.x, Apache-2.0) for a single produ
 - Android: WebXR or Scene Viewer from the GLB. iOS: Quick Look from `ios-src`; users download both files.
 - Serve `model/gltf-binary` for `.glb` and `model/vnd.usdz+zip` for `.usdz`; over HTTPS only. No AR button appears on desktop.
 - Budget: AR GLB ≤ 5 MB (D6), textures ≤ 2048, basic PBR only (baseColor, normal, occlusion/roughness/metal).
-- USDZ: prefer a Meshy `usdz` target, Reality Converter from a GLB, or OpenUSD `usdcat model.gltf -o model.usdc` then `usdzip`. Blender's USD export loses materials Quick Look cannot read. No automated validator is trusted: open it on a real iPhone and say when you could not.
+- USDZ: prefer a Meshy `usdz` target, Reality Converter from a GLB, or OpenUSD `usdcat model.gltf -o model.usdc` then `usdzip` (untested; may need a glTF plugin). Blender's USD export loses materials Quick Look cannot read. No automated validator is trusted: open it on a real iPhone and say when you could not.
 - Render on demand so the idle GPU cost is about zero.
 
 ## Traps

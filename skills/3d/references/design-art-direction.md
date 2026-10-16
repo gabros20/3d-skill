@@ -15,7 +15,7 @@ Inputs:
 - Purpose, audience, ordered beats, brand constants, reference analysis (`.3d/reference-spec.json`), device floor.
 
 Produces:
-- World sentence, world bible, scene ledger (in `3D.md`), a shot plan, a critique list.
+- World sentence, world bible, scene ledger (in `3D.md`), shot intent per chapter (camera language only; the shot list, storyboard and `shots.json` are built from it in [brief-spec](brief-spec.md)), a critique list.
 
 ## Procedure
 

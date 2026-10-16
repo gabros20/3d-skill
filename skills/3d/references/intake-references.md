@@ -8,7 +8,7 @@ Read when:
 
 Skip when:
 - No reference exists and the look is undefined (→ [intake-grill](intake-grill.md) style frames).
-- The reference is a 3D file to reuse (→ `asset-pipeline.md`, `scripts/glb-report`).
+- The reference is a 3D file to reuse (→ [asset-pipeline](asset-pipeline.md), `scripts/glb-report`).
 
 Inputs:
 - Reference files or URLs, and for each one what the user wants from it.
@@ -31,6 +31,8 @@ Produces:
 7. **Record intent per reference**: `match`, `style`, `camera`, `light`, `material`, `palette`, `motion`, or `negative`. Ask one question, only when match vs style cannot be inferred. For `style`, drop identity, brand, text and IP; keep transferable technique.
 
 ## Mechanical pass
+
+Run from the project root, by path:
 
 ```
 scripts/ref-extract INPUT... [--out .3d/refs] [--frames N] [--scene 0.3]
@@ -56,14 +58,19 @@ Look at the whole image, then at zone crops. Read `contact.jpg` and `frames/` at
 | 8 FX | edges, highlights, flats | bloom, grain, vignette, CA, DOF, motion blur, particles |
 | 9 Reconcile | all | confidence summary, hidden list, anchors v1 |
 
-Focal length is only reliable as a class: ultra-wide under 20 mm, wide 20-35, normal 35-60, tele 60-135, long over 135 (full-frame equivalent). One vanishing point gives no focal length. Colour temperature: read neutral surfaces if any, else `warm/neutral/cool` plus a range at least 1,600 K wide. Scale: unknown unless a known object is visible (hand, door about 2 m); then `assumed`, object named.
+Focal length is only reliable as a class (`focal_class` table in [refspec](refspec.md)). One vanishing point gives no focal length. Colour temperature: read neutral surfaces if any, else `warm/neutral/cool` plus a range at least 1,600 K wide. Scale: unknown unless a known object is visible (hand, door about 2 m); then `assumed`, object named.
 
 ## Video passes
 
 1. **Overview**: read `contact.jpg`; reconcile visible cuts with `cuts.json`. When unsure, split a shot: merging is easier than splitting.
 2. **Per shot**: read frames at start, middle, end; run the image passes on the middle frame and record only what changes across the three.
 3. **Camera move** from first vs last frame plus `motion.json`: uniform shift of foreground and background = pan or tilt; different shift = truck or dolly (parallax); expansion from centre = push-in or zoom (parallax decides which); subject centred while background sweeps = orbit; vertical shift plus perspective change = crane; high-frequency residual = handheld. `motion.json` cannot tell dolly from zoom; look.
-4. **Timing**: shot durations, speed curve (sampled, 8-16 points, normalised), beats at motion maxima, holds, loop point (first and last frame near-identical = seamless candidate).
+4. **Measure motion, never eyeball it.** From `motion.json`'s global shift per frame:
+   - camera speed in **%W/s** (percent of frame width per second), so a mobile and a desktop reference compare; report raw pixels only beside the frame width;
+   - easing: integrate speed into a 0-1 curve and fit linear, power in/out/inOut, sine. References often cut mid-move, so a shot may be a slice of a longer ease: compare speed in each third;
+   - beats at motion maxima, holds (speed near zero), shot durations, cut list, loop point (first and last frame near-identical);
+   - "never stops" = no frame under a stop threshold and the slowest at least 25% of the median speed.
+   Scroll references: seconds map to scroll through the target scroll length; see [scroll-conductor](scroll-conductor.md).
 5. **Transition** at each cut: hard, dissolve, fade, whip, match, wipe or morph.
 6. **Motion honesty**: pixels are not causal (translate, mask and crossfade look alike). Report observations; label mechanism guesses `proposed`. Keep easing as a sampled list first, a named ease only if it fits; non-monotone motion is "spring-like, family unknown".
 
@@ -84,3 +91,6 @@ Without the source file you cannot know colour space (assume sRGB/Rec.709, say s
 - Reading focal length from "feel"; use the class and a range.
 - Treating a screen recording of a web page as a clean render (UI chrome, scaling, video compression).
 - Letting the model overwrite a `measured` leaf.
+- UI reflow in a recorded page reads as a cut or a pull-out: call a cut only when the camera trajectory breaks; report UI-event windows separately.
+- Compression flicker and blocky dark edges read as motion, grain or vignette: measure over windows of about 0.5 s, and cross-check a second way when a number drives a decision.
+- Per-frame scale estimates over-read push-ins by 5-10%.

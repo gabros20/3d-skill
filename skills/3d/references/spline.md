@@ -48,7 +48,7 @@ No official polygon ceiling exists. Practical limits: open the editor's Performa
 
 ## Exporting to three
 
-Spline exports GLB, glTF, STL and USDZ, and code for Vanilla JS, three.js (`@splinetool/loader`), React/Next and R3F. Exported code does not sync back to the Spline file, and `r3f-spline` has been dead since 2022. For a model you want to own: export GLB, then [asset-pipeline](asset-pipeline.md); materials will need re-lighting under your environment.
+Spline exports GLB, glTF, STL and USDZ, and code for Vanilla JS, three.js (`@splinetool/loader`), React/Next and R3F. Exported code does not sync back to the Spline file, and `@splinetool/r3f-spline` has been dead since 2023. For a model you want to own: export GLB, then [asset-pipeline](asset-pipeline.md); materials will need re-lighting under your environment.
 
 ## Spline MCP (official)
 

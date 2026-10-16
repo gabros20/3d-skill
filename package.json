@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "description": "Dev-only toolchain: type-checks skills/3d/assets/web. Not shipped.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },

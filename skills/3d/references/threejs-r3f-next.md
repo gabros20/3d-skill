@@ -55,7 +55,7 @@ Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount
 
 ## Canvas defaults to override on purpose
 
-`dpr=[1,2]`, ACES Filmic tone mapping ON (`flat` turns it off), sRGB output, antialias, default camera fov 75 at z=5. ACES makes scenes look desaturated against a glTF viewer: set `flat` or `gl={{ toneMapping: AgXToneMapping }}` deliberately; neither `flat` nor `linear` is a generic fix for washed assets. Policy: [design-lookdev-presets](design-lookdev-presets.md).
+`dpr=[1,2]`, ACES Filmic tone mapping ON (`flat` turns it off), sRGB output, antialias, default camera fov 75 at z=5. ACES makes scenes look desaturated against a glTF viewer: set `gl={{ toneMapping: NeutralToneMapping }}` (brand default), `AgXToneMapping` (cinematic) or `flat` deliberately; `flat`/`linear` are no generic fix for washed assets. R3F only applies ACES when `gl.toneMapping` is unset. Policy canonical home: [design-lookdev-presets](design-lookdev-presets.md).
 - `gl` receives constructor props, not a canvas: `gl={(props) => new WebGLRenderer(props)}`. For WebGPU on v9: async `gl` that awaits `init()` plus `extend(THREE)` from `three/webgpu`; drei and `@react-three/postprocessing` then do not work.
 - `shadows` (true) selects deprecated `PCFSoftShadowMap`; use `shadows="percentage"` and verify console warnings.
 - `dpr` prop overwrites `setDpr` on every re-render (9.8.2).

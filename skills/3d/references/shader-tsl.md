@@ -40,7 +40,7 @@ R3F 9: async `gl` factory that awaits `init()`, plus `extend(THREE)` from `three
 2. Build graphs once (`useMemo`/module scope). Update `uniform(...)` nodes' `.value` per frame; never rebuild the graph per frame.
 3. Wrap reusable logic in `Fn(([a, b]) => ...)`.
 4. Mutation: a JS reassignment of a node (`v = v.add(1)`) is not tracked. Use `.toVar()` then `.assign()`, `select()`, and capital `If(...)`.
-5. Skinned meshes: use `positionGeometry`, not `positionLocal`, to include/exclude skinning intentionally (r185 change).
+5. Skinned meshes: `positionGeometry` is the untransformed attribute; `positionLocal` no longer reflects skinning (r185). Pick per intent.
 
 ## Compute
 

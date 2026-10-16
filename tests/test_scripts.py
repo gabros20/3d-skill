@@ -119,6 +119,71 @@ class GlbReportTest(unittest.TestCase):
         self.assertEqual(mob["verdict"], "WARN")
         self.assertEqual(mob["target"], "mobile")
 
+    def test_gltf_external_bytes_counted(self) -> None:
+        (self.tmp / "big.bin").write_bytes(b"\x00" * (4 * 1024 * 1024))
+        doc = {"asset": {"version": "2.0"}, "buffers": [{"uri": "big.bin", "byteLength": 4 * 1024 * 1024},
+                                                       {"uri": "gone.bin", "byteLength": 8}]}
+        g = self.tmp / "m.gltf"
+        g.write_text(json.dumps(doc))
+        res = run("glb-report", str(g), "--json", "--budget", "hero")
+        data = json.loads(res.stdout)
+        self.assertEqual(data["external_bytes"], 4 * 1024 * 1024)
+        self.assertEqual(data["missing_files"], ["gone.bin"])
+        self.assertEqual(data["verdict"], "FAIL")  # 4 MiB > 3 MiB hero
+        self.assertEqual(res.returncode, 1)
+
+    def test_gltf_uri_cannot_escape_dir(self) -> None:
+        outside = self.tmp / "outside.bin"
+        outside.write_bytes(b"\x00" * 100)
+        sub = self.tmp / "sub"
+        sub.mkdir()
+        g = sub / "m.gltf"
+        g.write_text(json.dumps({"asset": {"version": "2.0"}, "buffers": [{"uri": "../outside.bin", "byteLength": 100}]}))
+        data = json.loads(run("glb-report", str(g), "--json", "--budget", "none").stdout)
+        self.assertEqual(data["external_bytes"], 0)
+        self.assertEqual(data["missing_files"], ["../outside.bin"])
+
+    def test_malformed_json_clean_exit(self) -> None:
+        for name, body in (("list.gltf", "[1,2]"), ("null.gltf", '{"meshes": null}'), ("junk.gltf", "{nope")):
+            f = self.tmp / name
+            f.write_text(body)
+            res = run("glb-report", str(f))
+            self.assertEqual(res.returncode, 1, name)
+            self.assertNotIn("Traceback", res.stderr, name)
+            self.assertIn("glb-report:", res.stderr, name)
+
+    def test_non_object_json_in_glb_and_truncated_chunk(self) -> None:
+        js = b"[1]  "
+        f = self.tmp / "arr.glb"
+        f.write_bytes(struct.pack("<4sII", b"glTF", 2, 20 + len(js)) + struct.pack("<II", len(js), 0x4E4F534A) + js)
+        res = run("glb-report", str(f))
+        self.assertEqual(res.returncode, 1)
+        self.assertNotIn("Traceback", res.stderr)
+        t = self.tmp / "trunc.glb"
+        make_glb(t)
+        t.write_bytes(t.read_bytes()[:-40])
+        res = run("glb-report", str(t))
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("truncated", res.stderr)
+
+    def test_cycle_rejected(self) -> None:
+        g = self.tmp / "cyc.gltf"
+        g.write_text(json.dumps({"asset": {"version": "2.0"}, "scenes": [{"nodes": [0]}],
+                                 "nodes": [{"children": [1]}, {"children": [0]}]}))
+        res = run("glb-report", str(g))
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("cycle", res.stderr)
+
+    def test_gpu_instancing_multiplies_triangles(self) -> None:
+        doc = {"asset": {"version": "2.0"}, "scenes": [{"nodes": [0]}],
+               "nodes": [{"mesh": 0, "extensions": {"EXT_mesh_gpu_instancing": {"attributes": {"TRANSLATION": 2}}}}],
+               "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1}]}],
+               "accessors": [{"count": 4}, {"count": 6}, {"count": 50}]}
+        g = self.tmp / "inst.gltf"
+        g.write_text(json.dumps(doc))
+        data = json.loads(run("glb-report", str(g), "--json").stdout)
+        self.assertEqual((data["triangles"], data["draw_calls"]), (100, 1))
+
     def test_bad_file(self) -> None:
         bad = self.tmp / "bad.glb"
         bad.write_bytes(b"not a model")
@@ -167,6 +232,49 @@ class CapabilitiesTest(unittest.TestCase):
         self.assertNotIn("SECRET-VALUE", md + res.stdout)
 
 
+class CapabilitiesRobustnessTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_bad_package_json_exit_0(self) -> None:
+        for body in ("[1]", "{nope", '"str"', "null"):
+            proj = self.tmp / "p"
+            proj.mkdir(exist_ok=True)
+            (proj / "package.json").write_text(body)
+            res = run("capabilities", "--root", str(proj), "--json")
+            self.assertEqual(res.returncode, 0, body + res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+            data = json.loads(res.stdout)
+            self.assertTrue(data["stack"].get("error"), body)
+            self.assertIn("ignored", (proj / ".3d" / "capabilities.md").read_text())
+
+    def test_mcp_secret_values_never_printed(self) -> None:
+        home = self.tmp / "home"
+        (home / ".codex").mkdir(parents=True)
+        (home / ".claude.json").write_text(json.dumps({
+            "mcpServers": {"blender-user": {"command": "SECRETVAL1", "env": {"TOKEN": "SECRETVAL2"}}},
+            "projects": {"/x": {"mcpServers": {"spline-proj": {"url": "https://SECRETVAL3"}}}}}))
+        (home / ".codex" / "config.toml").write_text(
+            '[mcp_servers.blender-codex]\ncommand = "SECRETVAL4"\n[mcp_servers.other]\ncommand = "SECRETVAL5"\n')
+        proj = self.tmp / "proj"
+        proj.mkdir()
+        import os
+        res = subprocess.run([sys.executable, str(SCRIPTS / "capabilities"), "--root", str(proj), "--json"],
+                             capture_output=True, text=True, timeout=120, env={**os.environ, "HOME": str(home)})
+        self.assertEqual(res.returncode, 0, res.stderr)
+        md = (proj / ".3d" / "capabilities.md").read_text()
+        for out in (res.stdout, res.stderr, md):
+            self.assertNotIn("SECRETVAL", out)
+        names = {n for h in json.loads(res.stdout)["mcp"] for n in h["servers"]}
+        self.assertEqual(names, {"blender-user", "spline-proj", "blender-codex"})
+
+    def test_no_package_json(self) -> None:
+        res = run("capabilities", "--root", str(self.tmp), "--json")
+        self.assertEqual(res.returncode, 0)
+        self.assertFalse(json.loads(res.stdout)["stack"]["package_json"])
+
+
 @unittest.skipUnless(FFMPEG, "ffmpeg/ffprobe not installed")
 class RefExtractTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -206,6 +314,32 @@ class RefExtractTest(unittest.TestCase):
         self.assertEqual(run("ref-extract", str(vid), "--out", str(out), "--frames", "3").returncode, 0)
         cuts = json.loads((out / "cut" / "cuts.json").read_text())["cuts"]
         self.assertTrue(any(0.8 < c < 1.2 for c in cuts), cuts)
+
+    def test_pan_direction_in_motion(self) -> None:
+        vid = self.tmp / "pan.mp4"
+        self.ff("-f", "lavfi", "-i", "testsrc=duration=3:size=640x180:rate=15",
+                "-vf", "crop=320:180:x='t*100':y=0", "-pix_fmt", "yuv420p", str(vid))
+        out = self.tmp / "out"
+        self.assertEqual(run("ref-extract", str(vid), "--out", str(out), "--frames", "2").returncode, 0)
+        samples = json.loads((out / "pan" / "motion.json").read_text())["samples"]
+        for key in ("dx", "dy", "speed_w_pct_s", "speed_h_pct_s"):
+            self.assertIn(key, samples[0])
+        dxs = [x["dx"] for x in samples]
+        self.assertLess(sum(dxs), 0, dxs)          # content moves left while the crop window pans right
+        self.assertTrue(all(abs(x["dy"]) <= 1 for x in samples))
+        self.assertGreater(max(x["speed_w_pct_s"] for x in samples), 0)
+
+    def test_dash_name_and_stale_frames(self) -> None:
+        vid = self.tmp / "-odd name.mp4"
+        self.ff("-f", "lavfi", "-i", "testsrc=duration=2:size=160x90:rate=10", "-pix_fmt", "yuv420p", str(vid))
+        out = self.tmp / "out"
+        stale = out / "odd-name" / "frames" / "frame_099.jpg"
+        stale.parent.mkdir(parents=True)
+        stale.write_bytes(b"x")
+        res = subprocess.run([sys.executable, str(SCRIPTS / "ref-extract"), vid.name, "--out", str(out), "--frames", "2"],
+                             capture_output=True, text=True, cwd=self.tmp, timeout=120)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertFalse(stale.exists())
 
     def test_missing_input_exit_1(self) -> None:
         res = run("ref-extract", str(self.tmp / "nope.png"), "--out", str(self.tmp / "o"))

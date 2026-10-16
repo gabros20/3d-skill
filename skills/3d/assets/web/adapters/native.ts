@@ -9,7 +9,7 @@
  * (a sticky element stops moving). Run it under native scroll or Lenis; under ScrollSmoother use
  * adapters/gsap.ts.
  */
-import type { ConductorInput, ScrollAdapter } from '../conductor'
+import { createLvhProbe, type ConductorInput, type ScrollAdapter } from '../conductor'
 
 export interface NativeAdapterOptions {
   /** The range wrapper that contains the sticky pin and the content layer. */
@@ -19,13 +19,7 @@ export interface NativeAdapterOptions {
 export function attachNativeScroll(conductor: ConductorInput, options: NativeAdapterOptions): ScrollAdapter {
   const { wrapper } = options
 
-  // 100lvh probe: the pin is sized in lvh, so the range is measured against lvh, not innerHeight
-  // (innerHeight moves with the iOS toolbar and would shift progress mid-scroll).
-  const probe = document.createElement('div')
-  probe.setAttribute('aria-hidden', 'true')
-  probe.style.cssText =
-    'position:fixed;top:0;left:0;width:0;height:100lvh;visibility:hidden;pointer-events:none'
-  document.body.appendChild(probe)
+  const lvh = createLvhProbe()
 
   let top = 0
   let range = 1
@@ -34,9 +28,8 @@ export function attachNativeScroll(conductor: ConductorInput, options: NativeAda
 
   const measure = (): void => {
     const rect = wrapper.getBoundingClientRect()
-    const lvh = probe.getBoundingClientRect().height || window.innerHeight
     top = rect.top + window.scrollY
-    range = Math.max(rect.height - lvh, 1)
+    range = Math.max(rect.height - lvh.read(), 1)
   }
 
   const update = (): void => {
@@ -98,7 +91,7 @@ export function attachNativeScroll(conductor: ConductorInput, options: NativeAda
       window.removeEventListener('hashchange', rehydrate)
       window.removeEventListener('focus', rehydrate)
       document.removeEventListener('visibilitychange', onVisibility)
-      probe.remove()
+      lvh.destroy()
     },
   }
 }

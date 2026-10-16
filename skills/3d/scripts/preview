@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """preview - serve, version, capture, diff and read back notes for the 3d skill.
 
-Usage (run from the skill root; everything is written under the project's .3d/):
-  preview serve [--root .3d] [--port 4173]
+Usage (invoke by path with the project root as cwd; defaults like .3d resolve against cwd,
+the viewer is found relative to this script):
+  preview serve [--root .3d] [--port 4173] [--allow-origin http://localhost:3000]
   preview new-version [--root .3d] [--note "what changes"]
   preview capture [--root .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
-                  [--size 1600x900] [--end] [--headed] [--settle 120]
+                  [--size WxH] [--end] [--headed] [--settle 120]
   preview diff A B [--root .3d] [--out DIR]       A, B: image files or version ids
   preview feedback [--root .3d] [--version vNNN] [--json]
 
 serve   Loopback-only static server. Viewer comes from the skill's assets/preview/,
         project files from --root. POST /feedback appends a JSON line to
         <root>/feedback.jsonl; POST /shots saves a named camera into <root>/shots.json.
-        Responses are no-store. Stop it (Ctrl-C / kill) when the session ends.
+        Responses are no-store. Same-origin only: Host must be 127.0.0.1/localhost:<port>,
+        POST needs Content-Type: application/json and no foreign Origin; --allow-origin
+        opts one exact origin into CORS. Stop it (Ctrl-C / kill) when the session ends.
 new-version
         Creates <root>/versions/vNNN/ with manifest.json; copy outputs in afterwards
         and list them in manifest.json "files" (the viewer also scans the folder).
@@ -130,7 +133,7 @@ def load_shots(path: Path) -> list[dict]:
     out = []
     for i, s in enumerate(shots if isinstance(shots, list) else []):
         if isinstance(s, dict):
-            sid = str(s.get("id") or s.get("name") or f"shot{i + 1}")
+            sid = str(s.get("id") or f"shot{i + 1}")
             out.append({**s, "id": sid})
     return out
 
@@ -181,9 +184,25 @@ def state(root: Path, shots_path: Path) -> dict:
 
 # --------------------------------------------------------------------- server
 
+class BodyTooLarge(ValueError):
+    pass
+
+
+def _no_constants(name: str) -> Any:
+    raise ValueError(f"non-finite number {name} not allowed")
+
+
+def finite_nums(v: Any, n: int | None = None) -> bool:
+    items = v if isinstance(v, list) else [v]
+    ok = all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in items)
+    return ok and (n is None or (isinstance(v, list) and len(v) == n))
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     root: Path
     shots_path: Path
+    allowed_hosts: frozenset = frozenset()
+    allow_origin: str | None = None  # opt-in, exact match (serve --allow-origin); never "*"
     lock = threading.Lock()
     server_version = "3dpreview"
 
@@ -196,9 +215,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(length))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "content-type")
+        origin = self.headers.get("Origin")
+        if self.allow_origin and origin == self.allow_origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "content-type")
+            self.send_header("Vary", "Origin")
         self.end_headers()
 
     def _send(self, code: int, body: bytes, ctype: str = "application/json") -> None:
@@ -207,26 +229,50 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _json(self, code: int, obj: Any) -> None:
-        self._send(code, json.dumps(obj).encode("utf-8"))
+        self._send(code, json.dumps(obj, allow_nan=False).encode("utf-8"))
+
+    def _guard(self, post: bool = False) -> bool:
+        """DNS-rebinding and cross-origin protection. Returns False after sending the error."""
+        if self.headers.get("Host") not in self.allowed_hosts:
+            self._json(403, {"error": "bad Host header"})
+            return False
+        origin = self.headers.get("Origin")
+        if post or origin:
+            same = {f"http://{h}" for h in self.allowed_hosts}
+            if origin and origin not in same and origin != self.allow_origin:
+                self._json(403, {"error": "cross-origin request refused (serve --allow-origin to opt in)"})
+                return False
+        if post and not (self.headers.get("Content-Type") or "").lower().startswith("application/json"):
+            self._json(415, {"error": "Content-Type must be application/json"})
+            return False
+        return True
 
     def _resolve(self, url_path: str) -> Path | None:
         rel = urllib.parse.unquote(url_path).lstrip("/")
         if rel in ("", "index.html"):
             rel = "viewer.html"
-        for base in (self.root, VIEWER_DIR):
-            base_r = base.resolve()
-            cand = (base_r / rel).resolve()
-            if (cand == base_r or base_r in cand.parents) and cand.is_file():
-                return cand
+        try:
+            for base in (self.root, VIEWER_DIR):
+                base_r = base.resolve()
+                cand = (base_r / rel).resolve()
+                if (cand == base_r or base_r in cand.parents) and cand.is_file():
+                    return cand
+        except (ValueError, OSError):  # NUL byte, name too long
+            return None
         return None
 
     def do_OPTIONS(self) -> None:
-        self._headers(204, "text/plain", 0)
+        # Preflight only for the explicit --allow-origin; everything else is refused.
+        if self.headers.get("Host") in self.allowed_hosts and self.allow_origin and self.headers.get("Origin") == self.allow_origin:
+            return self._headers(204, "text/plain", 0)
+        self._json(403, {"error": "cross-origin request refused"})
 
     def do_HEAD(self) -> None:
         self.do_GET()
 
     def do_GET(self) -> None:
+        if not self._guard():
+            return
         path = urllib.parse.urlsplit(self.path).path
         if path == "/favicon.ico":
             return self._send(204, b"", "image/x-icon")
@@ -241,11 +287,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _body(self) -> Any:
         n = int(self.headers.get("Content-Length") or 0)
+        if n < 0:
+            raise ValueError("bad Content-Length")
         if n > MAX_BODY:
-            raise ValueError("body too large")
-        return json.loads(self.rfile.read(n) or b"{}")
+            raise BodyTooLarge("body too large")
+        return json.loads(self.rfile.read(n) or b"{}", parse_constant=_no_constants)
 
     def do_POST(self) -> None:
+        if not self._guard(post=True):
+            return
         path = urllib.parse.urlsplit(self.path).path
         try:
             body = self._body()
@@ -255,6 +305,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._json(200, self._feedback(body))
             if path == "/shots":
                 return self._json(200, self._save_shot(body))
+        except BodyTooLarge as e:
+            self.close_connection = True
+            return self._json(413, {"error": str(e)})
         except (ValueError, TypeError) as e:
             return self._json(400, {"error": str(e)})
         self._json(404, {"error": "not found", "path": path})
@@ -272,6 +325,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         rec: dict[str, Any] = {"ts": now(), "version": version, "shot": str(b.get("shot", ""))[:64], "note": note[:4000]}
         for k in ("x", "y"):
             if b.get(k) is not None:
+                if not finite_nums(b[k]):
+                    raise ValueError(f"{k} must be a finite number")
                 v = float(b[k])
                 if not 0.0 <= v <= 1.0:
                     raise ValueError(f"{k} must be 0..1 (normalised)")
@@ -294,19 +349,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _save_shot(self, b: dict) -> dict:
         """Write one shot in the shots.v1 shape (references/brief-spec.md)."""
-        sid = str(b.get("id") or b.get("name") or "")
+        sid = str(b.get("id") or "")
         if not SHOT_ID_RE.match(sid):
             raise ValueError("shot id must match ^[A-Za-z0-9_-]+$ (max 64)")
         shot: dict[str, Any] = {"id": sid}
         for k in ("position", "target"):
             v = b.get(k)
-            if not (isinstance(v, list) and len(v) == 3 and all(isinstance(x, (int, float)) for x in v)):
+            if not finite_nums(v, 3):
                 raise ValueError(f"{k} must be [x, y, z]")
             shot[k] = [round(float(x), 5) for x in v]
-        lens = [k for k in ("focal_mm", "fov", "ortho_height") if isinstance(b.get(k), (int, float)) and b[k] > 0]
+        lens = [k for k in ("focal_mm", "fov", "ortho_height") if finite_nums(b.get(k)) and b[k] > 0]
         if len(lens) != 1:
             raise ValueError("exactly one of focal_mm, fov (vertical degrees), ortho_height is required")
-        if isinstance(b.get("roll_deg"), (int, float)) and b["roll_deg"]:
+        if finite_nums(b.get("roll_deg")) and b["roll_deg"]:
             shot["roll_deg"] = round(float(b["roll_deg"]), 3)
         sp = self.shots_path
         with self.lock:
@@ -316,28 +371,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 data = {}
             old_list = data.get("shots", []) if isinstance(data.get("shots"), list) else []
-            old = next((s for s in old_list if isinstance(s, dict) and str(s.get("id") or s.get("name")) == sid), {})
-            # keep the author's lens convention when overwriting: a focal_mm shot stays focal_mm
-            k = lens[0]
-            if k == "fov" and "focal_mm" in old:
-                shot["focal_mm"] = round(12.0 / math.tan(math.radians(float(b["fov"])) / 2), 2)
-            else:
-                shot[k] = round(float(b[k]), 3)
-            keep = {kk: vv for kk, vv in old.items() if kk not in ("focal_mm", "fov", "ortho_height", "name")}
+            old = next((s for s in old_list if isinstance(s, dict) and str(s.get("id")) == sid), {})
+            k = lens[0]  # saved cameras are written as given (the viewer sends fov); replaces the old lens key
+            shot[k] = round(float(b[k]), 3)
+            keep = {kk: vv for kk, vv in old.items() if kk not in ("focal_mm", "fov", "ortho_height")}
             merged = {**keep, **shot}
             data["shots"] = [s for s in old_list if s is not old] + [merged]
             data["schema"] = "shots.v1"
             data.setdefault("aspect", "16:9")
             sp.parent.mkdir(parents=True, exist_ok=True)
             tmp = sp.with_suffix(".tmp")
-            tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            tmp.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n", encoding="utf-8")
             os.replace(tmp, sp)
         return merged
 
 
-def make_server(root: Path, port: int, shots_path: Path | None = None) -> http.server.ThreadingHTTPServer:
-    handler = type("BoundHandler", (Handler,), {"root": root, "shots_path": shots_path or root / "shots.json", "lock": threading.Lock()})
-    return http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+def make_server(root: Path, port: int, shots_path: Path | None = None, allow_origin: str | None = None) -> http.server.ThreadingHTTPServer:
+    handler = type("BoundHandler", (Handler,), {"root": root, "shots_path": shots_path or root / "shots.json",
+                                                "lock": threading.Lock(), "allow_origin": allow_origin})
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+    p = srv.server_address[1]
+    handler.allowed_hosts = frozenset({f"127.0.0.1:{p}", f"localhost:{p}"})
+    return srv
 
 
 def cmd_serve(a: argparse.Namespace) -> int:
@@ -346,7 +401,7 @@ def cmd_serve(a: argparse.Namespace) -> int:
     if not VIEWER_DIR.joinpath("viewer.html").is_file():
         die(f"viewer missing at {VIEWER_DIR}")
     try:
-        srv = make_server(root, a.port)
+        srv = make_server(root, a.port, allow_origin=a.allow_origin)
     except OSError as e:
         die(f"cannot bind 127.0.0.1:{a.port}: {e} (pick another --port)")
     print(f"preview: serving {root} at http://127.0.0.1:{srv.server_address[1]}/  (Ctrl-C to stop)", flush=True)
@@ -402,17 +457,29 @@ def latest_version(root: Path) -> str | None:
     return ids[-1] if ids else None
 
 
+def default_size(shots_path: Path) -> str:
+    """Width 1600; height from the shots.json top-level aspect "W:H", else 900."""
+    data = read_json(shots_path, {})
+    m = re.match(r"^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$", str(data.get("aspect", ""))) if isinstance(data, dict) else None
+    if m and float(m.group(1)) > 0 and float(m.group(2)) > 0:
+        return f"1600x{round(1600 * float(m.group(2)) / float(m.group(1)))}"
+    return "1600x900"
+
+
 def cmd_capture(a: argparse.Namespace) -> int:
     try:
         from playwright.sync_api import sync_playwright  # type: ignore
     except ImportError:
         die("python playwright is not installed. Install: pip install playwright "
             "(do NOT run `playwright install`; this tool drives your installed Google Chrome).")
+    root = Path(a.root)
+    size = a.size or default_size(Path(a.shots) if a.shots else root / "shots.json")
     try:
-        w, h = (int(x) for x in a.size.lower().split("x"))
+        w, h = (int(x) for x in size.lower().split("x"))
     except ValueError:
         die("--size must look like 1600x900", 2)
-    root = Path(a.root)
+    if a.version and not VERSION_RE.match(a.version):
+        die("--version must look like v001", 2)
     shots_path = Path(a.shots) if a.shots else root / "shots.json"
     shots = load_shots(shots_path)
     version = a.version or latest_version(root)
@@ -649,6 +716,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("serve", help="serve the viewer + feedback endpoints")
     common(s)
     s.add_argument("--port", type=int, default=4173)
+    s.add_argument("--allow-origin", help="opt-in: exact origin (e.g. http://localhost:3000) allowed to POST from another app; never *")
     s.set_defaults(fn=cmd_serve)
 
     s = sub.add_parser("new-version", help="create .3d/versions/vNNN/")
@@ -661,7 +729,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--version")
     s.add_argument("--url", help="user's running app URL (Mode B); ?3d-preview is appended")
     s.add_argument("--shots", help="default <root>/shots.json")
-    s.add_argument("--size", default="1600x900")
+    s.add_argument("--size", help="WxH (default 1600 wide; height from shots.json aspect, else 900)")
     s.add_argument("--settle", type=int, default=120, help="fixed-dt frames to run per shot (default 120)")
     s.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for __3d.ready")
     s.add_argument("--end", action="store_true", help="also capture each shot's end pose (`to`) as <id>_end.png")

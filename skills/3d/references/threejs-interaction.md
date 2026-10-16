@@ -38,7 +38,7 @@ Produces:
 1. R3F: `const { actions, mixer } = useAnimations(gltf.animations, ref)`. Vanilla: one `AnimationMixer(root)`, `mixer.update(delta)` each frame with `Timer` delta.
 2. Play: `action.reset().fadeIn(0.3).play()`; switch: `from.fadeOut(0.3); to.reset().fadeIn(0.3).play()`. `action.crossFadeTo(other, 0.3, true)` for warp-matched speed.
 3. Loop modes: `LoopOnce` + `clampWhenFinished = true` to hold the last pose.
-4. Scrubbing for scroll: pause the action and set `action.time = duration * progress`, then `mixer.update(0)`; feed it already-smoothed progress, with no second damping layer (stacked smoothing reads soft).
+4. Scrubbing for scroll: `action.play(); action.paused = true;` once, then each frame `action.time = duration * progress; mixer.update(0)`; feed it already-smoothed progress, with no second damping layer (stacked smoothing reads soft).
 5. Under `frameloop="demand"` keep calling `invalidate()` while a mixer is active.
 6. Clone skinned scenes with `SkeletonUtils.clone` (`three/addons/utils/SkeletonUtils.js`), not `.clone()`.
 7. Name clips in Blender; reference by name, not index.

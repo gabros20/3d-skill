@@ -4,7 +4,11 @@
 Per image or video, writes <out>/<name>/: meta.json (ffprobe), frames/ (video: scene-cut keyframes
 plus evenly spaced fill; image: a copy), contact.jpg (tiled frames), palette.json (k-means k=6, hex +
 weight), luma.json (16-bin histogram, mean, key, contrast). Video also: cuts.json (cut timestamps in
-seconds) and motion.json (per-sample frame-to-frame energy 0..1). Needs ffmpeg and ffprobe.
+seconds) and motion.json (8 samples/s; per sample: t seconds, energy 0..1 = mean abs frame diff,
+dx/dy = global content shift in pixels of a 32x18 grey frame, positive = content moves right/down,
+found by brute-force SAD over +-3 px, so camera pan/tilt is the opposite sign; speed_w_pct_s and
+speed_h_pct_s = |dx|,|dy| as percent of frame width/height per second). Needs ffmpeg and ffprobe.
+Run it by path with your project root as the working directory; --out (.3d/refs) and inputs resolve against it.
 Exit 0 ok, 1 problems (missing ffmpeg, unreadable input), 2 usage. Stdlib + ffmpeg only.
 """
 from __future__ import annotations
@@ -38,8 +42,14 @@ def run(cmd: list[str], binary: bool = False, timeout: int = 300) -> subprocess.
         raise ExtractError(f"{cmd[0]} failed: {exc}")
 
 
+def arg(path: Path) -> str:
+    """Path as a command argument: a leading '-' would be parsed as an option."""
+    s = str(path)
+    return "./" + s if s.startswith("-") else s
+
+
 def probe(path: Path) -> dict:
-    res = run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)])
+    res = run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", arg(path)])
     if res.returncode != 0:
         raise ExtractError(f"ffprobe cannot read {path}: {res.stderr.strip()[:200]}")
     try:
@@ -56,7 +66,7 @@ def duration_of(meta: dict) -> float:
 
 
 def scene_cuts(path: Path, threshold: float) -> list[float]:
-    res = run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-an",
+    res = run(["ffmpeg", "-hide_banner", "-nostats", "-i", arg(path), "-an",
                "-vf", f"select='gt(scene,{threshold})',showinfo", "-f", "null", "-"])
     cuts = [float(m) for m in re.findall(r"pts_time:([0-9.]+)", res.stderr)]
     return sorted(set(round(c, 3) for c in cuts))
@@ -87,7 +97,7 @@ def pick_times(duration: float, cuts: list[float], n: int) -> list[float]:
 
 
 def grab_frame(src: Path, t: float, out: Path) -> bool:
-    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-i", str(src),
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-i", arg(src),
                "-frames:v", "1", "-q:v", "2", str(out)])
     return res.returncode == 0 and out.is_file() and out.stat().st_size > 0
 
@@ -183,9 +193,29 @@ def luma_stats(points: list[tuple[int, int, int]]) -> dict:
             "key": key, "contrast": round((p95 - p5) / 255, 4)}
 
 
+def global_shift(prev: bytes, cur: bytes, w: int, h: int, reach: int = 3) -> tuple[int, int]:
+    """Offset (dx, dy) minimising mean abs diff when prev is shifted by it onto cur; (0, 0) wins ties."""
+    best, best_xy = None, (0, 0)
+    offsets = sorted(((dx, dy) for dx in range(-reach, reach + 1) for dy in range(-reach, reach + 1)),
+                     key=lambda o: abs(o[0]) + abs(o[1]))
+    for dx, dy in offsets:
+        total, n = 0, 0
+        for y in range(max(0, dy), min(h, h + dy)):
+            row_c, row_p = y * w, (y - dy) * w
+            x0, x1 = max(0, dx), min(w, w + dx)
+            c = cur[row_c + x0: row_c + x1]
+            p = prev[row_p + x0 - dx: row_p + x1 - dx]
+            total += sum(abs(a - b) for a, b in zip(c, p))
+            n += x1 - x0
+        score = total / n if n else 1e9
+        if best is None or score < best - 1e-9:
+            best, best_xy = score, (dx, dy)
+    return best_xy
+
+
 def motion_energy(path: Path) -> list[dict]:
     w, h = 32, 18
-    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-t", str(MOTION_MAX_S), "-i", str(path), "-an",
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-t", str(MOTION_MAX_S), "-i", arg(path), "-an",
                "-vf", f"fps={MOTION_FPS},scale={w}:{h},format=gray", "-f", "rawvideo", "-"], binary=True)
     if res.returncode != 0:
         raise ExtractError(f"motion pass failed: {res.stderr.decode(errors='replace').strip()[:200]}")
@@ -194,7 +224,10 @@ def motion_energy(path: Path) -> list[dict]:
         cur = data[i * size:(i + 1) * size]
         if prev is not None:
             e = sum(abs(a - b) for a, b in zip(cur, prev)) / size / 255
-            out.append({"t": round(i / MOTION_FPS, 3), "energy": round(e, 5)})
+            dx, dy = global_shift(prev, cur, w, h) if e > 0.002 else (0, 0)
+            out.append({"t": round(i / MOTION_FPS, 3), "energy": round(e, 5), "dx": dx, "dy": dy,
+                        "speed_w_pct_s": round(abs(dx) / w * 100 * MOTION_FPS, 2),
+                        "speed_h_pct_s": round(abs(dy) / h * 100 * MOTION_FPS, 2)})
         prev = cur
     return out
 
@@ -213,7 +246,8 @@ def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
     is_video = src.suffix.lower() in VIDEO_EXT and duration_of(meta) > 0
     dest.mkdir(parents=True, exist_ok=True)
     fdir = dest / "frames"
-    fdir.mkdir(exist_ok=True)
+    shutil.rmtree(fdir, ignore_errors=True)  # no stale frames from an earlier run
+    fdir.mkdir()
     (dest / "meta.json").write_text(json.dumps({"source": str(src), "kind": "video" if is_video else "image", **meta}, indent=2))
     frames: list[Path] = []
     cuts: list[float] = []
@@ -229,8 +263,13 @@ def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
         (dest / "cuts.json").write_text(json.dumps({"threshold": scene, "duration": dur, "cuts": cuts}, indent=2))
         (dest / "motion.json").write_text(json.dumps({"fps": MOTION_FPS, "samples": motion_energy(src)}, indent=2))
     else:
-        f = fdir / f"frame_001{src.suffix.lower() or '.img'}"
-        shutil.copyfile(src, f)
+        if src.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+            f = fdir / f"frame_001{src.suffix.lower()}"
+            shutil.copyfile(src, f)
+        else:  # avif / heic / tiff ...: viewer and preview list only png/jpg/webp
+            f = fdir / "frame_001.jpg"
+            if not grab_frame(src, 0.0, f):
+                raise ExtractError(f"cannot decode image {src}")
         frames = [f]
     make_contact(frames, dest / "contact.jpg")
     pixels: list[tuple[int, int, int]] = []
@@ -243,9 +282,9 @@ def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Decompose reference images/videos: frames, contact sheet, palette, luma, cuts, motion.")
+    ap = argparse.ArgumentParser(description="Decompose reference images/videos: frames, contact sheet, palette, luma, cuts, motion. Run by path with your project root as the working directory; relative paths and defaults resolve against it.")
     ap.add_argument("inputs", nargs="+")
-    ap.add_argument("--out", default=".3d/refs")
+    ap.add_argument("--out", default=".3d/refs", help="output dir, relative to the current directory (your project root)")
     ap.add_argument("--frames", type=int, default=12, help="max keyframes per video (default 12)")
     ap.add_argument("--scene", type=float, default=0.3, help="scene-cut threshold 0..1 (default 0.3)")
     args = ap.parse_args()

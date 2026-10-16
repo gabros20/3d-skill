@@ -21,7 +21,7 @@ Produces:
 |---|---|---|
 | WebGL + R3F | `@react-three/postprocessing` 3.x (wraps pmndrs `postprocessing` 6.x) | merges effects into one pass; WebGL only |
 | WebGL vanilla | pmndrs `EffectComposer` + `RenderPass` + `EffectPass`, or three addons `EffectComposer` + `OutputPass` | |
-| WebGPU | `RenderPipeline` (r183 name) with TSL nodes: `bloom`, `fxaa`, `ssao`/`GTAONode`, `taa`, `dof`, `ssr` | API churns every release; pin three |
+| WebGPU | `RenderPipeline` (r183 name) with TSL nodes: `bloom`, `fxaa`, `ssao` / `ao` (GTAONode), `traa`, `dof`, `ssr` | API churns every release; pin three |
 
 Never mix the pmndrs composer with `WebGPURenderer`.
 

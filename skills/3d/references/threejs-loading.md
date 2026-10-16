@@ -38,8 +38,8 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 
 ## R3F
 
-- `useGLTF(url, dracoPath?, useMeshopt = true)` handles Suspense and cache; call `useGLTF.preload(url)` at module scope for assets needed soon, not the catalogue. Preload and load must use identical decoder settings.
-- KTX2 under R3F: build the `KTX2Loader` once, extend via `useLoader(GLTFLoader, url, (l) => l.setKTX2Loader(shared))`.
+- `useGLTF(url, useDraco = true, useMeshopt = true, extendLoader?)` handles Suspense and cache. Draco defaults ON and fetches its decoder from the gstatic CDN: pass `false` for meshopt-only files, or self-host with a path string (`useGLTF(url, '/draco/')`) or `useGLTF.setDecoderPath('/draco/')`. Call `useGLTF.preload(url, ...)` at module scope for assets needed soon, not the catalogue, with the same arguments as the load.
+- KTX2 under R3F: build one `KTX2Loader`, pass it through `extendLoader`: `useGLTF(url, false, true, (l) => l.setKTX2Loader(shared))`. Do not switch to `useLoader(GLTFLoader)`: drei uses three-stdlib's loader and wires meshopt itself.
 - Conditional asset = conditionally mount a child, never a null URL.
 - Suspense groups assets that reveal together. Suspense does not catch rejections: add an error boundary with retry. Inside the Canvas use a three-side fallback; drei `Loader` lives outside. `useProgress` is not byte-accurate.
 
@@ -47,7 +47,7 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 
 1. Mount the scene while the preloader is up (paused CSS animation, un-paused on the ready signal).
 2. `await renderer.compileAsync(scene, camera)`. Layer-masked cameras and each state that switches materials are separate programs: compile each. On Safari await the second compile before reveal. On WebGPU `compileAsync` is also on the renderer.
-3. Warm render: a few real frames through the full post chain; set `frustumCulled = false` on meshes for the warm pass so off-screen meshes compile, restore after. Force texture upload with an actual render (or `renderer.initTexture(tex)` on WebGLRenderer) so GPU upload happens now, not on first scroll.
+3. Warm render: a few real frames through the full post chain; set `frustumCulled = false` on meshes for the warm pass so off-screen meshes compile, restore after. Force texture upload with an actual render (or `renderer.initTexture(tex)`, after `init()` on WebGPU) so GPU upload happens now, not on first scroll.
 4. Gate the reveal on rendered frames, not asset progress or timers: count frames in `useFrame(..., -999)` and fire at about frame 8. Then wait two `requestAnimationFrame`s before fading. Two timer-based gates failed in production.
 5. Chunk one-shot procedural work (noise textures, buffers) across frames and start at creation, not first use.
 
@@ -60,5 +60,4 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 ## Traps
 
 - Missing `Content-Type: application/wasm` or wrong base path gives a silent hang.
-- `FileLoader.load()` no longer returns anything (r184); use `loadAsync`.
-- `renderer.initTexture(tex)` exists on WebGL only; on WebGPU a real render does the upload.
+- `renderer.initTexture(tex)` works on both renderers; on WebGPU call it only after `await renderer.init()` (it throws before).

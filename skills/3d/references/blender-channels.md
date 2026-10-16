@@ -38,7 +38,7 @@ ALWAYS export and final-render headless: MCP calls have a wall-clock limit and e
 4. `--factory-startup` keeps user add-ons from loading (reproducible; one add-on made network calls in a measured run).
 5. Script args go after `--` (`sys.argv[sys.argv.index("--")+1:]`). Use absolute paths, quote them.
 6. Return data as one JSON line or a JSON file; never regex Blender's log (the format changed in 5.0).
-7. One Blender process at a time per agent. Shipped scripts: `assets/blender/inspect_scene.py`, `export_web.py`, `render_shots.py` (flags in each docstring).
+7. Run from the user's project root and call scripts by their installed path (`<skill>/assets/blender/…`); `.3d/` paths resolve against cwd. One Blender process at a time per agent. Shipped scripts: `assets/blender/inspect_scene.py`, `export_web.py`, `render_shots.py` (flags in each docstring).
 8. Never save the `.blend` after `export_web.py`; modifiers were applied in that session only.
 
 ## MCP bridges
@@ -53,10 +53,10 @@ Both execute arbitrary Python inside Blender with no guard (delete files, read t
 | Extras | Poly Haven, Sketchfab, generators | `*_for_cli` tools (background Blender), bundled API docs, no assets |
 | Choose when | default; 4.x; asset search wanted | first-party wanted; Blender ≥ 5.1 |
 
-- PyPI `blender-mcp` is the community server, not the official one. The official one is installed from git: `uvx --from "git+https://projects.blender.org/lab/blender_mcp.git@<sha>#subdirectory=mcp" blender-mcp`. Pin a reviewed SHA; pre-warm once (first build is slow).
+- PyPI `blender-mcp` is the community server, not the official one. The official one is installed from git: `uvx --from "git+https://projects.blender.org/lab/blender_mcp.git@<sha>#subdirectory=mcp" blender-mcp`. Pin a reviewed SHA; pre-warm once (first build is slow). Untested here; the documented route is a clone plus `uv --directory <clone>/mcp run blender-mcp`.
 - Tool names drift (the 2025 community set was replaced by a consolidated set). Read the live tool schemas; never call a remembered name.
 - One MCP at a time per task. Never switch mid-task. Both bridges default to port 9876.
-- The community socket has no auth: localhost only. Disable telemetry (`disable_telemetry` tool or `DISABLE_TELEMETRY=true`) unless the user allows it.
+- The community socket has no auth: localhost only. Telemetry is opt-in and off by default; keep it off (`disable_telemetry` tool) unless the user allows it.
 
 ### Register
 

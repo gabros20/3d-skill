@@ -1,6 +1,6 @@
 interface:
   display_name: "3D"
-  short_description: "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents."
-  default_prompt: "Use $3d to TODO: provide one short, realistic starting request."
+  short_description: "Plan, build, preview and iterate web 3D and Blender"
+  default_prompt: "Use $3d to plan and build a scroll-driven 3D hero for my homepage from these references."
 policy:
   allow_implicit_invocation: true

@@ -149,11 +149,12 @@ const BARE = qs.has('bare');
 if (BARE) document.documentElement.classList.add('bare');
 document.body.classList.toggle('bare', BARE);
 
+// `room` is procedural and the offline default; the HDRIs need network (royal/venice pinned to r170).
 const ENVS = {
   room: { label: 'Room (procedural, offline)' },
   royal: { label: 'Royal Esplanade (HDRI)', url: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/textures/equirectangular/royal_esplanade_1k.hdr' },
   studio: { label: 'Studio Small 03 (Poly Haven, CC0)', url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_03_1k.hdr' },
-  venice: { label: 'Venice Sunset (HDRI)', url: 'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr' },
+  venice: { label: 'Venice Sunset (HDRI)', url: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/textures/equirectangular/venice_sunset_1k.hdr' },
   none: { label: 'None (lights off)' },
 };
 const TONES = { None: THREE.NoToneMapping, Linear: THREE.LinearToneMapping, Reinhard: THREE.ReinhardToneMapping,
@@ -249,9 +250,10 @@ function disposeRoot(root) {
   });
 }
 function pickFile(v) {
-  const files = v.manifest?.files?.length ? v.manifest.files.map((f) => (typeof f === 'string' ? f : f.path)) : v.files;
-  const all = v.files;
-  const have = (re) => all.find((f) => re.test(f)) || files.find((f) => re.test(f));
+  // manifest "files" order wins when it names an existing file; otherwise scan order
+  const listed = (v.manifest?.files || []).map((f) => (typeof f === 'string' ? f : f.path)).filter((f) => v.files.includes(f));
+  const all = [...listed, ...v.files.filter((f) => !listed.includes(f))];
+  const have = (re) => all.find((f) => re.test(f));
   const g = have(MEDIA_EXT.gltf); if (g) return { kind: 'gltf', file: g };
   const i = have(MEDIA_EXT.img); if (i) return { kind: 'img', file: i };
   const vd = have(MEDIA_EXT.vid); if (vd) return { kind: 'vid', file: vd };
@@ -299,13 +301,13 @@ function measure(root, bytes) {
   return { tris: Math.round(tris), meshes, textures: tex.size, texMB: +(texBytes / 1048576).toFixed(2), glbBytes: bytes };
 }
 async function loadGltfInto(slot, v, file) {
-  const url = `/${v.base}${file}`;
+  const url = `/${v.base}${file.split('/').map(encodeURIComponent).join('/')}`;
   disposeRoot(roots[slot]); if (roots[slot]) scenes[slot].remove(roots[slot]); roots[slot] = null;
   let gltf, bytes = null;
   if (/\.glb$/i.test(file)) {
     const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(`${url}: ${r.status}`);
     const buf = await r.arrayBuffer(); bytes = buf.byteLength;
-    gltf = await gltfLoader.parseAsync(buf, `/${v.base}${file.includes('/') ? file.slice(0, file.lastIndexOf('/') + 1) : ''}`);
+    gltf = await gltfLoader.parseAsync(buf, url.slice(0, url.lastIndexOf('/') + 1));
   } else gltf = await gltfLoader.loadAsync(url);
   roots[slot] = gltf.scene; scenes[slot].add(gltf.scene);
   S.stats[slot] = { version: v.id, file, ...measure(gltf.scene, bytes) };
@@ -339,7 +341,7 @@ async function loadVersion(id) {
     } else {
       S.mode = pick.kind; canvas.style.visibility = 'hidden';
       const el = document.createElement(pick.kind === 'img' ? 'img' : 'video');
-      el.src = `/${v.base}${pick.file}`; el.id = 'media'; el.style.display = 'block';
+      el.src = `/${v.base}${pick.file.split('/').map(encodeURIComponent).join('/')}`; el.id = 'media'; el.style.display = 'block';
       if (pick.kind === 'vid') { el.controls = true; el.loop = true; el.muted = true; el.autoplay = true; }
       media.appendChild(el);
       const r = await fetch(el.src, { method: 'HEAD' }); S.stats.A = { version: id, file: pick.file, glbBytes: +(r.headers.get('content-length') || 0), tris: null, textures: null, texMB: null };
@@ -530,7 +532,7 @@ function toggleTurn() { S.turntable = !S.turntable; controls.autoRotate = S.turn
 const api = {
   ready: false,
   shots: () => S.data.shots.map((s) => ({ ...s })),
-  loadShots(list) { S.data.shots = list.map((s, i) => ({ ...s, id: String(s.id || s.name || `shot${i + 1}`) })); renderShotButtons(); },
+  loadShots(list) { S.data.shots = list.map((s, i) => ({ ...s, id: String(s.id || `shot${i + 1}`) })); renderShotButtons(); },
   setShot(id, t = 0) { if (!applyShot(id, true, t)) throw new Error(`unknown shot "${id}"`); return true; },
   frame(n = 1) { for (let i = 0; i < n; i++) controls.update(1 / 60); render(); return n; },
   capture() { render(); return S.mode === 'gltf' ? canvas.toDataURL('image/png') : null; },

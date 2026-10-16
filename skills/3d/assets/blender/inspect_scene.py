@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover - plain python
     sys.exit(2)
 
 NON_EXPORTING_NODES = {
-    "TEX_NOISE", "TEX_VORONOI", "TEX_WAVE", "TEX_MUSGRAVE", "TEX_GRADIENT", "TEX_MAGIC",
+    "TEX_NOISE", "TEX_VORONOI", "TEX_WAVE", "TEX_GRADIENT", "TEX_MAGIC",
     "TEX_CHECKER", "TEX_BRICK", "VALTORGB", "CURVE_RGB", "BUMP", "DISPLACEMENT",
 }
 
@@ -34,6 +34,9 @@ def parse_args() -> dict:
     opts = {"json": None}
     i = 0
     while i < len(argv):
+        if argv[i] in ("--help", "-h"):
+            print(__doc__)
+            sys.exit(0)
         if argv[i] == "--json" and i + 1 < len(argv):
             opts["json"] = argv[i + 1]
             i += 2
@@ -99,8 +102,9 @@ def main() -> int:
             if any(s < 0 for s in ob.scale):
                 warn("fail", ob.name, "negative scale")
             if ob.type == "MESH" and rec["uv_layers"] == 0 and any(
-                    m for m in rec["materials"]):
-                warn("warn", ob.name, "no UV map (fine for untextured materials only)")
+                    n.type == "TEX_IMAGE" for s in ob.material_slots if s.material and s.material.node_tree
+                    for n in s.material.node_tree.nodes):
+                warn("warn", ob.name, "image-textured material but no UV map")
             if rec["shape_keys"] and ob.modifiers:
                 warn("warn", ob.name, "shape keys + modifiers: export_apply=True would drop the shape keys")
             if any(m.type == "NODES" for m in ob.modifiers):
@@ -111,7 +115,7 @@ def main() -> int:
 
     for key, group in names.items():
         if len(group) > 1:
-            warn("warn", ", ".join(group), "names collide after glTF sanitising (%s)" % key)
+            warn("warn", ", ".join(group), "names collide after GLTFLoader sanitising (%s)" % key)
 
     materials = [material_report(m) for m in bpy.data.materials if m.users]
     for m in materials:
@@ -127,6 +131,8 @@ def main() -> int:
                 warn("fail", m["name"], "texture %s missing on disk" % img["name"])
 
     scene = bpy.context.scene
+    if abs(scene.unit_settings.scale_length - 1.0) > 1e-9:
+        warn("warn", "scene", "unit scale is ignored by the glTF exporter: 1 BU exports as 1 m")
     summary = {
         "blender": bpy.app.version_string,
         "file": bpy.data.filepath,

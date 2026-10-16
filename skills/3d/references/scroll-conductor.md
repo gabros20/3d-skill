@@ -51,6 +51,15 @@ camera.lookAt(target)
 11. **Assets stream by chapter.** Prefetch window `round(position) + direction x {0,1,2}`; keep the previous chapter resident until reverse scroll is safe; report progress by required bytes. Loaders and decoders: [threejs-loading](threejs-loading.md).
 12. **Pause and resume**: pause render off-screen (wide warm margin) and on `document.hidden`; `conductor.settle()` on mount, bfcache restore and resume so a reload mid-page does not glide from zero.
 
+## Reference timing onto scroll
+
+Measured reference motion (refspec: seconds, camera speed in %W/s, easing, holds) has no scroll clock; map it, do not eyeball it:
+1. Pick the target scroll length `L` (px or viewports) per breakpoint. A leg lasting `s` seconds of a `T`-second reference gets `weight = s / T`; the conductor normalises, so weights are just the measured durations.
+2. Holds become `dwell`: `dwell = hold / (hold + travel)` of the leg, capped at 0.45. Different holds per leg: split the chapter or use the largest.
+3. Keep the measured easing: apply it to `segment().t` (not to scroll, not as a spring); linear stays linear. Reproduce speed, not duration: a %W/s speed fixes the distance a leg covers, so check the path length against `speed x s`.
+4. Reading speed sets `L`, not the reference: pick `L` so the slowest leg stays at comfortable scroll (about one viewport per leg is a starting point [P]), then verify by progress, never by playback.
+Optional: prototype the choreography in 2D (CSS or Motion timeline against the reference video) first, then reuse its measured beat times as `weight`/`dwell`/easing in 3D.
+
 ## Reduced motion and poster
 
 - Alternate scene, not removal: pin collapses (scroll authority), copy reads as normal DOM, canvas shows the poster. Check the query and WebGL once, render the poster, never load the 3D bundle (`assets/web/r3f/SceneCanvas.tsx` does this).

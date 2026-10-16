@@ -75,11 +75,11 @@ Skipping `init()` gives a blank canvas and no error. Guard against unmount racin
 | `new Clock()`, `getDelta()` | `Timer`: `update(t)` once per frame, then `getDelta()` (Clock deprecated r183) |
 | `PostProcessing` (WebGPU) | `RenderPipeline` (r183; old name warns) |
 | `three/examples/jsm/...` | `three/addons/...` |
-| `RGBELoader` | `HDRLoader` (r180); `HDRJPGLoader` → `UltraHDRLoader` |
+| `RGBELoader` (deprecated wrapper, warns) | `HDRLoader` (r180); `UltraHDRLoader` for Ultra HDR JPEG |
 | `renderer.outputEncoding`, `sRGBEncoding`, `texture.encoding` | `outputColorSpace`, `colorSpace`, `SRGBColorSpace` |
 | `uv2` for AO/light maps | `texture.channel = 1` (reads `uv1`) |
 | `envMapIntensity` for `scene.environment` | `scene.environmentIntensity` (r163) |
-| `PCFSoftShadowMap` | `PCFShadowMap` or `VSMShadowMap` (soft is deprecated; removed on WebGPU) |
+| `PCFSoftShadowMap` | `PCFShadowMap` or `VSMShadowMap` (soft deprecated r186: WebGL warns and falls back to PCF; removed on WebGPU) |
 | `KTX2Loader.detectSupportAsync` | sync `detectSupport(renderer)` after `await renderer.init()` |
 | `DRACOLoader.setDecoderConfig` | `setDecoderPath('/draco/')` |
 | `renderAsync` / `computeAsync` | `await init()` once, then `render()` / `compute()` |

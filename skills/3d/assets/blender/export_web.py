@@ -10,14 +10,14 @@ Args after `--`:
   --out FILE            required, .glb path
   --apply auto|none|all auto (default): apply shape-defining modifiers (Geometry Nodes,
                         Boolean, Bevel, Mirror, Solidify, Subsurf, Weighted Normal, Decimate,
-                        Remesh, Weld, Triangulate); keep Array/Armature. none: apply nothing.
+                        Remesh, Weld, Triangulate, Edge Split, Screw); keep Array/Armature. none: apply nothing.
                         all: apply every non-armature modifier. Meshes with shape keys are
                         never applied (shape keys would be lost) and are reported.
   --root NAME           export only this object and its descendants
   --images auto|webp|jpeg  texture format (default auto = PNG/JPEG as authored)
   --lights / --cameras  include them (default: excluded, the runtime owns lights)
   --extras              write custom properties (default on) / --no-extras
-Compression is NOT done here (see references/asset-pipeline.md). Prints one JSON line:
+Compression is NOT done here (see references/asset-pipeline.md). Prints Blender's own log lines, then one JSON line (the line starting with `{`):
 {"ok","out","bytes","applied","skipped","dropped_kwargs","glb":{...}}.
 Exit 0 ok / 1 export failed / 2 usage.
 """
@@ -85,7 +85,8 @@ def apply_modifiers(objs, mode):
             skipped.append({"object": ob.name, "reason": "shape keys"})
             continue
         if ob.data.users > 1:
-            ob.data = ob.data.copy()
+            skipped.append({"object": ob.name, "reason": "linked duplicate: left unapplied to keep instances"})
+            continue
         for mod in list(ob.modifiers):
             if mod.type == "ARMATURE":
                 continue
@@ -129,7 +130,8 @@ def main() -> int:
     dropped = sorted(k for k in wanted if k not in props)
 
     if o["root"]:
-        bpy.ops.object.select_all(action="DESELECT") if bpy.context.object else None
+        for ob in bpy.context.view_layer.objects:  # no active object in -b: do not use select_all
+            ob.select_set(False)
         for ob in objs:
             ob.select_set(True)
     os.makedirs(os.path.dirname(kwargs["filepath"]) or ".", exist_ok=True)

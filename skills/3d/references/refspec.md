@@ -22,7 +22,7 @@ Produces:
 
 ## Leaf rule
 
-Every estimated field is a leaf object, never a bare value:
+Every estimated numeric or judgement field is a leaf object, never a bare value. Descriptive enums and labels (`sensor`, `dir_clock`, `key.type`, `hardness`, `surface`, `content`) may stay bare strings:
 
 ```json
 { "value": "soft", "confidence": "med", "evidence": "read" }
@@ -57,6 +57,7 @@ Compatible with the `generate-image` attribute tree: `type` first; `camera{lens,
 ## Dimension fields
 
 - **composition**: `framing` (centred, thirds, golden, diagonal, symmetrical, radial) · `subject_frac` (subject bbox area / frame) · `subject_pos{x,y}` (0-1, origin top-left) · `horizon_y` · `leading_lines[]` · `negative_space{where,frac}` · `layers[]{depth fg|mid|bg, content, blur}`.
+- `focal_class` (full-frame equivalent): ultra-wide <20 mm · wide 20-35 · normal 35-60 · tele 60-135 · long >135. Only the class is reliable from a picture.
 - **camera**: `shot_size` (ECU CU MCU MS MWS WS EWS) · `angle` (eye, low, high, top-down, dutch) · `tilt_deg` · `roll_deg` · `height` (floor, knee, waist, eye, above-head, aerial) · `focal_class` · `focal_mm_ff` · `sensor` (default "FF 36x24, assumed") · `fov_v_deg` · `perspective{vp_count, convergence, distortion}` · `dof{look, focus_plane, bokeh}` · `lens_artefacts[]`.
 - **lighting**: `key{dir_clock, elev_deg, type sun|softbox|window|overcast|practical|neon|area, hardness, k, color}` · `fill{ratio_stops, dir, color}` · `rim{present, dir, strength, color}` · `practicals[]` · `env{kind studio|outdoor-sun|overcast|sunset|night-city|interior|void|gradient, contrast}` · `time_of_day` · `shadows{hardness, density, contact}` · `volumetrics` · `mood` (free text with concrete causes).
 - **colour**: `palette[]{hex, role dominant|support|accent|shadow|highlight, share}` · `value_key` · `contrast` · `luma_p1_p50_p99` · `saturation` · `temp_overall` · `grade{shadows_tint, highlights_tint, lut_family}`.

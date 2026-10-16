@@ -16,7 +16,7 @@ Produces:
 
 ## Meta-rule
 
-Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, `bpy.ops.x.y.get_rna_type().properties.keys()`, enum items via `bl_rna.properties['prop'].enum_items`. `hasattr(bpy.types.Mesh, "prop")` is False for RNA properties. Assign engine and enum values inside try/except so a bad guess fails loudly. Current reference: Blender 5.2 LTS (Python 3.13 since 5.1).
+Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, `bpy.ops.x.y.get_rna_type().properties.keys()`. Static enums list via `bl_rna.properties['prop'].enum_items`; dynamic enums (render engine, view transform, denoiser, add-on enums) do not (headless 5.2.2 returns `['BLENDER_EEVEE']`, `['NONE']`, `[]`). For those, assign a bad value in try/except and read the allowed list from the `TypeError` text, e.g. `enum "zzz" not found in ('Standard', 'ACES 1.3', 'ACES 2.0', 'Khronos PBR Neutral', 'AgX', …)`. `hasattr(bpy.types.Mesh, "prop")` is False for RNA properties. Assign engine and enum values inside try/except so a bad guess fails loudly. Current reference: Blender 5.2 LTS (Python 3.13 since 5.1).
 
 ## Old → new (5.x)
 
@@ -32,7 +32,7 @@ Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, 
 | 8 | `ImageTexture` `use_mipmap`, `filter_type`; `bgl`; `Image.bindcode` | removed; `gpu` module, `gpu.texture.from_image`; `gpu.init()` in background (5.2) |
 | 9 | USD: `import_subdiv`, `attr_import_mode`, `export_textures`, `visible_objects_only` | `import_subdivision`, `property_import_mode`, `export_textures_mode`; removed (also in `wm.alembic_export`) |
 | 10 | `GPencil*` annotation types; `grease_pencils_v3` | `Annotation*`; `bpy.data.grease_pencils` is the new Grease Pencil |
-| 11 | `Bone.hide`, `Bone.select*` for pose visibility and selection | `PoseBone.hide`, `PoseBone.select`; edit bones for edit mode |
+| 11 | `Bone.select*` (gone); `Bone.hide` for pose state | `PoseBone.hide`, `PoseBone.select` for pose state; edit bones for edit mode |
 | 12 | UV `vertex_selection`, `edge_selection`, `BMLoopUV.select*` | removed (selection shared across UV maps) |
 | 13 | mathutils with double buffers | float32 buffers; recheck numpy interop |
 | 14 | VSE `frame_final_duration` etc.; brush `use_airbrush`; `sculpt.sample_color` | `duration`; `brush.stroke_method`; removed |
@@ -53,10 +53,4 @@ Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, 
 | Brush `sculpt_tool`, `paint.brush_set` | `sculpt_brush_type`, brush assets (`brush.asset_activate`) |
 | EEVEE bloom, SSR toggles | Glare compositor node, `use_raytracing`, `use_fast_gi` |
 | Colour spaces `Linear`, `Raw` | `Linear Rec.709`, `Non-Color` |
-| glTF kwargs `export_colors`, `export_nla_strips` | `export_vertex_color` enum; filter every kwarg through `get_rna_type().properties` |
-
-## Traps
-
-- Log format changed in 5.0: do not parse Blender's stdout for progress.
-- Remembered scripts from tutorials and MCP READMEs are stale about themselves: probe before running.
-- `uv.unwrap` default method changed; always pass `method=`.
+| glTF kwarg `export_colors` | `export_vertex_color` enum; filter every kwarg through `get_rna_type().properties` |

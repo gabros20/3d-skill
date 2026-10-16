@@ -70,7 +70,6 @@ Offer A to E as "pick one, then override" with a one-line mood each; map a refer
 
 ## Traps
 
-- ACES left on by R3F: desaturated brand colour.
 - Fixing flatness with exposure instead of key-to-env ratio.
 - Bloom radius up to hide weak materials.
 - Tone mapping twice (renderer and `OutputPass`), or effects after tone mapping that expect HDR.

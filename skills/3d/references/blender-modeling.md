@@ -62,5 +62,5 @@ Cut first, bevel after, normals last.
 
 ## Traps
 
-- Unit scale other than 1.0 silently rescales the export.
+- Unit scale is ignored by the exporter: 1 Blender unit exports as 1 m. A scene modelled in mm units arrives 1000x too large; model in metres at scale 1.0.
 - Never lose user work: copy the `.blend` before batch edits.

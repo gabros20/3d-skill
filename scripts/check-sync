@@ -47,5 +47,6 @@ fi
 if [ -d "$root/node_modules" ] && [ -f "$root/package.json" ]; then
   (cd "$root" && npm run --silent typecheck) || { echo "check-sync: FAIL: typecheck" >&2; exit 1; }
 fi
+[ -d "$root/node_modules" ] || echo "check-sync: note: typecheck skipped (run npm install to enable it)"
 
 echo "check-sync: OK — package, routes, references, metadata, eval fixtures, and scripts validated"

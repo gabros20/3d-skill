@@ -23,7 +23,9 @@ Produces:
 
 ## Brief sections
 
-Use `assets/templates/brief.md`. Prose is the source of truth; every section either holds a decision or says `[assumed]`.
+This file is the only place shots and the storyboard are written. It consumes the camera language and shot intent from [design-art-direction](design-art-direction.md) and turns them into rows and `.3d/shots.json`; other references link here instead of defining shots.
+
+Use `assets/templates/brief.md`. Prose is the source of truth; every section either holds a decision or says `[assumed]`. Numbers (budgets, durations, sizes) appear once, in section 11 and `3D.md`; other sections point there. When the look was open, record the three directions offered and the one chosen in section 4.
 
 1. Logline and thesis (about 12 words: what the viewer feels or does)
 2. Use and audience (use code, placement, device, distance, autoplay or driven)
@@ -83,7 +85,7 @@ Canonical, schema `shots.v1`. Read by `scripts/preview capture --shots .3d/shots
 | `aspect` | `"W:H"` string, shared by all shots; `fps` integer (video renders only) |
 | `id` | unique, matches `^[A-Za-z0-9_-]+$`; used for filenames (`<id>.png`) |
 | `purpose` | one line, beat-linked |
-| `focal_mm` xor `fov` | exactly one. `focal_mm` is full-frame equivalent (36×24 sensor); `fov` is vertical degrees. See [refspec-mapping](refspec-mapping.md) |
+| `focal_mm` xor `fov` | exactly one. `focal_mm` is defined by a 24 mm sensor height at any aspect (`fov = 2·atan(12/f)`); `fov` is vertical degrees. See [refspec-mapping](refspec-mapping.md) |
 | `position`, `target` | `[x, y, z]` metres, **three.js and glTF axes: Y up, camera looks down -Z by default**. Blender scripts convert to Z-up; never pre-convert |
 | `roll_deg` | optional, default 0 |
 | `duration_s` | optional; required for video renders |

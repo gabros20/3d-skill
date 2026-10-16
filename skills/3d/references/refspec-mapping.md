@@ -8,13 +8,13 @@ Read when:
 
 Skip when:
 - Schema questions (→ [refspec](refspec.md)).
-- Renderer API detail (→ `threejs-lookdev.md`, `threejs-postfx.md`, `blender-lookdev-render.md`).
+- Renderer API detail (→ [threejs-lookdev](threejs-lookdev.md), [threejs-postfx](threejs-postfx.md), [blender-lookdev-render](blender-lookdev-render.md)).
 
 Inputs:
 - `.3d/reference-spec.json` (ranges, confidence) and the target renderer.
 
 Produces:
-- Starting values to tune against the reference, recorded in `3D.md`.
+- Measured and derived values written to `.3d/reference-spec.json` and the brief. Colour and tone policy and starting light values are owned by [design-lookdev-presets](design-lookdev-presets.md) and recorded in `3D.md` from there; this file never writes `3D.md`.
 
 ## Contents
 
@@ -24,10 +24,10 @@ Produces:
 
 Treat every value as a starting range; verify by rendering the shot and comparing ([shared-verification](shared-verification.md)).
 
-- **FOV from mm** (full frame 36×24, landscape): vertical `fov = 2·atan(12 / f)`: 24 mm 53.1°, 35 mm 37.8°, 50 mm 27.0°, 85 mm 16.1°. Horizontal `h = 2·atan(18 / f)`.
-- **three.js**: `PerspectiveCamera.fov` is vertical, degrees. `camera.setFocalLength(mm)` uses `filmGauge` (default 35, not 36) divided by `max(aspect, 1)` as film height, so set `filmGauge = 36` first or write `fov` directly. For portrait or square targets, recompute from the actual aspect.
-- **Reference aspect differs from target**: convert via horizontal FOV, `v = 2·atan(tan(h/2) / aspect)`.
-- **Blender**: `cam.data.lens = f`, `sensor_width = 36`, `sensor_fit = 'AUTO'` (sensor applies to the larger dimension); `lens_unit = 'FOV'` to enter FOV. DOF: `use_dof`, `dof.focus_object` or `focus_distance`, `aperture_fstop` (shallow low, deep high).
+- **FOV from mm**: the `shots.json` convention defines `focal_mm` by a **24 mm sensor height at every aspect**: vertical `fov = 2·atan(12 / f)`: 24 mm 53.1°, 35 mm 37.8°, 50 mm 27.0°, 85 mm 16.1°. A reference shot at 3:2 and used at 16:9 keeps its vertical FOV (the width crops).
+- **three.js**: `PerspectiveCamera.fov` is vertical, degrees. Write `camera.fov = 2·atan(12/f)` directly. `setFocalLength` takes film height as `filmGauge / max(aspect, 1)`; if you use it, first set `camera.filmGauge = 24 * Math.max(camera.aspect, 1)` and redo that on every aspect change.
+- **Same lens on a letterboxed target** (same horizontal view, different aspect): preserve horizontal FOV, `v = 2·atan(tan(h/2) / aspect)`. Otherwise preserve vertical.
+- **Blender**: `cam.data.sensor_fit = 'VERTICAL'`, `sensor_height = 24`, `lens = f` (matches `shots.json`; `AUTO` with a 36 mm width gives a 20.25 mm height at 16:9 and a different framing); `lens_unit = 'FOV'` to enter FOV. DOF: `use_dof`, `dof.focus_object` or `focus_distance`, `aperture_fstop` (shallow low, deep high).
 - **Distance from shot size**: `d ≈ subject_height / (2·tan(fov_v/2)·fill)`. Fill (subject height / frame height): EWS <0.05, WS 0.15-0.3, MWS 0.4-0.55, MS 0.6-0.75, MCU 0.8-0.9, CU ≥1.
 - **Angle and height** place the camera on a sphere around the target: elevation low -10…-25°, eye 0…10°, high 25-45°, top-down 80-90°. Subject left of centre means the camera yaws toward the empty side.
 - **Moves to keyframes**: push-in = dolly on the view axis (FOV change only when background scale changes uniformly and no parallax shows); orbit = azimuth over eased `t` around the target; truck/pedestal = translation perpendicular to view; crane = elevation plus translation with the target locked; handheld = noise on position (about 0.5% of frame) and roll (about 0.3°). Easing: the sampled curve first, a named ease second. For scroll, pose is a pure function of progress ([scroll-conductor](scroll-conductor.md)).
@@ -80,7 +80,7 @@ photoreal and cgi-real: PBR, HDRI, physical light, AgX or Neutral, subtle DOF/gr
 
 ## Traps
 
-- `setFocalLength` with 36×24 numbers and the default `filmGauge` of 35 (about 3% off).
+- `setFocalLength` with the default `filmGauge` of 35 and no aspect correction: framing disagrees with the preview camera.
 - Averaging two references' lenses or light directions.
 - Reading light intensity across engines as comparable.
 - Forgetting that R3F's default ACES shifts every colour you matched.

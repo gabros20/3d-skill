@@ -302,3 +302,25 @@ export function startRafClock(conductor: Conductor, onFrame?: StateListener): ()
     document.removeEventListener('visibilitychange', onVisibility)
   }
 }
+
+/**
+ * Adapter helper (DOM, never called from tick): the pin is `100lvh`, so every adapter measures the
+ * pinned travel as `wrapperHeight - lvh`. `innerHeight` and ScrollTrigger's `bottom bottom` track the
+ * visual viewport instead and finish up to one iOS toolbar height after the pin releases.
+ */
+export interface LvhProbe {
+  /** Current 100lvh in px (falls back to innerHeight where lvh is unsupported). */
+  read(): number
+  destroy(): void
+}
+
+export function createLvhProbe(): LvhProbe {
+  const probe = document.createElement('div')
+  probe.setAttribute('aria-hidden', 'true')
+  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100lvh;visibility:hidden;pointer-events:none'
+  document.body.appendChild(probe)
+  return {
+    read: () => probe.getBoundingClientRect().height || window.innerHeight,
+    destroy: () => probe.remove(),
+  }
+}

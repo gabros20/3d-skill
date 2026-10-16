@@ -23,13 +23,13 @@ Starting contracts, not laws: no official three.js numbers exist. Pick by target
 | Target | Triangles | GLB | Textures | Draw calls |
 |---|---|---|---|---|
 | Hero object, desktop (default) | ≤ 100k (range 30k–150k) | ≤ 3 MB (range 1–5) | 1024; 2048 for a close-up hero | ≤ 300 |
-| Hero object, mobile | ≤ 50k–100k | ≤ 2 MB | 1024, KTX2 where possible | ≤ 100 |
+| Hero object, mobile | ≤ 100k (aim 50k) | ≤ 2 MB | 1024, KTX2 where possible | ≤ 100 |
 | World / scene, desktop | ≤ 750k | ≤ 15 MB total | ≤ 60 textures, ≤ 256 MB GPU | ≤ 300 |
 | World / scene, mobile | ≤ 300k | ≤ 8 MB | ≤ 40 textures, ≤ 128 MB GPU | ≤ 150 (aim ≤ 100) |
 | AR (Quick Look / Scene Viewer) | ≤ 100k | ≤ 5 MB | 1024 | few |
 | Offline renders (stills, video) | unconstrained | n/a | any | n/a |
 
-Also: shadow-casting lights ≤ 2 desktop / 1 mobile, shadow map ≤ 2048 / 1024; post passes ≤ 2 desktop / 0–1 mobile; idle GPU about 0 when nothing moves; frame budget 16.6 ms at 60 fps. Transparency overdraw and fullscreen passes, not triangles, are the usual mobile killers. A Blender triangle count becomes 1.5–3x engine vertices (seams, hard edges). Splat budgets: [splats-xr](splats-xr.md).
+`scripts/glb-report` enforces these in MiB: it WARNs above the stated texture size and FAILs above 2048 px (hero, AR); triangles, size and the texture ceiling can FAIL while draw calls only WARN; `--target mobile` selects the mobile rows. Also: shadow-casting lights ≤ 2 desktop / 1 mobile, shadow map ≤ 2048 / 1024; post passes ≤ 2 desktop / 0–1 mobile; idle GPU about 0 when nothing moves; frame budget 16.6 ms at 60 fps. Transparency overdraw and fullscreen passes, not triangles, are the usual mobile killers. A Blender triangle count becomes 1.5–3x engine vertices (seams, hard edges). Splat budgets: [splats-xr](splats-xr.md).
 
 ## Frame-loop discipline
 

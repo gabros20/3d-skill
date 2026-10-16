@@ -6,7 +6,8 @@
 //
 // R3F: call it from a tiny component, e.g.
 //   const { gl, scene, camera } = useThree();
-//   useEffect(() => installBridge({ gl, scene, camera }), [gl, scene, camera]);
+//   useEffect(() => (process.env.NODE_ENV !== 'production' ? installBridge({ gl, scene, camera }) : undefined), [gl, scene, camera]);
+// Apps with postprocessing (EffectComposer etc.) pass `render` so captures include the post chain.
 import type { Camera, OrthographicCamera, PerspectiveCamera, Scene, Vector3Tuple, WebGLRenderer } from 'three';
 
 /** shots.v1 (references/brief-spec.md): one lens key; metres, Y up; optional end pose `to`. */
@@ -45,7 +46,7 @@ export interface BridgeInfo {
 export interface Bridge {
   ready: boolean;
   shots(): BridgeShot[];
-  loadShots(list: ReadonlyArray<Partial<BridgeShot> & { name?: string }>): void;
+  loadShots(list: ReadonlyArray<Partial<BridgeShot>>): void;
   /** t in 0..1 moves along the shot's `to` end pose (default 0 = start). */
   setShot(id: string, t?: number): boolean;
   frame(n?: number): number;
@@ -60,11 +61,13 @@ export interface BridgeOptions {
   /** OrbitControls-like: only `target` and `update` are used. */
   controls?: { target: { set(x: number, y: number, z: number): unknown }; update(dt?: number): unknown };
   /** Initial shot list (same shape as .3d/shots.json "shots"). `scripts/preview capture` also calls loadShots(). */
-  shots?: ReadonlyArray<Partial<BridgeShot> & { name?: string }>;
+  shots?: ReadonlyArray<Partial<BridgeShot>>;
   /** Advance your own time-based animation by a fixed dt (seconds) per frame(n) step. */
   advance?: (dt: number) => void;
   /** Move scroll-driven state to normalised progress; shots with `scroll` call it. */
   setProgress?: (progress: number) => void;
+  /** Draw one frame. Default gl.render(scene, camera); pass your composer's render for postprocessed apps. */
+  render?: () => void;
   /** Run `?3d-preview` check yourself; default reads location.search. */
   enabled?: boolean;
 }
@@ -117,8 +120,8 @@ function poseAt(s: BridgeShot, t: number): Pose {
   return out;
 }
 
-function normalise(list: ReadonlyArray<Partial<BridgeShot> & { name?: string }>): BridgeShot[] {
-  return list.map((s, i) => ({ ...s, id: String(s.id ?? s.name ?? `shot${i + 1}`) }));
+function normalise(list: ReadonlyArray<Partial<BridgeShot>>): BridgeShot[] {
+  return list.map((s, i) => ({ ...s, id: String(s.id ?? `shot${i + 1}`) }));
 }
 
 /** Installs window.__3d and returns an uninstall function. No-op unless `?3d-preview` is present. */
@@ -130,7 +133,20 @@ export function installBridge(opts: BridgeOptions): () => void {
   let shots = normalise(opts.shots ?? []);
   let current: string | null = null;
 
-  const render = (): void => gl.render(scene, camera);
+  let rollRad = 0;
+  const draw = opts.render ?? ((): void => gl.render(scene, camera));
+  // roll_deg is applied around the draw only: OrbitControls re-aims the camera on every update() and would drop it.
+  const render = (): void => {
+    if (rollRad) {
+      camera.rotateZ(rollRad);
+      camera.updateMatrixWorld(true);
+    }
+    draw();
+    if (rollRad) {
+      camera.rotateZ(-rollRad);
+      camera.updateMatrixWorld(true);
+    }
+  };
 
   const bridge: Bridge = {
     ready: true,
@@ -164,7 +180,7 @@ export function installBridge(opts: BridgeOptions): () => void {
         ortho.updateProjectionMatrix();
       }
       controls?.update(0);
-      if (p.roll) camera.rotateZ((p.roll * Math.PI) / 180); // after update(): controls re-aim and drop roll
+      rollRad = (p.roll * Math.PI) / 180;
       camera.updateMatrixWorld(true);
       return true;
     },

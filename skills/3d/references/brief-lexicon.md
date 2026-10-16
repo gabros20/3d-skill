@@ -25,7 +25,7 @@ Angle and height are independent: eye, low, high, overhead, worm's-eye; three-qu
 
 ## Lens (full-frame equivalent)
 
-14-24 ultra-wide (distortion, drama, close approach) · 28-35 wide (environment) · 50 normal · 85-135 portrait/hero compression · 150+ flat tele. **Position sets perspective; focal length sets framing**: a longer lens from farther away flattens, a wider lens up close exaggerates. three.js FOV is vertical: `2·atan(12/f)` for 36×24. DOF off by default on mobile.
+14-24 ultra-wide (distortion, drama, close approach) · 28-35 wide (environment) · 50 normal · 85-135 portrait/hero compression · 150+ flat tele. **Position sets perspective; focal length sets framing**: a longer lens from farther away flattens, a wider lens up close exaggerates. three.js FOV is vertical, from a 24 mm sensor height (the `shots.json` convention; see [refspec-mapping](refspec-mapping.md)): `2·atan(12/f)`. DOF off by default on mobile.
 
 ## Moves
 

@@ -5,6 +5,7 @@ Detects 3D-pipeline tools (node, Blender, gltf-transform, gltfpack, ktx, gltf-va
 Playwright + Chrome), the project's 3D stack from package.json, and MCP servers whose NAMES mention
 blender or spline (names only, never values). Writes <root>/.3d/capabilities.md (and prints JSON
 with --json). Proposes installs with cost; never installs anything. Exit 0 always; 2 on usage error.
+Run it by path from the project root: --root and the .3d output default to the current directory.
 """
 from __future__ import annotations
 
@@ -60,7 +61,8 @@ def run_version(cmd: list[str]) -> str:
     text = (out.stdout or out.stderr).strip()
     for line in text.splitlines():
         if line.strip():
-            return line.strip()[:80]
+            line = line.strip()
+            return line[:80] if re.search(r"\d+\.\d+", line) else ""
     return ""
 
 
@@ -108,14 +110,16 @@ def read_stack(root: Path) -> dict:
     try:
         data = json.loads(pkg.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {"package_json": True, "error": "unreadable package.json", "deps": {}}
+        return {"package_json": True, "error": "unreadable package.json (malformed JSON)", "deps": {}}
+    if not isinstance(data, dict):
+        return {"package_json": True, "error": "package.json root is not an object", "deps": {}}
     merged: dict[str, str] = {}
     for key in ("dependencies", "devDependencies", "peerDependencies"):
         section = data.get(key)
         if isinstance(section, dict):
             merged.update({k: str(v) for k, v in section.items()})
     deps = {k: v for k, v in merged.items() if k in STACK_KEYS or k.startswith(STACK_PREFIXES)}
-    return {"package_json": True, "name": data.get("name", ""), "deps": dict(sorted(deps.items()))}
+    return {"package_json": True, "name": str(data.get("name", "")), "deps": dict(sorted(deps.items()))}
 
 
 def server_names_json(path: Path) -> list[str]:
@@ -178,7 +182,7 @@ def proposals(tools: list[dict], pw: dict, stack: dict) -> list[str]:
         out.append(f"python playwright missing (preview capture): {pw['install']} [free]")
     if not pw["chrome"]:
         out.append("Chrome not found (preview capture needs an installed Chrome channel) [free]")
-    if stack.get("package_json") and "three" not in stack["deps"]:
+    if stack.get("package_json") and not stack.get("error") and "three" not in stack["deps"]:
         out.append("three not in package.json: add it only when the build needs a web scene (ask first)")
     return out
 
@@ -203,13 +207,15 @@ def render(info: dict) -> str:
               f"- python playwright module: {'yes' if pw['python_playwright'] else 'no'}",
               f"- Chrome: {pw['chrome'] or 'not found'}", "", "## Project stack", ""]
     stack = info["stack"]
-    if not stack.get("package_json"):
+    if stack.get("error"):
+        lines.append(f"- package.json present but ignored: {stack['error']}")
+    elif not stack.get("package_json"):
         lines.append("- no package.json at the project root")
     elif not stack["deps"]:
         lines.append("- package.json present; no 3D-relevant dependencies")
     else:
         lines += [f"- {k} {v}" for k, v in stack["deps"].items()]
-    lines += ["", "## MCP hints (server names only)", ""]
+    lines += ["", "## MCP hints (server names only; hints, not proof)", ""]
     if info["mcp"]:
         lines += [f"- {h['source']}: {', '.join(h['servers'])}" for h in info["mcp"]]
     else:
@@ -220,8 +226,8 @@ def render(info: dict) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Inventory 3D tooling and project stack; writes .3d/capabilities.md.")
-    ap.add_argument("--root", default=".", help="project root (default: cwd)")
+    ap = argparse.ArgumentParser(description="Inventory 3D tooling and project stack; writes .3d/capabilities.md. Run by path with your project root as the working directory; relative paths and defaults resolve against it.")
+    ap.add_argument("--root", default=".", help="project root (default: current directory; run from your project root)")
     ap.add_argument("--json", action="store_true", help="print JSON instead of a summary")
     args = ap.parse_args()
     root = Path(args.root).expanduser().resolve()

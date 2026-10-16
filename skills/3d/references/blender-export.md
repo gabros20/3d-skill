@@ -17,16 +17,16 @@ Produces:
 ## Steps
 
 1. Inspect: `assets/blender/inspect_scene.py -- --json .3d/evidence/scene.json`. Fix FAIL items; resolve warnings or accept them with a reason.
-2. Pre-export: apply rotation and scale, remove doubles, fix normals, unique ASCII names, no negative scale, at most 4 skin influences, origin at the base for props.
+2. Pre-export: model in metres at unit scale 1.0 (the exporter ignores unit scale: 1 BU = 1 m); apply rotation and scale, remove doubles, fix normals, unique ASCII names, no negative scale, at most 4 skin influences, origin at the base for props.
 3. Materials: bake or simplify anything outside the Image Texture → Principled chain ([blender-lookdev-render](blender-lookdev-render.md)); or name the material and patch it at runtime.
-4. Export on an export copy, headless, never saving the `.blend` afterwards:
-   `Blender -b scene.blend --factory-startup --python-exit-code 1 --python assets/blender/export_web.py -- --out .3d/versions/v001/hero.glb [--apply auto] [--root HeroRoot] [--images webp]`
+4. Run from the project root (paths resolve against cwd), on an export copy, headless, never saving the `.blend` afterwards:
+   `Blender -b scene.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/export_web.py -- --out .3d/versions/v001/hero.glb [--apply auto] [--root HeroRoot] [--images webp]`
 5. Read the JSON line: bytes, meshes, materials, images, animations, `extensionsUsed`, `applied`, `skipped`, `dropped_kwargs`.
 6. Hand off: `scripts/glb-report` for budgets, then compression in [asset-pipeline](asset-pipeline.md). Load the result in the real app before calling it done.
 
 ## Settings that matter
 
-Params drift between Blender versions (meshopt and gltfpack options exist only from 5.2). `export_web.py` introspects `bpy.ops.export_scene.gltf.get_rna_type().properties` and passes only supported kwargs, reporting the rest in `dropped_kwargs`. Do the same in any custom script.
+Params drift between Blender versions (meshopt and gltfpack options are present on 5.2). `export_web.py` introspects `bpy.ops.export_scene.gltf.get_rna_type().properties` and passes only supported kwargs, reporting the rest in `dropped_kwargs`. Do the same in any custom script.
 
 | Setting | Rule |
 |---|---|
@@ -38,13 +38,13 @@ Params drift between Blender versions (meshopt and gltfpack options exist only f
 | `export_image_format` | `AUTO` (PNG/JPEG as authored) or `WEBP` (no fallback; smaller download, same VRAM) |
 | compression | Draco and meshopt off here; compress once downstream (D5), never both |
 | `export_extras` | True so custom properties reach `userData` |
-| `export_gpu_instances` | True for linked duplicates |
+| `export_gpu_instances` | True for linked duplicates under one Empty; confirm instances appear in `gltf-transform inspect` |
 | `export_vertex_color` | enum on 5.x (not the old `export_colors` bool) |
 | `export_import_convert_lighting_mode` | only matters if lights are exported |
 
 ## Modifiers: decide per modifier
 
-- `export_apply=True` silently drops shape keys on the whole export. Geometry Nodes, Boolean, Bevel, Mirror, Solidify and Subsurf must be applied on the copy, or their result is lost (a measured GN asset exported 2 triangles instead of 2,688).
+- `export_apply=True` silently drops shape keys on the whole export. Geometry Nodes, Boolean, Bevel, Mirror, Solidify and Subsurf must be applied on the copy, or their result is lost (`export_gn_mesh` is not a substitute; a measured GN asset exported 2 triangles instead of 2,688).
 - `--apply auto` applies those shape-defining modifiers, keeps Array (it balloons size; use linked duplicates plus instances) and Armature, and skips meshes with shape keys (reported in `skipped`).
 - `--apply all` also applies Array and the rest; `--apply none` applies nothing.
 
@@ -57,7 +57,7 @@ Params drift between Blender versions (meshopt and gltfpack options exist only f
 | Displacement, bump from noise | Not exported; bake a normal map |
 | Drivers | Not exported; keyframed actions are |
 | Collection instances | Expand to node trees; draw calls multiply |
-| Names | Spaces → `_`, dots removed (`Sphere.003` → `Sphere003`), duplicates suffixed; names are the contract with runtime code, keep them stable |
+| Names | Blender writes them unchanged; GLTFLoader sanitises on load (spaces → `_`, `[].:/` removed, so `Sphere.003` is `Sphere003` in three). Use ASCII names without spaces or dots as the code contract |
 | Animation | An action with no armature or object user is skipped; choose `export_animation_mode` deliberately |
 | Meshopt GLB | Blender cannot re-import it; keep the raw GLB as source |
 | Blender | writes PNG, JPEG, WebP only: KTX2 happens downstream |
@@ -70,6 +70,6 @@ Params drift between Blender versions (meshopt and gltfpack options exist only f
 
 ## Traps
 
-- Spaces and dots in object names break lookups by name in code.
+- Spaces and dots in object names change after GLTFLoader sanitising and break lookups by name.
 - Exporting the whole scene by habit ships helpers, lights and hidden junk.
 - A GLB that opens in Blender is not proof it loads in three.js.

@@ -28,23 +28,25 @@ Project rules first (a MOTION doc, CLAUDE.md): if they ban an engine, never prop
 | nothing | `assets/web/adapters/native.ts` | default |
 | drei `ScrollControls` wanted | only on a full-screen 3D page with no other scroll | it owns a scroll container in front of the canvas |
 
+**Same travel everywhere**: every adapter computes progress over `wrapperHeight - 100lvh` (shared `createLvhProbe`), the distance the `lvh` pin actually travels. Never `bottom bottom`, `['start start','end end']` or `innerHeight`: they follow the visual viewport and, with the iOS toolbar shown, hit 1 up to one toolbar height after the pin releases, holding the last frame while the scene scrolls away.
+
 Every adapter returns `{ refresh, destroy }` (Motion: a hook) and calls `setExact` then `settle()` on mount. One authority per route; stamp it (`<html data-scroll-authority>`). Never two: no Lenis with ScrollSmoother, no `ScrollTrigger.normalizeScroll()` with Lenis, no CSS `scroll-behavior: smooth` with ScrollTrigger.
 
 ## Native and CSS
 
-`native.ts`: `(scrollY - wrapperTop) / (wrapperHeight - lvh)`, geometry cached, re-measured on `ResizeObserver`, `document.fonts.ready`, width change; re-derived on `pageshow`, `hashchange`, `focus`, visibility return. CSS `animation-timeline` (Chromium 115+, Safari 26+, not Firefox stable) only decorates the canvas (progress bar, label parallax); never drive camera or uniforms with it; under Lenis Safari reads the previous frame.
+`native.ts`: `(scrollY - wrapperTop) / (wrapperHeight - lvh)` (the reference formula for all adapters), geometry cached, re-measured on `ResizeObserver`, `document.fonts.ready`, width change; re-derived on `pageshow`, `hashchange`, `focus`, visibility return. CSS `animation-timeline` (Chromium 115+, Safari 26+, not Firefox stable) only decorates the canvas (progress bar, label parallax); never drive camera or uniforms with it; under Lenis Safari reads the previous frame.
 
 ## Motion
 
-`useMotionScrollConductor(conductor, wrapperRef)`. Rules:
-- Offset constant at module scope (`['start start', 'end end']`), measure the wrapper, never the sticky pin.
-- Write per-frame values to the conductor, a ref or a uniform. Never bind a scroll value to `style` (measured on Motion 13.4: it can hand off to a native timeline and drift back past the input range), never React state per frame, never a `useSpring` (the conductor smooths).
+`useMotionScrollConductor(conductor, wrapperRef)` reads `useScroll().scrollY` and applies the lvh travel above (a `useScroll` offset cannot express it). Rules:
+- Measure the wrapper, never the sticky pin; geometry is cached and re-measured on resize, fonts, `pageshow`.
+- Write per-frame values to the conductor, a ref or a uniform. Never bind a scroll value to `style` (measured on Motion 13.4, re-check on 14.x: it can hand off to a native timeline and drift back past the input range), never React state per frame, never a `useSpring` (the conductor smooths).
 - Reduced motion: `bindReducedMotion(conductor)`; hand writers render the settled state.
 - Under Lenis: run Lenis from Motion's `frame.setup` and dispatch a `scroll` event so `useScroll` reads the same frame; not from `frame.update` (one frame late).
 
 ## GSAP
 
-`attachScrollTrigger(conductor, { wrapper })` creates `start: 'top top'`, `end: 'bottom bottom'` with no `scrub` and no `pin`. `driveFromGsapTicker(conductor, render)` is the one tick.
+`attachScrollTrigger(conductor, { wrapper })` creates `start: 'top top'`, `end: '+=' + (wrapperHeight - lvh)` (function end, `invalidateOnRefresh`) with no `scrub` and no `pin`. `driveFromGsapTicker(conductor, render)` is the one tick.
 - A separate GSAP timeline for DOM copy under Lenis uses `scrub: true`; on native, `scrub: 0.3-1`. Never nest the scene in a GSAP `pin: true`.
 - `ignoreMobileResize: true` (default here), create triggers in page order, `ScrollTrigger.refresh()` once after fonts and images settle, build in `useGSAP` with `scope` so Strict Mode and route hides revert them.
 - ScrollSmoother: sticky and `view()` timelines break inside `#smooth-content`. Pin `[data-scene-pin]` in the page with a separate ScrollTrigger (`pinSpacing: false`, the content margin already cancels it); the adapter itself never pins. Create the smoother once per route.
@@ -66,7 +68,7 @@ Touch stays native; Safari caps it at 60 fps; `data-lenis-prevent` on nested scr
 
 ## drei ScrollControls
 
-Only with no other scroll authority: `pages`, `damping` (default 0.2 s), `useScroll().offset` read in `useFrame` into `conductor.setExact` (use `damping: null` on the conductor; it already smooths). It breaks anchors, sticky, Lenis and the iOS pin on a page with flow.
+Only with no other scroll authority: `pages`, `damping` (default 0.25 s), `useScroll().offset` read in `useFrame` into `conductor.setExact` (use `damping: null` on the conductor; it already smooths). It breaks anchors, sticky, Lenis and the iOS pin on a page with flow.
 
 ## Pin rule when `scroll-animation` is absent
 
