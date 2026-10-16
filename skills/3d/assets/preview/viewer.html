@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Preview</title>
+<!-- 3d skill preview viewer. Single static file, no build step. Served by `scripts/preview serve`
+     (file:// cannot load ES modules). three is pinned; bump the version in BOTH places below. -->
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+}}
+</script>
+<style>
+:root{
+  --bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--text:#e6e8ee;--muted:#8d95a6;
+  --accent:#a3e635;--accent-ink:#1a2605;--warn:#f59e0b;--bad:#f87171;--ok:#4ade80;
+  --radius:8px;--font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 var(--font)}
+#app{display:grid;grid-template-columns:1fr 320px;grid-template-rows:auto 1fr;height:100%}
+header{grid-column:1/3;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header .brand{font-weight:600;letter-spacing:.02em;margin-right:6px}
+header .brand b{color:var(--accent)}
+#stage{position:relative;overflow:hidden;background:#0b0c10;min-height:0}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none}
+#media{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;background:#000}
+#ref{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;pointer-events:none}
+#wipeLine{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);display:none;pointer-events:none;box-shadow:0 0 0 1px #0006}
+#pins{position:absolute;inset:0;pointer-events:none}
+.pin{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid #0008}
+.pin.pending{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.25)}}
+#hud{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+.chip{background:#0009;border:1px solid var(--line);padding:2px 8px;border-radius:999px;color:var(--muted);font-size:12px}
+#toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:6px 12px;border-radius:var(--radius);display:none}
+#msg{position:absolute;inset:0;display:none;place-items:center;text-align:center;color:var(--muted);padding:24px}
+aside{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;background:none;border:0;color:var(--muted);padding:9px 4px;cursor:pointer;font:inherit;border-bottom:2px solid transparent}
+.tabs button[aria-selected=true]{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:12px;overflow:auto;flex:1;min-height:0}
+.pane.on{display:block}
+label{display:block;color:var(--muted);margin:10px 0 4px;font-size:12px}
+select,input[type=text],textarea,button.btn{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit}
+header select{width:auto}
+textarea{resize:vertical;min-height:70px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+button.btn{cursor:pointer;width:auto}
+button.btn:hover{border-color:var(--muted)}
+button.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.btn.ok[aria-pressed=true]{background:var(--ok);color:#052e12;border-color:var(--ok)}
+button.btn.warn[aria-pressed=true]{background:var(--warn);color:#2a1700;border-color:var(--warn)}
+button.btn[aria-pressed=true]:not(.ok):not(.warn){background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.shots{display:flex;gap:4px;flex-wrap:wrap}
+.shots button{min-width:28px}
+table{width:100%;border-collapse:collapse}
+td{padding:3px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.note{border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin:6px 0;background:var(--panel2)}
+.note small{color:var(--muted)}
+.tag{display:inline-block;padding:0 6px;border-radius:999px;font-size:11px;background:var(--line)}
+.tag.approved{background:var(--ok);color:#052e12}.tag.changes{background:var(--warn);color:#2a1700}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px}
+.bare header,.bare aside,.bare #hud,.bare #pins,.bare #toast{display:none!important}
+.bare #app{grid-template-columns:1fr;grid-template-rows:1fr}
+.bare #stage{grid-column:1}
+.bare #stage{grid-row:1}
+@media (max-width:820px){#app{grid-template-columns:1fr;grid-template-rows:auto 55vh 1fr}header{grid-column:1}aside{border-left:0;border-top:1px solid var(--line)}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="brand">3D <b>Preview</b></span>
+    <label for="selVersion" style="margin:0">Version</label><select id="selVersion" title="[ and ] switch version"></select>
+    <label for="selB" style="margin:0">vs</label><select id="selB" title="A/B split against another version"></select>
+    <span class="shots" id="shotBtns" aria-label="Shots (keys 1-9)"></span>
+    <span style="flex:1"></span>
+    <button class="btn" id="btnSaveShot" title="S: save current camera as a named shot">Save camera as shot</button>
+  </header>
+  <main id="stage">
+    <canvas id="gl" tabindex="0" aria-label="3D view"></canvas>
+    <img id="ref" alt="reference">
+    <div id="media-wrap"></div>
+    <div id="wipeLine"></div>
+    <div id="pins"></div>
+    <div id="hud"></div>
+    <div id="toast" role="status"></div>
+    <div id="msg"></div>
+  </main>
+  <aside>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-pane="pView">View</button>
+      <button role="tab" aria-selected="false" data-pane="pCompare">Compare</button>
+      <button role="tab" aria-selected="false" data-pane="pStats">Stats</button>
+      <button role="tab" aria-selected="false" data-pane="pNotes">Notes</button>
+    </div>
+    <section class="pane on" id="pView">
+      <label for="selEnv">Environment</label><select id="selEnv"></select>
+      <div class="row" style="margin-top:8px"><label style="margin:0"><input type="checkbox" id="chkBg"> show environment as background</label></div>
+      <label for="selTone">Tone mapping</label><select id="selTone"></select>
+      <label for="rngExp">Exposure <span id="expVal">1.00</span></label><input type="range" id="rngExp" min="0.1" max="4" step="0.05" value="1">
+      <label for="rngShot">Shot progress (start to end pose <code>to</code>)</label><input type="range" id="rngShot" min="0" max="100" value="0" disabled>
+      <div class="row" style="margin-top:10px"><button class="btn" id="btnTurn" aria-pressed="false">Turntable (T)</button><button class="btn" id="btnFit">Fit (F)</button></div>
+      <p style="color:var(--muted);margin-top:14px">Keys: <kbd>1</kbd>-<kbd>9</kbd> shots · <kbd>[</kbd> <kbd>]</kbd> versions · <kbd>T</kbd> turntable · <kbd>E</kbd> environment · <kbd>R</kbd> reference · <kbd>N</kbd> note · <kbd>S</kbd> save shot</p>
+    </section>
+    <section class="pane" id="pCompare">
+      <label for="selCmp">Compare mode</label>
+      <select id="selCmp"><option value="off">Off</option><option value="overlay">Reference overlay</option><option value="wipe">Reference split wipe</option><option value="ab">Version A/B split</option></select>
+      <label for="selRef">Reference image</label><select id="selRef"></select>
+      <label for="rngCmp"><span id="cmpLabel">Opacity / wipe position</span> <span id="cmpVal">50%</span></label><input type="range" id="rngCmp" min="0" max="100" value="50">
+      <p style="color:var(--muted)" id="cmpHelp">Reference frames come from <code>.3d/refs/*/frames</code> or a shot's <code>ref</code> field. A/B uses the version picked next to "vs" in the header, same camera.</p>
+    </section>
+    <section class="pane" id="pStats"><table id="statsTbl"></table><p id="statsWarn" style="color:var(--warn)"></p></section>
+    <section class="pane" id="pNotes">
+      <div class="row"><span>Version <b id="nV">-</b></span><span>Shot <b id="nS">-</b></span></div>
+      <label for="txtNote">Note (click the canvas to pin it)</label>
+      <textarea id="txtNote" placeholder="What should change?"></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn" id="btnPin" aria-pressed="false">Pin mode (P)</button><span id="pinInfo" style="color:var(--muted)"></span></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" id="btnSend">Send note</button>
+        <button class="btn ok" id="btnApprove" aria-pressed="false">Approve version</button>
+        <button class="btn warn" id="btnChanges" aria-pressed="false">Needs changes</button>
+      </div>
+      <div id="noteList" style="margin-top:12px"></div>
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/libs/';
+const $ = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const BARE = qs.has('bare');
+if (BARE) document.documentElement.classList.add('bare');
+document.body.classList.toggle('bare', BARE);
+
+const ENVS = {
+  room: { label: 'Room (procedural, offline)' },
+  royal: { label: 'Royal Esplanade (HDRI)', url: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/textures/equirectangular/royal_esplanade_1k.hdr' },
+  studio: { label: 'Studio Small 03 (Poly Haven, CC0)', url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_03_1k.hdr' },
+  venice: { label: 'Venice Sunset (HDRI)', url: 'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr' },
+  none: { label: 'None (lights off)' },
+};
+const TONES = { None: THREE.NoToneMapping, Linear: THREE.LinearToneMapping, Reinhard: THREE.ReinhardToneMapping,
+  Cineon: THREE.CineonToneMapping, ACESFilmic: THREE.ACESFilmicToneMapping, AgX: THREE.AgXToneMapping, Neutral: THREE.NeutralToneMapping };
+const MEDIA_EXT = { img: /\.(png|jpe?g|webp|gif)$/i, vid: /\.(mp4|webm|mov)$/i, gltf: /\.(glb|gltf)$/i };
+
+const S = {
+  data: { versions: [], shots: [], refs: [], feedback: [] },
+  version: null, versionB: '', shot: null, shotT: 0, roll: 0, mode: 'empty',
+  env: 'room', exposure: 1, tone: 'ACESFilmic', turntable: false, envBg: false,
+  cmp: 'off', cmpVal: 50, pinMode: false, pending: null, status: {},
+  stats: { A: null, B: null }, error: null,
+};
+
+// ---- three setup
+const canvas = $('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(BARE ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const pcam = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
+const ocam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1000);
+let camera = pcam; // swapped to ocam for shots with ortho_height
+camera.position.set(2.4, 1.4, 3.2);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.autoRotateSpeed = 2;
+const scenes = { A: new THREE.Scene(), B: new THREE.Scene() };
+for (const s of Object.values(scenes)) s.background = new THREE.Color(0x14161c);
+const roots = { A: null, B: null };
+let envTex = null, envToken = 0;
+
+const draco = new DRACOLoader().setDecoderPath(THREE_CDN + 'draco/gltf/');
+const ktx2 = new KTX2Loader().setTranscoderPath(THREE_CDN + 'basis/').detectSupport(renderer);
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco).setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
+const pmrem = new THREE.PMREMGenerator(renderer);
+
+function resize() {
+  const r = $('stage').getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  renderer.setSize(w, h, false);
+  pcam.aspect = w / h; pcam.updateProjectionMatrix(); setOrthoHeight(ocam.userData.h || 2);
+}
+function setOrthoHeight(h) {
+  const a = pcam.aspect || 1; ocam.userData.h = h;
+  ocam.top = h / 2; ocam.bottom = -h / 2; ocam.left = -h / 2 * a; ocam.right = h / 2 * a; ocam.updateProjectionMatrix();
+}
+function useCamera(c) {
+  if (camera === c) return;
+  c.position.copy(camera.position); camera = c; controls.object = c;
+}
+new ResizeObserver(resize).observe($('stage'));
+
+// roll_deg: OrbitControls re-aims the camera on every update(), so roll is applied around the render only.
+function render() {
+  const rr = THREE.MathUtils.degToRad(S.roll || 0);
+  if (rr) { camera.rotateZ(rr); camera.updateMatrixWorld(); }
+  renderScenes();
+  if (rr) { camera.rotateZ(-rr); camera.updateMatrixWorld(); }
+}
+function renderScenes() {
+  const { width, height } = renderer.getDrawingBufferSize(new THREE.Vector2());
+  if (S.cmp === 'ab' && roots.B) {
+    const x = Math.round(width * S.cmpVal / 100);
+    renderer.setScissorTest(true);
+    renderer.setScissor(0, 0, x, height); renderer.render(scenes.A, camera);
+    renderer.setScissor(x, 0, width - x, height); renderer.render(scenes.B, camera);
+    renderer.setScissorTest(false);
+  } else {
+    renderer.render(scenes.A, camera);
+  }
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  controls.update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ---- helpers
+function toast(t, ms = 2200) { const e = $('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => (e.style.display = 'none'), ms); }
+function showMsg(t) { const e = $('msg'); e.style.display = t ? 'grid' : 'none'; e.innerHTML = t || ''; }
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+async function jget(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.json(); }
+async function jpost(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j;
+}
+function disposeRoot(root) {
+  root?.traverse((o) => {
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])) { for (const v of Object.values(m)) if (v && v.isTexture) v.dispose(); m.dispose(); }
+  });
+}
+function pickFile(v) {
+  const files = v.manifest?.files?.length ? v.manifest.files.map((f) => (typeof f === 'string' ? f : f.path)) : v.files;
+  const all = v.files;
+  const have = (re) => all.find((f) => re.test(f)) || files.find((f) => re.test(f));
+  const g = have(MEDIA_EXT.gltf); if (g) return { kind: 'gltf', file: g };
+  const i = have(MEDIA_EXT.img); if (i) return { kind: 'img', file: i };
+  const vd = have(MEDIA_EXT.vid); if (vd) return { kind: 'vid', file: vd };
+  return null;
+}
+const ver = (id) => S.data.versions.find((v) => v.id === id);
+
+// ---- environment / tone
+async function applyEnv(key) {
+  const token = ++envToken;
+  S.env = key;
+  let tex = null;
+  try {
+    if (key === 'room') tex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    else if (ENVS[key]?.url) {
+      const hdr = await new HDRLoader().loadAsync(ENVS[key].url);
+      hdr.mapping = THREE.EquirectangularReflectionMapping;
+      tex = pmrem.fromEquirectangular(hdr).texture; hdr.dispose();
+    }
+  } catch (e) {
+    toast(`Environment failed (${key}): falling back to Room`, 4000);
+    if (token === envToken && key !== 'room') { $('selEnv').value = 'room'; return applyEnv('room'); }
+  }
+  if (token !== envToken) return;
+  envTex?.dispose?.(); envTex = tex;
+  for (const s of Object.values(scenes)) { s.environment = tex; s.background = S.envBg && tex ? tex : new THREE.Color(0x14161c); }
+}
+function applyTone() { renderer.toneMapping = TONES[S.tone]; renderer.toneMappingExposure = S.exposure; for (const s of Object.values(scenes)) s.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => (m.needsUpdate = true)); }); }
+
+// ---- loading
+function measure(root, bytes) {
+  let tris = 0, meshes = 0; const tex = new Set(); let texBytes = 0;
+  root.traverse((o) => {
+    if (o.isMesh) {
+      meshes++;
+      const g = o.geometry;
+      tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+      for (const m of [].concat(o.material)) for (const v of Object.values(m)) if (v && v.isTexture && !tex.has(v)) {
+        tex.add(v);
+        if (v.isCompressedTexture && v.mipmaps?.length) texBytes += v.mipmaps.reduce((a, b) => a + (b.data?.byteLength || 0), 0);
+        else if (v.image?.width) texBytes += v.image.width * v.image.height * 4 * 1.33;
+      }
+    }
+  });
+  return { tris: Math.round(tris), meshes, textures: tex.size, texMB: +(texBytes / 1048576).toFixed(2), glbBytes: bytes };
+}
+async function loadGltfInto(slot, v, file) {
+  const url = `/${v.base}${file}`;
+  disposeRoot(roots[slot]); if (roots[slot]) scenes[slot].remove(roots[slot]); roots[slot] = null;
+  let gltf, bytes = null;
+  if (/\.glb$/i.test(file)) {
+    const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(`${url}: ${r.status}`);
+    const buf = await r.arrayBuffer(); bytes = buf.byteLength;
+    gltf = await gltfLoader.parseAsync(buf, `/${v.base}${file.includes('/') ? file.slice(0, file.lastIndexOf('/') + 1) : ''}`);
+  } else gltf = await gltfLoader.loadAsync(url);
+  roots[slot] = gltf.scene; scenes[slot].add(gltf.scene);
+  S.stats[slot] = { version: v.id, file, ...measure(gltf.scene, bytes) };
+}
+function fitCamera() {
+  const root = roots.A; if (!root) return;
+  useCamera(pcam); S.roll = 0;
+  const box = new THREE.Box3().setFromObject(root); if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const r = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+  const d = r / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.25;
+  camera.near = Math.max(r / 500, 0.001); camera.far = r * 100; camera.updateProjectionMatrix();
+  camera.position.copy(c).add(new THREE.Vector3(0.6, 0.35, 1).normalize().multiplyScalar(d));
+  controls.target.copy(c); controls.update();
+}
+async function loadVersion(id) {
+  const v = ver(id); if (!v) return;
+  S.version = id; S.error = null; showMsg('');
+  $('ref').style.display = 'none';
+  const media = $('media-wrap'); media.innerHTML = '';
+  const pick = pickFile(v);
+  if (!pick) { S.mode = 'empty'; canvas.style.visibility = 'hidden'; showMsg(`<div><b>${id}</b> has no .glb, image or video yet.<br>Copy outputs into <code>.3d/versions/${id}/</code>.</div>`); S.stats.A = null; refreshAll(); return; }
+  try {
+    if (pick.kind === 'gltf') {
+      S.mode = 'gltf'; canvas.style.visibility = 'visible';
+      showMsg('<div>Loading…</div>');
+      await loadGltfInto('A', v, pick.file);
+      showMsg('');
+      if (!S.shot || !applyShot(S.shot, true)) fitCamera();
+      if (S.versionB) await loadB(); else { disposeRoot(roots.B); if (roots.B) scenes.B.remove(roots.B); roots.B = null; }
+    } else {
+      S.mode = pick.kind; canvas.style.visibility = 'hidden';
+      const el = document.createElement(pick.kind === 'img' ? 'img' : 'video');
+      el.src = `/${v.base}${pick.file}`; el.id = 'media'; el.style.display = 'block';
+      if (pick.kind === 'vid') { el.controls = true; el.loop = true; el.muted = true; el.autoplay = true; }
+      media.appendChild(el);
+      const r = await fetch(el.src, { method: 'HEAD' }); S.stats.A = { version: id, file: pick.file, glbBytes: +(r.headers.get('content-length') || 0), tris: null, textures: null, texMB: null };
+    }
+  } catch (e) {
+    S.error = String(e.message || e); S.mode = 'error';
+    showMsg(`<div><b>Could not load ${esc(id)}</b><br><code>${esc(S.error)}</code></div>`);
+  }
+  refreshAll();
+}
+async function loadB() {
+  const v = ver(S.versionB); if (!v) return;
+  const pick = pickFile(v); if (!pick || pick.kind !== 'gltf') { toast('Version B has no GLB to compare'); return; }
+  await loadGltfInto('B', v, pick.file);
+}
+
+// ---- shots
+function shotById(id) { return S.data.shots.find((s) => s.id === id); }
+// shots.v1 (references/brief-spec.md): focal_mm (36x24 full frame) xor fov (vertical deg) xor ortho_height;
+// position/target in metres, Y up; optional roll_deg, ease and an end pose `to`.
+const EASE = { linear: (t) => t, in: (t) => t * t, out: (t) => t * (2 - t), inOut: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) };
+const focalToFov = (mm) => (2 * Math.atan(12 / mm) * 180) / Math.PI; // 24 mm sensor height
+const fovToFocal = (fov) => 12 / Math.tan((fov * Math.PI) / 360);
+const lensOf = (o) => (o.ortho_height != null ? { ortho: +o.ortho_height } : o.focal_mm != null ? { fov: focalToFov(+o.focal_mm) } : o.fov != null ? { fov: +o.fov } : {});
+const mix = (a, b, k) => a + (b - a) * k;
+const mixV = (a, b, k) => a.map((v, i) => mix(v, b[i], k));
+function poseAt(s, t = 0) {
+  const a = { position: s.position, target: s.target, roll: s.roll_deg || 0, ...lensOf(s) };
+  if (!s.to || !t) return a;
+  const k = (EASE[s.ease || 'inOut'] || EASE.inOut)(Math.min(1, Math.max(0, t)));
+  const b = { ...a, ...(s.to.position && { position: s.to.position }), ...(s.to.target && { target: s.to.target }),
+    ...(s.to.roll_deg != null && { roll: s.to.roll_deg }), ...lensOf(s.to) };
+  const out = { position: mixV(a.position, b.position, k), target: mixV(a.target, b.target, k), roll: mix(a.roll, b.roll, k) };
+  if (a.ortho != null) out.ortho = mix(a.ortho, b.ortho ?? a.ortho, k); else if (a.fov != null) out.fov = mix(a.fov, b.fov ?? a.fov, k);
+  return out;
+}
+function applyShot(id, quiet, t = 0) {
+  const s = shotById(id); if (!s) return false;
+  if (!s.position || !s.target) { toast(`Shot ${id} lacks position/target`, 3000); return false; }
+  S.shot = id; S.shotT = t;
+  const p = poseAt(s, t);
+  if (p.ortho != null) { useCamera(ocam); setOrthoHeight(p.ortho); } else { useCamera(pcam); if (p.fov != null) pcam.fov = p.fov; }
+  camera.position.set(...p.position); controls.target.set(...p.target); S.roll = p.roll;
+  camera.updateProjectionMatrix(); controls.update();
+  if (s.ref) { ensureRefOption('/' + s.ref.replace(/^\/+/, ''), 'shot ref: ' + s.ref); $('selRef').value = '/' + s.ref.replace(/^\/+/, ''); updateCompare(); }
+  $('rngShot').value = t * 100; $('rngShot').disabled = !s.to;
+  if (!quiet) toast(`Shot: ${id}`);
+  renderShotButtons(); renderNotes();
+  return true;
+}
+function renderShotButtons() {
+  $('shotBtns').innerHTML = S.data.shots.map((s, i) => `<button class="btn" data-shot="${esc(s.id)}" aria-pressed="${s.id === S.shot}" title="${i < 9 ? 'key ' + (i + 1) : ''}">${esc(s.id)}</button>`).join('');
+}
+
+// ---- reference compare
+function ensureRefOption(value, label) { const sel = $('selRef'); if (![...sel.options].some((o) => o.value === value)) sel.add(new Option(label, value)); }
+function buildRefOptions() {
+  const sel = $('selRef'), prev = sel.value; sel.innerHTML = '';
+  sel.add(new Option('(none)', ''));
+  for (const r of S.data.refs) for (const f of r.frames) sel.add(new Option(`${r.name} / ${f}`, `/${r.base}${f}`));
+  if (prev) { ensureRefOption(prev, prev.replace(/^\//, '')); sel.value = prev; }
+}
+function updateCompare() {
+  const ref = $('ref'), line = $('wipeLine'), val = S.cmpVal, src = $('selRef').value;
+  const useRef = (S.cmp === 'overlay' || S.cmp === 'wipe') && src;
+  if (useRef && ref.getAttribute('src') !== src) ref.src = src;
+  ref.style.display = useRef ? 'block' : 'none';
+  ref.style.opacity = S.cmp === 'overlay' ? val / 100 : 1;
+  ref.style.clipPath = S.cmp === 'wipe' ? `inset(0 ${100 - val}% 0 0)` : 'none';
+  const showLine = S.cmp === 'wipe' || (S.cmp === 'ab' && roots.B);
+  line.style.display = showLine ? 'block' : 'none'; line.style.left = `calc(${val}% - 1px)`;
+  $('cmpVal').textContent = val + '%';
+  $('cmpLabel').textContent = S.cmp === 'overlay' ? 'Opacity' : 'Wipe position';
+  if (S.cmp === 'ab' && !roots.B) toast('Pick a version next to "vs" in the header first');
+}
+
+// ---- stats
+const fmtBytes = (b) => (b == null ? '-' : b > 1048576 ? (b / 1048576).toFixed(2) + ' MB' : (b / 1024).toFixed(1) + ' KB');
+function renderStats() {
+  const a = S.stats.A, i = renderer.info;
+  const rows = [['Version', S.version || '-'], ['Mode', S.mode],
+    ['Triangles', a?.tris?.toLocaleString() ?? '-'], ['Meshes', a?.meshes ?? '-'],
+    ['Draw calls (last frame)', i.render.calls], ['Textures', a?.textures ?? '-'],
+    ['Texture memory (est.)', a?.texMB != null ? a.texMB + ' MB' : '-'], ['File size', fmtBytes(a?.glbBytes)],
+    ['Renderer', rendererName()]];
+  if (S.stats.B) rows.push(['B: ' + S.stats.B.version + ' tris', S.stats.B.tris.toLocaleString()], ['B: size', fmtBytes(S.stats.B.glbBytes)]);
+  $('statsTbl').innerHTML = rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+  const w = [];
+  if (a?.glbBytes > 50 * 1048576) w.push('GLB over 50 MB: expect a slow first load.');
+  $('statsWarn').textContent = w.join(' ');
+  $('hud').innerHTML = [S.version, S.shot && 'shot ' + S.shot, a?.tris != null && a.tris.toLocaleString() + ' tris', S.tone].filter(Boolean).map((t) => `<span class="chip">${esc(t)}</span>`).join('');
+}
+function rendererName() { try { const gl = renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'WebGL'; } catch { return 'unknown'; } }
+
+// ---- notes
+function renderNotes() {
+  $('nV').textContent = S.version || '-'; $('nS').textContent = S.shot || '(whole version)';
+  const mine = S.data.feedback.filter((f) => f.version === S.version);
+  const lastStatus = [...mine].reverse().find((f) => f.status)?.status;
+  $('btnApprove').setAttribute('aria-pressed', lastStatus === 'approved'); $('btnChanges').setAttribute('aria-pressed', lastStatus === 'changes');
+  const here = mine.filter((f) => (f.shot || '') === (S.shot || ''));
+  $('noteList').innerHTML = mine.map((f) => `<div class="note"><small>${esc(f.id)} · ${esc(f.shot || 'whole version')} ${f.status ? `<span class="tag ${f.status}">${f.status}</span>` : ''} ${f.kind === 'resolved' ? '<span class="tag">resolved</span>' : ''}</small><div>${esc(f.note || '')}</div></div>`).join('') || '<small>No notes for this version yet.</small>';
+  let n = 0;
+  $('pins').innerHTML = here.filter((f) => f.x != null).map((f) => `<div class="pin" style="left:${f.x * 100}%;top:${f.y * 100}%" title="${esc(f.note)}">${++n}</div>`).join('')
+    + (S.pending ? `<div class="pin pending" style="left:${S.pending.x * 100}%;top:${S.pending.y * 100}%">+</div>` : '');
+  $('pinInfo').textContent = S.pending ? `pin at ${S.pending.x.toFixed(2)}, ${S.pending.y.toFixed(2)}` : '';
+  $('btnPin').setAttribute('aria-pressed', S.pinMode);
+}
+async function sendFeedback(extra) {
+  if (!S.version) return toast('No version selected');
+  const note = $('txtNote').value.trim();
+  const body = { version: S.version, shot: S.shot || '', note, ...extra };
+  if (S.pending && note) { body.x = S.pending.x; body.y = S.pending.y; }
+  if (!note && !body.status) return toast('Write a note or set a status');
+  try { await jpost('/feedback', body); $('txtNote').value = ''; S.pending = null; S.pinMode = false; await refreshState(); toast(body.status && !note ? `Marked ${body.status}` : 'Note sent'); }
+  catch (e) { toast('Send failed: ' + e.message, 4000); }
+}
+async function saveShot() {
+  const name = prompt('Name for this camera shot (letters, digits, - _)', S.shot || `S${String(S.data.shots.length + 1).padStart(2, '0')}`);
+  if (!name) return;
+  const body = { id: name, position: camera.position.toArray(), target: controls.target.toArray() };
+  if (camera === ocam) body.ortho_height = ocam.userData.h; else body.fov = pcam.fov;
+  if (S.roll) body.roll_deg = S.roll;
+  try { await jpost('/shots', body); S.shot = name; await refreshState(); toast(`Saved shot "${name}" to shots.json`); }
+  catch (e) { toast('Save failed: ' + e.message, 4000); }
+}
+
+// ---- state / UI wiring
+async function refreshState() {
+  S.data = await jget('/api/state');
+  fillVersionSelects(); buildRefOptions(); renderShotButtons(); refreshAll();
+}
+function fillVersionSelects() {
+  const ids = S.data.versions.map((v) => v.id);
+  $('selVersion').innerHTML = ids.map((id) => `<option value="${id}"${id === S.version ? ' selected' : ''}>${id}${ver(id).manifest?.note ? ' · ' + esc(String(ver(id).manifest.note).slice(0, 40)) : ''}</option>`).join('') || '<option>(no versions)</option>';
+  $('selB').innerHTML = '<option value="">-</option>' + ids.map((id) => `<option value="${id}"${id === S.versionB ? ' selected' : ''}>${id}</option>`).join('');
+}
+function refreshAll() { renderStats(); renderNotes(); updateCompare(); }
+
+function wire() {
+  for (const t of document.querySelectorAll('.tabs button')) t.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', b === t));
+    document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === t.dataset.pane));
+  };
+  $('selVersion').onchange = (e) => loadVersion(e.target.value);
+  $('selB').onchange = async (e) => { S.versionB = e.target.value; if (S.versionB) { await loadB(); S.cmp = 'ab'; $('selCmp').value = 'ab'; } else { S.cmp = 'off'; $('selCmp').value = 'off'; scenes.B.remove(roots.B); roots.B = null; S.stats.B = null; } refreshAll(); };
+  $('shotBtns').onclick = (e) => { const id = e.target.closest('[data-shot]')?.dataset.shot; if (id) applyShot(id); };
+  $('btnSaveShot').onclick = saveShot;
+  $('selEnv').innerHTML = Object.entries(ENVS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+  $('selEnv').onchange = (e) => applyEnv(e.target.value);
+  $('chkBg').onchange = (e) => { S.envBg = e.target.checked; applyEnv(S.env); };
+  $('selTone').innerHTML = Object.keys(TONES).map((k) => `<option${k === S.tone ? ' selected' : ''}>${k}</option>`).join('');
+  $('selTone').onchange = (e) => { S.tone = e.target.value; applyTone(); renderStats(); };
+  $('rngExp').oninput = (e) => { S.exposure = +e.target.value; $('expVal').textContent = S.exposure.toFixed(2); applyTone(); };
+  $('rngShot').oninput = (e) => { if (S.shot) applyShot(S.shot, true, +e.target.value / 100); };
+  $('btnTurn').onclick = toggleTurn; $('btnFit').onclick = fitCamera;
+  $('selCmp').onchange = (e) => { S.cmp = e.target.value; updateCompare(); };
+  $('selRef').onchange = updateCompare;
+  $('rngCmp').oninput = (e) => { S.cmpVal = +e.target.value; updateCompare(); };
+  $('btnSend').onclick = () => sendFeedback({});
+  $('btnApprove').onclick = () => sendFeedback({ status: 'approved' });
+  $('btnChanges').onclick = () => sendFeedback({ status: 'changes' });
+  $('btnPin').onclick = () => { S.pinMode = !S.pinMode; if (!S.pinMode) S.pending = null; renderNotes(); };
+  $('stage').addEventListener('click', (e) => {
+    if (!S.pinMode) return;
+    const r = $('stage').getBoundingClientRect();
+    S.pending = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    document.querySelector('[data-pane=pNotes]').click(); $('txtNote').focus(); renderNotes();
+  });
+  addEventListener('keydown', (e) => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase(), ids = S.data.versions.map((v) => v.id), i = ids.indexOf(S.version);
+    if (/^[1-9]$/.test(k)) { const s = S.data.shots[+k - 1]; if (s) applyShot(s.id); }
+    else if (k === 't') toggleTurn();
+    else if (k === 'f') fitCamera();
+    else if (k === '[' && i > 0) { $('selVersion').value = ids[i - 1]; loadVersion(ids[i - 1]); }
+    else if (k === ']' && i < ids.length - 1) { $('selVersion').value = ids[i + 1]; loadVersion(ids[i + 1]); }
+    else if (k === 'e') { const ks = Object.keys(ENVS); const n = ks[(ks.indexOf(S.env) + 1) % ks.length]; $('selEnv').value = n; applyEnv(n); }
+    else if (k === 'r') { S.cmp = S.cmp === 'overlay' ? 'off' : 'overlay'; $('selCmp').value = S.cmp; updateCompare(); }
+    else if (k === 'n') { document.querySelector('[data-pane=pNotes]').click(); e.preventDefault(); $('txtNote').focus(); }
+    else if (k === 'p') $('btnPin').click();
+    else if (k === 's') saveShot();
+  });
+}
+function toggleTurn() { S.turntable = !S.turntable; controls.autoRotate = S.turntable; $('btnTurn').setAttribute('aria-pressed', S.turntable); }
+
+// ---- window.__3d : the contract used by scripts/preview capture
+const api = {
+  ready: false,
+  shots: () => S.data.shots.map((s) => ({ ...s })),
+  loadShots(list) { S.data.shots = list.map((s, i) => ({ ...s, id: String(s.id || s.name || `shot${i + 1}`) })); renderShotButtons(); },
+  setShot(id, t = 0) { if (!applyShot(id, true, t)) throw new Error(`unknown shot "${id}"`); return true; },
+  frame(n = 1) { for (let i = 0; i < n; i++) controls.update(1 / 60); render(); return n; },
+  capture() { render(); return S.mode === 'gltf' ? canvas.toDataURL('image/png') : null; },
+  info() {
+    const a = S.stats.A;
+    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
+      size: [canvas.width, canvas.height], tris: a?.tris ?? null, drawCalls: renderer.info.render.calls, textures: a?.textures ?? null,
+      texMB: a?.texMB ?? null, glbBytes: a?.glbBytes ?? null, visibility: document.visibilityState, three: THREE.REVISION };
+  },
+};
+window.__3d = api;
+
+(async function init() {
+  wire(); resize();
+  try {
+    await refreshState();
+    const want = qs.get('version'), ids = S.data.versions.map((v) => v.id);
+    const first = ids.includes(want) ? want : ids[ids.length - 1];
+    S.shot = qs.get('shot') || S.data.shots[0]?.id || null;
+    applyTone(); applyEnv(S.env);
+    if (first) { $('selVersion').value = first; await loadVersion(first); }
+    else { showMsg('<div><b>No versions yet.</b><br>Run <code>scripts/preview new-version</code>, copy a .glb into it, and reload.</div>'); canvas.style.visibility = 'hidden'; }
+    await envReady();
+  } catch (e) { S.error = String(e.message || e); showMsg(`<div><b>Viewer error</b><br><code>${esc(S.error)}</code></div>`); }
+  requestAnimationFrame(loop);
+  api.ready = !S.error && S.mode !== 'error';
+})();
+async function envReady() { for (let i = 0; i < 100 && !scenes.A.environment && S.env !== 'none'; i++) await new Promise((r) => setTimeout(r, 50)); }
+</script>
+</body>
+</html>

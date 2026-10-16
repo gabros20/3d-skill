@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""ref-extract INPUT... [--out .3d/refs] [--frames N] [--scene 0.3] — decompose reference media.
+
+Per image or video, writes <out>/<name>/: meta.json (ffprobe), frames/ (video: scene-cut keyframes
+plus evenly spaced fill; image: a copy), contact.jpg (tiled frames), palette.json (k-means k=6, hex +
+weight), luma.json (16-bin histogram, mean, key, contrast). Video also: cuts.json (cut timestamps in
+seconds) and motion.json (per-sample frame-to-frame energy 0..1). Needs ffmpeg and ffprobe.
+Exit 0 ok, 1 problems (missing ffmpeg, unreadable input), 2 usage. Stdlib + ffmpeg only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import random
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".gif", ".mpg", ".mpeg"}
+SAMPLE_W = 64          # downscale width for palette/luma sampling
+MOTION_FPS = 8         # motion samples per second
+MOTION_MAX_S = 120     # cap analysed duration
+KMEANS_K = 6
+MAX_POINTS = 6000
+
+
+class ExtractError(Exception):
+    pass
+
+
+def run(cmd: list[str], binary: bool = False, timeout: int = 300) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=timeout, text=not binary)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ExtractError(f"{cmd[0]} failed: {exc}")
+
+
+def probe(path: Path) -> dict:
+    res = run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)])
+    if res.returncode != 0:
+        raise ExtractError(f"ffprobe cannot read {path}: {res.stderr.strip()[:200]}")
+    try:
+        return json.loads(res.stdout)
+    except ValueError:
+        raise ExtractError(f"ffprobe returned invalid JSON for {path}")
+
+
+def duration_of(meta: dict) -> float:
+    try:
+        return float(meta.get("format", {}).get("duration") or 0)
+    except ValueError:
+        return 0.0
+
+
+def scene_cuts(path: Path, threshold: float) -> list[float]:
+    res = run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-an",
+               "-vf", f"select='gt(scene,{threshold})',showinfo", "-f", "null", "-"])
+    cuts = [float(m) for m in re.findall(r"pts_time:([0-9.]+)", res.stderr)]
+    return sorted(set(round(c, 3) for c in cuts))
+
+
+def pick_times(duration: float, cuts: list[float], n: int) -> list[float]:
+    """Scene cuts first (evenly thinned to n), then evenly spaced fill; always includes t≈0."""
+    base = [0.0]
+    room = max(n - 1, 0)
+    if len(cuts) > room and room:
+        step = len(cuts) / room
+        cuts = [cuts[int(i * step)] for i in range(room)]
+    times = base + cuts[:room]
+    if len(times) < n and duration > 0:
+        k = n - len(times)
+        fill = [duration * (i + 0.5) / k for i in range(k)]
+        for t in fill:
+            if all(abs(t - e) > duration * 0.02 for e in times):
+                times.append(t)
+        # top up if the spacing filter dropped some
+        j = 1
+        while len(times) < n and j < 4 * n:
+            t = duration * j / (4 * n)
+            if all(abs(t - e) > duration * 0.01 for e in times):
+                times.append(t)
+            j += 1
+    return sorted(round(min(t, max(duration - 0.05, 0)), 3) for t in times)[:n]
+
+
+def grab_frame(src: Path, t: float, out: Path) -> bool:
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{t:.3f}", "-i", str(src),
+               "-frames:v", "1", "-q:v", "2", str(out)])
+    return res.returncode == 0 and out.is_file() and out.stat().st_size > 0
+
+
+def make_contact(frames: list[Path], out: Path) -> None:
+    if not frames:
+        return
+    cols = min(4, len(frames))
+    rows = math.ceil(len(frames) / cols)
+    vf = f"scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2:color=black,tile={cols}x{rows}"
+    if len(frames) > 1 and all(re.fullmatch(r"frame_\d{3}\.jpg", f.name) for f in frames):
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-framerate", "1",
+               "-i", str(frames[0].parent / "frame_%03d.jpg"), "-vf", vf, "-frames:v", "1", "-q:v", "3", str(out)]
+    else:
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(frames[0]),
+               "-vf", vf, "-frames:v", "1", "-q:v", "3", str(out)]
+    res = run(cmd)
+    if res.returncode != 0:
+        raise ExtractError(f"contact sheet failed: {res.stderr.strip()[:200]}")
+
+
+def read_ppm(data: bytes) -> list[tuple[int, int, int]]:
+    m = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", data)
+    if not m:
+        return []
+    w, h = int(m.group(1)), int(m.group(2))
+    body = data[m.end(): m.end() + w * h * 3]
+    return [(body[i], body[i + 1], body[i + 2]) for i in range(0, len(body) - 2, 3)]
+
+
+def sample_pixels(frame: Path) -> list[tuple[int, int, int]]:
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(frame),
+               "-vf", f"scale={SAMPLE_W}:-2", "-frames:v", "1", "-f", "image2pipe", "-vcodec", "ppm", "-"], binary=True)
+    if res.returncode != 0:
+        raise ExtractError(f"cannot decode {frame.name}: {res.stderr.decode(errors='replace').strip()[:200]}")
+    return read_ppm(res.stdout)
+
+
+def kmeans(points: list[tuple[int, int, int]], k: int, iters: int = 12) -> list[dict]:
+    rng = random.Random(0)
+    if len(points) > MAX_POINTS:
+        points = rng.sample(points, MAX_POINTS)
+    if not points:
+        return []
+    # k-means++ seeding
+    centers = [rng.choice(points)]
+    while len(centers) < k:
+        d2 = [min(sum((a - b) ** 2 for a, b in zip(p, c)) for c in centers) for p in points]
+        total = sum(d2)
+        if total == 0:
+            break
+        r, acc = rng.random() * total, 0.0
+        for p, d in zip(points, d2):
+            acc += d
+            if acc >= r:
+                centers.append(p)
+                break
+    centers = [tuple(float(x) for x in c) for c in centers]
+    assign = [0] * len(points)
+    for _ in range(iters):
+        changed = False
+        for i, p in enumerate(points):
+            best = min(range(len(centers)), key=lambda j: sum((p[a] - centers[j][a]) ** 2 for a in range(3)))
+            if best != assign[i]:
+                assign[i], changed = best, True
+        sums = [[0.0, 0.0, 0.0, 0] for _ in centers]
+        for p, a in zip(points, assign):
+            s = sums[a]
+            s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; s[3] += 1
+        centers = [(s[0] / s[3], s[1] / s[3], s[2] / s[3]) if s[3] else centers[j] for j, s in enumerate(sums)]
+        if not changed:
+            break
+    counts = [0] * len(centers)
+    for a in assign:
+        counts[a] += 1
+    out = [{"hex": "#%02x%02x%02x" % tuple(int(round(c)) for c in cen), "weight": round(n / len(points), 4)}
+           for cen, n in zip(centers, counts) if n]
+    return sorted(out, key=lambda x: -x["weight"])
+
+
+def luma_stats(points: list[tuple[int, int, int]]) -> dict:
+    if not points:
+        return {}
+    ys = sorted(0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in points)
+    n = len(ys)
+    hist = [0] * 16
+    for y in ys:
+        hist[min(int(y / 16), 15)] += 1
+    mean = sum(ys) / n / 255
+    p5, p95 = ys[int(n * 0.05)], ys[min(int(n * 0.95), n - 1)]
+    key = "low" if mean < 0.35 else "mid" if mean < 0.65 else "high"
+    return {"bins": 16, "histogram": [round(h / n, 4) for h in hist], "mean": round(mean, 4),
+            "key": key, "contrast": round((p95 - p5) / 255, 4)}
+
+
+def motion_energy(path: Path) -> list[dict]:
+    w, h = 32, 18
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-t", str(MOTION_MAX_S), "-i", str(path), "-an",
+               "-vf", f"fps={MOTION_FPS},scale={w}:{h},format=gray", "-f", "rawvideo", "-"], binary=True)
+    if res.returncode != 0:
+        raise ExtractError(f"motion pass failed: {res.stderr.decode(errors='replace').strip()[:200]}")
+    data, size, out, prev = res.stdout, w * h, [], None
+    for i in range(len(data) // size):
+        cur = data[i * size:(i + 1) * size]
+        if prev is not None:
+            e = sum(abs(a - b) for a, b in zip(cur, prev)) / size / 255
+            out.append({"t": round(i / MOTION_FPS, 3), "energy": round(e, 5)})
+        prev = cur
+    return out
+
+
+def unique_dir(out_root: Path, src: Path, used: set[str]) -> Path:
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", src.stem).strip("-") or "ref"
+    base, n = name, 2
+    while name in used:
+        name, n = f"{base}-{n}", n + 1
+    used.add(name)
+    return out_root / name
+
+
+def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
+    meta = probe(src)
+    is_video = src.suffix.lower() in VIDEO_EXT and duration_of(meta) > 0
+    dest.mkdir(parents=True, exist_ok=True)
+    fdir = dest / "frames"
+    fdir.mkdir(exist_ok=True)
+    (dest / "meta.json").write_text(json.dumps({"source": str(src), "kind": "video" if is_video else "image", **meta}, indent=2))
+    frames: list[Path] = []
+    cuts: list[float] = []
+    if is_video:
+        dur = duration_of(meta)
+        cuts = scene_cuts(src, scene)
+        for i, t in enumerate(pick_times(dur, cuts, frames_n), 1):
+            f = fdir / f"frame_{i:03d}.jpg"
+            if grab_frame(src, t, f):
+                frames.append(f)
+        if not frames:
+            raise ExtractError(f"no frames could be extracted from {src}")
+        (dest / "cuts.json").write_text(json.dumps({"threshold": scene, "duration": dur, "cuts": cuts}, indent=2))
+        (dest / "motion.json").write_text(json.dumps({"fps": MOTION_FPS, "samples": motion_energy(src)}, indent=2))
+    else:
+        f = fdir / f"frame_001{src.suffix.lower() or '.img'}"
+        shutil.copyfile(src, f)
+        frames = [f]
+    make_contact(frames, dest / "contact.jpg")
+    pixels: list[tuple[int, int, int]] = []
+    for f in frames:
+        pixels.extend(sample_pixels(f))
+    (dest / "palette.json").write_text(json.dumps({"k": KMEANS_K, "colors": kmeans(pixels, KMEANS_K)}, indent=2))
+    (dest / "luma.json").write_text(json.dumps(luma_stats(pixels), indent=2))
+    return {"input": str(src), "dir": str(dest), "kind": "video" if is_video else "image",
+            "frames": len(frames), "cuts": len(cuts)}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Decompose reference images/videos: frames, contact sheet, palette, luma, cuts, motion.")
+    ap.add_argument("inputs", nargs="+")
+    ap.add_argument("--out", default=".3d/refs")
+    ap.add_argument("--frames", type=int, default=12, help="max keyframes per video (default 12)")
+    ap.add_argument("--scene", type=float, default=0.3, help="scene-cut threshold 0..1 (default 0.3)")
+    args = ap.parse_args()
+    if args.frames < 1 or not 0 < args.scene < 1:
+        ap.error("--frames must be >= 1 and --scene in (0,1)")
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        print("ref-extract: ffmpeg and ffprobe are required and were not found on PATH.\n"
+              "  install: brew install ffmpeg   (or your package manager); then re-run.", file=sys.stderr)
+        return 1
+    out_root, used, results, failed = Path(args.out), set(), [], False
+    for raw in args.inputs:
+        src = Path(raw)
+        if not src.is_file():
+            print(f"ref-extract: not a file: {raw}", file=sys.stderr)
+            failed = True
+            continue
+        try:
+            res = process(src, unique_dir(out_root, src, used), args.frames, args.scene)
+        except ExtractError as exc:
+            print(f"ref-extract: {raw}: {exc}", file=sys.stderr)
+            failed = True
+            continue
+        results.append(res)
+        print(f"ref-extract: {res['kind']} {raw} -> {res['dir']} ({res['frames']} frames, {res['cuts']} cuts)")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

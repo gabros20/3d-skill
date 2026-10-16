@@ -13,3 +13,7 @@ __pycache__/
 # must never ship in the pack, so they stay ignored:
 skills/mediabunny
 skills/remotion-*
+
+# Orchestration workspace and third-party research sources (not redistributable)
+.orchestrate/
+docs/research/community-scan/sources/

@@ -1,0 +1,303 @@
+#!/usr/bin/env python3
+"""glb-report FILE [--budget hero|world|ar|none] [--target desktop|mobile] [--json] — measure a .glb / .gltf against a budget.
+
+Reports meshes, primitives, triangles (instance-weighted and unique), a draw-call estimate
+(primitives x node instances), materials, textures (dimensions and format decoded from PNG / JPEG /
+WebP / KTX2 headers), extensions used and required, and file size. Verdict PASS / WARN / FAIL against
+the chosen budget. Exit 0 PASS or WARN, 1 FAIL or unreadable file, 2 usage error. Stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import struct
+import sys
+from pathlib import Path
+
+MB = 1024 * 1024  # "MB" everywhere in this script and its budgets means MiB (1,048,576 bytes)
+WARN_RATIO = 0.8  # WARN when a metric passes 80% of its limit
+
+# mirror shared-performance.md — canonical table; edit both together. None = not checked.
+# "texture" is the FAIL ceiling in px; "texture_warn" the recommended size (WARN above it).
+BUDGETS = {
+    "hero": {"tris": 100_000, "bytes": 3 * MB, "texture": 2048, "texture_warn": 1024, "draws": 300},
+    # world texture 4096 is this script's default (no dimension in the canonical table); WARN only
+    "world": {"tris": 750_000, "bytes": 15 * MB, "texture": None, "texture_warn": 4096, "draws": 300},
+    "ar": {"tris": 100_000, "bytes": 5 * MB, "texture": 2048, "texture_warn": 1024, "draws": None},
+    "none": {"tris": None, "bytes": None, "texture": None, "texture_warn": None, "draws": None},
+}
+# --target mobile overrides (shared-performance.md mobile rows); ar has no mobile variant.
+MOBILE = {
+    "hero": {"tris": 100_000, "bytes": 2 * MB, "draws": 100},
+    "world": {"tris": 300_000, "bytes": 8 * MB, "draws": 150},
+}
+
+COMPONENT_BYTES = {5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4}
+TYPE_COUNT = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT2": 4, "MAT3": 9, "MAT4": 16}
+
+
+class ReportError(Exception):
+    pass
+
+
+def load(path: Path) -> tuple[dict, bytes | None, int]:
+    raw = path.read_bytes()
+    if raw[:4] == b"glTF":
+        if len(raw) < 20:
+            raise ReportError("truncated GLB header")
+        version, length = struct.unpack_from("<II", raw, 4)
+        if version != 2:
+            raise ReportError(f"unsupported GLB version {version}")
+        offset, doc, binchunk = 12, None, None
+        end = min(length, len(raw))
+        while offset + 8 <= end:
+            clen, ctype = struct.unpack_from("<II", raw, offset)
+            body = raw[offset + 8: offset + 8 + clen]
+            if ctype == 0x4E4F534A:
+                doc = json.loads(body.decode("utf-8"))
+            elif ctype == 0x004E4942 and binchunk is None:
+                binchunk = bytes(body)
+            offset += 8 + clen + (-clen % 4)
+        if doc is None:
+            raise ReportError("GLB has no JSON chunk")
+        return doc, binchunk, len(raw)
+    try:
+        return json.loads(raw.decode("utf-8")), None, len(raw)
+    except ValueError as exc:
+        raise ReportError(f"not a GLB or glTF JSON file: {exc}")
+
+
+def read_uri(uri: str, base: Path) -> bytes | None:
+    if uri.startswith("data:"):
+        try:
+            return base64.b64decode(uri.split(",", 1)[1])
+        except (IndexError, ValueError):
+            return None
+    target = base / uri.replace("%20", " ")
+    try:
+        return target.read_bytes()
+    except OSError:
+        return None
+
+
+def buffers_of(doc: dict, glb_bin: bytes | None, base: Path) -> list[bytes | None]:
+    out: list[bytes | None] = []
+    for i, buf in enumerate(doc.get("buffers", [])):
+        if "uri" in buf:
+            out.append(read_uri(buf["uri"], base))
+        else:
+            out.append(glb_bin if i == 0 else None)
+    return out
+
+
+def image_dims(data: bytes) -> tuple[int, int, str] | None:
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        w, h = struct.unpack(">II", data[16:24])
+        return w, h, "png"
+    if data[:3] == b"\xff\xd8\xff":
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+                i += 2
+                continue
+            seglen = struct.unpack(">H", data[i + 2:i + 4])[0]
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                h, w = struct.unpack(">HH", data[i + 5:i + 9])
+                return w, h, "jpeg"
+            i += 2 + seglen
+        return None
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP" and len(data) >= 30:
+        kind = data[12:16]
+        if kind == b"VP8X":
+            w = 1 + int.from_bytes(data[24:27], "little")
+            h = 1 + int.from_bytes(data[27:30], "little")
+            return w, h, "webp"
+        if kind == b"VP8 ":
+            w, h = struct.unpack("<HH", data[26:30])
+            return w & 0x3FFF, h & 0x3FFF, "webp"
+        if kind == b"VP8L":
+            bits = int.from_bytes(data[21:25], "little")
+            return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1, "webp"
+        return None
+    if data[:12] == b"\xabKTX 20\xbb\r\n\x1a\n" and len(data) >= 28:
+        w, h = struct.unpack("<II", data[20:28])
+        return w, h, "ktx2"
+    return None
+
+
+def accessor_count(doc: dict, idx: int | None) -> int:
+    if idx is None:
+        return 0
+    try:
+        return int(doc["accessors"][idx].get("count", 0))
+    except (KeyError, IndexError, TypeError):
+        return 0
+
+
+def prim_triangles(doc: dict, prim: dict) -> int:
+    mode = prim.get("mode", 4)
+    n = accessor_count(doc, prim["indices"]) if "indices" in prim else \
+        accessor_count(doc, prim.get("attributes", {}).get("POSITION"))
+    if mode == 4:
+        return n // 3
+    if mode in (5, 6):
+        return max(n - 2, 0)
+    return 0  # points / lines are not triangles
+
+
+def node_instances(doc: dict) -> dict[int, int]:
+    """How many times each mesh is instanced across scene-reachable nodes (all nodes if no scene)."""
+    nodes = doc.get("nodes", [])
+    counts: dict[int, int] = {}
+    scenes = doc.get("scenes", [])
+    if scenes:
+        start = scenes[doc.get("scene", 0)].get("nodes", []) if doc.get("scene", 0) < len(scenes) else []
+    else:
+        children = {c for n in nodes for c in n.get("children", [])}
+        start = [i for i in range(len(nodes)) if i not in children]
+    seen_stack, guard = list(start), 0
+    while seen_stack and guard < 10_000_000:
+        guard += 1
+        i = seen_stack.pop()
+        if not 0 <= i < len(nodes):
+            continue
+        node = nodes[i]
+        if "mesh" in node:
+            counts[node["mesh"]] = counts.get(node["mesh"], 0) + 1
+        seen_stack.extend(node.get("children", []))
+    return counts
+
+
+def analyse(path: Path) -> dict:
+    doc, glb_bin, size = load(path)
+    meshes = doc.get("meshes", [])
+    inst = node_instances(doc)
+    unique_tris = inst_tris = draws = prims_total = 0
+    for mi, mesh in enumerate(meshes):
+        prims = mesh.get("primitives", [])
+        tris = sum(prim_triangles(doc, p) for p in prims)
+        unique_tris += tris
+        prims_total += len(prims)
+        n = inst.get(mi, 0)
+        inst_tris += tris * n
+        draws += len(prims) * n
+    bufs = buffers_of(doc, glb_bin, path.parent)
+    views = doc.get("bufferViews", [])
+    textures = []
+    for ii, img in enumerate(doc.get("images", [])):
+        data, where = None, ""
+        if "bufferView" in img:
+            try:
+                bv = views[img["bufferView"]]
+                b = bufs[bv.get("buffer", 0)]
+                if b is not None:
+                    off = bv.get("byteOffset", 0)
+                    data = b[off: off + bv["byteLength"]]
+                where = "bufferView"
+            except (IndexError, KeyError):
+                data = None
+        elif "uri" in img:
+            data = read_uri(img["uri"], path.parent)
+            where = "data-uri" if img["uri"].startswith("data:") else img["uri"]
+        dims = image_dims(data) if data else None
+        textures.append({
+            "image": ii, "name": img.get("name", ""), "source": where,
+            "mime": img.get("mimeType", ""),
+            "width": dims[0] if dims else None, "height": dims[1] if dims else None,
+            "format": dims[2] if dims else (img.get("mimeType", "").split("/")[-1] or "unknown"),
+            "bytes": len(data) if data else None,
+        })
+    return {
+        "file": str(path), "bytes": size, "generator": doc.get("asset", {}).get("generator", ""),
+        "meshes": len(meshes), "primitives": prims_total, "nodes": len(doc.get("nodes", [])),
+        "triangles": inst_tris, "unique_triangles": unique_tris, "draw_calls": draws,
+        "materials": len(doc.get("materials", [])), "textures": textures,
+        "animations": len(doc.get("animations", [])), "skins": len(doc.get("skins", [])),
+        "extensions_used": sorted(doc.get("extensionsUsed", [])),
+        "extensions_required": sorted(doc.get("extensionsRequired", [])),
+    }
+
+
+def verdict(report: dict, budget: str, target: str = "desktop") -> dict:
+    limits = {**BUDGETS[budget], **(MOBILE.get(budget, {}) if target == "mobile" else {})}
+    max_tex = max([max(t["width"] or 0, t["height"] or 0) for t in report["textures"]] or [0])
+    metrics = {"tris": report["triangles"], "bytes": report["bytes"],
+               "texture": max_tex, "draws": report["draw_calls"]}
+    # draw calls are advisory (WARN only); triangles, size and the texture ceiling can FAIL
+    hard = {"tris", "bytes", "texture"}
+    checks, worst = [], "PASS"
+    for key in ("tris", "bytes", "texture", "draws"):
+        limit = limits[key]
+        warn_only = key == "texture" and limit is None and limits["texture_warn"]
+        if limit is None and not warn_only:
+            continue
+        value = metrics[key]
+        if warn_only:
+            limit = limits["texture_warn"]
+        warn_at = limits["texture_warn"] if key == "texture" and limits["texture_warn"] else limit * WARN_RATIO
+        if value > limit:
+            state = "WARN" if warn_only else ("FAIL" if key in hard else "WARN")
+        elif value > warn_at:
+            state = "WARN"
+        else:
+            state = "PASS"
+        checks.append({"metric": key, "value": value, "limit": limit, "state": state})
+        if state == "FAIL" or (state == "WARN" and worst == "PASS"):
+            worst = state
+    return {"budget": budget, "target": target, "verdict": worst, "checks": checks}
+
+
+def fmt_bytes(n: int) -> str:
+    return f"{n / MB:.2f} MB" if n >= MB else f"{n / 1024:.1f} KB"
+
+
+def render(report: dict, v: dict) -> str:
+    lines = [f"{report['file']}  ({fmt_bytes(report['bytes'])})"]
+    if report["generator"]:
+        lines.append(f"generator: {report['generator']}")
+    lines.append(f"meshes {report['meshes']} · primitives {report['primitives']} · nodes {report['nodes']}"
+                 f" · animations {report['animations']} · skins {report['skins']}")
+    lines.append(f"triangles {report['triangles']:,} (unique {report['unique_triangles']:,}) · "
+                 f"draw calls ~{report['draw_calls']} · materials {report['materials']}")
+    lines.append(f"extensions used: {', '.join(report['extensions_used']) or 'none'}"
+                 f" · required: {', '.join(report['extensions_required']) or 'none'}")
+    lines.append(f"textures ({len(report['textures'])}):")
+    for t in report["textures"]:
+        dim = f"{t['width']}x{t['height']}" if t["width"] else "unknown dims"
+        lines.append(f"  [{t['image']}] {dim} {t['format']}"
+                     + (f" {fmt_bytes(t['bytes'])}" if t["bytes"] else "") + (f" {t['name']}" if t["name"] else ""))
+    lines.append(f"budget {v['budget']} ({v['target']}): {v['verdict']}")
+    for c in v["checks"]:
+        lines.append(f"  {c['state']:4} {c['metric']}: {c['value']:,} / {c['limit']:,}")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Report triangles, draw calls, textures and size of a GLB/glTF. Sizes in budgets are MiB (1024*1024 bytes).")
+    ap.add_argument("file")
+    ap.add_argument("--budget", choices=sorted(BUDGETS), default="hero")
+    ap.add_argument("--target", choices=["desktop", "mobile"], default="desktop",
+                    help="mobile tightens hero and world limits")
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args()
+    path = Path(args.file)
+    try:
+        report = analyse(path)
+    except (OSError, ReportError, KeyError, ValueError) as exc:
+        print(f"glb-report: cannot read {path}: {exc}", file=sys.stderr)
+        return 1
+    v = verdict(report, args.budget, args.target)
+    if args.json:
+        print(json.dumps({**report, **v}, indent=2))
+    else:
+        print(render(report, v))
+    return 1 if v["verdict"] == "FAIL" else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

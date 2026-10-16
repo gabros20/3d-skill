@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""capabilities [--root DIR] [--json] — inventory what this machine and project can already do.
+
+Detects 3D-pipeline tools (node, Blender, gltf-transform, gltfpack, ktx, gltf-validator, ffmpeg,
+Playwright + Chrome), the project's 3D stack from package.json, and MCP servers whose NAMES mention
+blender or spline (names only, never values). Writes <root>/.3d/capabilities.md (and prints JSON
+with --json). Proposes installs with cost; never installs anything. Exit 0 always; 2 on usage error.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+BLENDER_APP = "/Applications/Blender.app/Contents/MacOS/Blender"
+
+# (cli, purpose, cost: free | free-account | PAID, install hint)
+TOOLS = [
+    ("node", "runtime for the web build, gltf-transform, Playwright", "free", "brew install node  (or fnm / nvm)"),
+    ("npm", "package manager", "free", "ships with node"),
+    ("pnpm", "package manager (optional)", "free", "npm i -g pnpm"),
+    ("python3", "runs the skill scripts (3.9+)", "free", "brew install python"),
+    ("uv", "Python tool runner (optional)", "free", "brew install uv"),
+    ("uvx", "run Python tools without installing (optional)", "free", "ships with uv"),
+    ("blender", "headless modeling, export, render", "free", "brew install --cask blender"),
+    ("gltf-transform", "glTF optimise: meshopt, KTX2, dedup, prune", "free", "npm i -g @gltf-transform/cli"),
+    ("gltfpack", "meshoptimizer glTF packer (optional)", "free", "npm i -g gltfpack  (no Homebrew formula)"),
+    ("ktx", "KTX-Software >= 4.4: KTX2 texture compression", "free", "KTX-Software release .pkg from the KhronosGroup/KTX-Software GitHub releases (not in Homebrew; needs sudo)"),
+    ("toktx", "legacy KTX2 encoder; prefer ktx", "free", "ships with older KTX-Software"),
+    ("gltf-validator", "Khronos glTF validator", "free", "npm i -g gltf-validator"),
+    ("ffmpeg", "reference frames, palette, diff, video", "free", "brew install ffmpeg"),
+    ("ffprobe", "media metadata", "free", "ships with ffmpeg"),
+]
+
+STACK_KEYS = [
+    "three", "@types/three", "@react-three/fiber", "@react-three/drei", "@react-three/postprocessing",
+    "@react-three/rapier", "postprocessing", "motion", "framer-motion", "gsap", "lenis",
+    "@studio-freight/lenis", "next", "react", "vite", "typescript", "@splinetool/runtime",
+    "@splinetool/react-spline", "@sparkjsdev/spark", "@gltf-transform/core", "@gltf-transform/cli",
+    "meshoptimizer", "three-stdlib",
+]
+STACK_PREFIXES = ("@react-three/", "@splinetool/", "@sparkjsdev/")
+
+
+def which(cli: str) -> str:
+    return shutil.which(cli) or ""
+
+
+def run_version(cmd: list[str]) -> str:
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    text = (out.stdout or out.stderr).strip()
+    for line in text.splitlines():
+        if line.strip():
+            return line.strip()[:80]
+    return ""
+
+
+def detect_tools() -> list[dict]:
+    rows = []
+    for cli, purpose, cost, install in TOOLS:
+        path = which(cli)
+        if cli == "blender" and not path and os.access(BLENDER_APP, os.X_OK):
+            path = BLENDER_APP
+        version = ""
+        if path:
+            if cli == "blender":
+                version = run_version([path, "--version"])
+            elif cli in ("node", "npm", "pnpm", "uv", "python3", "gltf-transform", "ktx", "toktx", "gltfpack"):
+                version = run_version([path, "--version"])
+            elif cli in ("ffmpeg", "ffprobe"):
+                version = run_version([path, "-version"])
+        rows.append({"cli": cli, "found": bool(path), "path": path, "version": version,
+                     "purpose": purpose, "cost": cost, "install": install})
+    return rows
+
+
+def detect_playwright() -> dict:
+    py = which("python3") or sys.executable
+    module = False
+    try:
+        res = subprocess.run([py, "-c", "import playwright"], capture_output=True, timeout=15)
+        module = res.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    chrome = ""
+    for cand in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                 which("google-chrome"), which("chromium"), which("chrome")):
+        if cand and os.access(cand, os.X_OK):
+            chrome = cand
+            break
+    return {"python_playwright": module, "chrome": chrome,
+            "install": "pip install playwright  (use the installed Chrome channel; no browser download)"}
+
+
+def read_stack(root: Path) -> dict:
+    pkg = root / "package.json"
+    if not pkg.is_file():
+        return {"package_json": False, "deps": {}}
+    try:
+        data = json.loads(pkg.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"package_json": True, "error": "unreadable package.json", "deps": {}}
+    merged: dict[str, str] = {}
+    for key in ("dependencies", "devDependencies", "peerDependencies"):
+        section = data.get(key)
+        if isinstance(section, dict):
+            merged.update({k: str(v) for k, v in section.items()})
+    deps = {k: v for k, v in merged.items() if k in STACK_KEYS or k.startswith(STACK_PREFIXES)}
+    return {"package_json": True, "name": data.get("name", ""), "deps": dict(sorted(deps.items()))}
+
+
+def server_names_json(path: Path) -> list[str]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    names: list[str] = []
+    if isinstance(data, dict):
+        servers = data.get("mcpServers")
+        if isinstance(servers, dict):
+            names += list(servers)
+        projects = data.get("projects")
+        if isinstance(projects, dict):
+            for proj in projects.values():
+                if isinstance(proj, dict) and isinstance(proj.get("mcpServers"), dict):
+                    names += list(proj["mcpServers"])
+    return names
+
+
+def server_names_toml(path: Path) -> list[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    # table headers only: [mcp_servers.NAME] — never read values
+    return re.findall(r"^\s*\[mcp_servers\.([^\].]+)", text, re.MULTILINE)
+
+
+def mcp_hints(root: Path) -> list[dict]:
+    sources = [(root / ".mcp.json", server_names_json), (HOME / ".claude.json", server_names_json),
+               (HOME / ".codex" / "config.toml", server_names_toml)]
+    hints = []
+    for path, reader in sources:
+        if not path.is_file():
+            continue
+        names = sorted({n.strip('"\'') for n in reader(path)})
+        hit = [n for n in names if re.search(r"blender|spline", n, re.I)]
+        if hit:
+            label = str(path.relative_to(root)) if root in path.parents else "~/" + str(path.relative_to(HOME))
+            hints.append({"source": label, "servers": hit})
+    return hints
+
+
+def proposals(tools: list[dict], pw: dict, stack: dict) -> list[str]:
+    by = {t["cli"]: t for t in tools}
+    out = []
+    if not by["node"]["found"]:
+        out.append(f"node missing: {by['node']['install']} [free]")
+    if not by["blender"]["found"]:
+        out.append(f"blender missing (needed for modeling/export/render): {by['blender']['install']} [free]")
+    if not by["gltf-transform"]["found"]:
+        out.append(f"gltf-transform missing (GLB optimise): {by['gltf-transform']['install']} [free]")
+    if not by["ktx"]["found"]:
+        hint = " (legacy toktx found; prefer ktx >= 4.4)" if by["toktx"]["found"] else ""
+        out.append(f"ktx missing (KTX2 textures){hint}: {by['ktx']['install']} [free]")
+    if not by["ffmpeg"]["found"]:
+        out.append(f"ffmpeg missing (ref-extract, preview diff): {by['ffmpeg']['install']} [free]")
+    if not pw["python_playwright"]:
+        out.append(f"python playwright missing (preview capture): {pw['install']} [free]")
+    if not pw["chrome"]:
+        out.append("Chrome not found (preview capture needs an installed Chrome channel) [free]")
+    if stack.get("package_json") and "three" not in stack["deps"]:
+        out.append("three not in package.json: add it only when the build needs a web scene (ask first)")
+    return out
+
+
+def collect(root: Path) -> dict:
+    tools = detect_tools()
+    pw = detect_playwright()
+    stack = read_stack(root)
+    return {"root": str(root), "tools": tools, "playwright": pw, "stack": stack,
+            "mcp": mcp_hints(root), "proposals": proposals(tools, pw, stack)}
+
+
+def render(info: dict) -> str:
+    lines = ["# 3D capabilities", "", "Generated by `scripts/capabilities`. Detect-only; nothing was installed.", "",
+             "## Machine tools", "", "| tool | found | version | cost | purpose / install |", "|---|---|---|---|---|"]
+    for t in info["tools"]:
+        mark = "yes" if t["found"] else "no"
+        extra = t["purpose"] if t["found"] else f"{t['purpose']} — `{t['install']}`"
+        lines.append(f"| {t['cli']} | {mark} | {t['version'] or '-'} | {t['cost']} | {extra} |")
+    pw = info["playwright"]
+    lines += ["", "## Preview capture", "",
+              f"- python playwright module: {'yes' if pw['python_playwright'] else 'no'}",
+              f"- Chrome: {pw['chrome'] or 'not found'}", "", "## Project stack", ""]
+    stack = info["stack"]
+    if not stack.get("package_json"):
+        lines.append("- no package.json at the project root")
+    elif not stack["deps"]:
+        lines.append("- package.json present; no 3D-relevant dependencies")
+    else:
+        lines += [f"- {k} {v}" for k, v in stack["deps"].items()]
+    lines += ["", "## MCP hints (server names only)", ""]
+    if info["mcp"]:
+        lines += [f"- {h['source']}: {', '.join(h['servers'])}" for h in info["mcp"]]
+    else:
+        lines.append("- none mentioning blender or spline")
+    lines += ["", "## Proposals", ""]
+    lines += [f"- {p}" for p in info["proposals"]] or ["- none"]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Inventory 3D tooling and project stack; writes .3d/capabilities.md.")
+    ap.add_argument("--root", default=".", help="project root (default: cwd)")
+    ap.add_argument("--json", action="store_true", help="print JSON instead of a summary")
+    args = ap.parse_args()
+    root = Path(args.root).expanduser().resolve()
+    if not root.is_dir():
+        print(f"capabilities: not a directory: {root}", file=sys.stderr)
+        return 2
+    info = collect(root)
+    out_dir = root / ".3d"
+    out_dir.mkdir(exist_ok=True)
+    (out_dir / "capabilities.md").write_text(render(info), encoding="utf-8")
+    if args.json:
+        print(json.dumps(info, indent=2))
+    else:
+        found = sum(1 for t in info["tools"] if t["found"])
+        print(f"capabilities: {found}/{len(info['tools'])} tools found; wrote {out_dir / 'capabilities.md'}")
+        for p in info["proposals"]:
+            print(f"  propose: {p}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

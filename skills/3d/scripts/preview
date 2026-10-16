@@ -1,0 +1,694 @@
+#!/usr/bin/env python3
+"""preview - serve, version, capture, diff and read back notes for the 3d skill.
+
+Usage (run from the skill root; everything is written under the project's .3d/):
+  preview serve [--root .3d] [--port 4173]
+  preview new-version [--root .3d] [--note "what changes"]
+  preview capture [--root .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
+                  [--size 1600x900] [--end] [--headed] [--settle 120]
+  preview diff A B [--root .3d] [--out DIR]       A, B: image files or version ids
+  preview feedback [--root .3d] [--version vNNN] [--json]
+
+serve   Loopback-only static server. Viewer comes from the skill's assets/preview/,
+        project files from --root. POST /feedback appends a JSON line to
+        <root>/feedback.jsonl; POST /shots saves a named camera into <root>/shots.json.
+        Responses are no-store. Stop it (Ctrl-C / kill) when the session ends.
+new-version
+        Creates <root>/versions/vNNN/ with manifest.json; copy outputs in afterwards
+        and list them in manifest.json "files" (the viewer also scans the folder).
+capture Drives the user's installed Chrome through Playwright (python, channel="chrome",
+        no browser download). Opens the viewer (or --url + ?3d-preview), waits for
+        window.__3d.ready, then per shot: __3d.setShot(id[, t]); __3d.frame(n) (fixed dt);
+        saves the canvas to <root>/evidence/vNNN/<shot>.png. It probes the GL renderer
+        first and says plainly if it is software or absent. Exit 1 when capture fails
+        or a frame is blank/constant. Needs: pip install playwright (no `playwright
+        install`) and Google Chrome.
+          Chrome GL flag sets tried in order until a non-software renderer appears
+          (verified on macOS arm64, Chrome 155 + Playwright 1.60: headless "default"
+          already gets the Metal GPU; the software set also works there):
+            default   (no extra flags)
+            gpu       --ignore-gpu-blocklist --enable-webgl
+            software  --use-gl=angle --use-angle=swiftshader-webgl --enable-unsafe-swiftshader
+          Software output is fine for layout/framing evidence, not for judging
+          shading cost or exact colour; the report labels it. --headed opens a visible
+          window (always works for WebGL when un-occluded).
+diff    ffmpeg ssim + psnr as JSON on stdout; writes side-by-side, 50% blend and
+        difference images to <root>/diffs/<A>__<B>/. With two version ids, compares
+        every shot present in both evidence folders. Scores are a hint: compare only
+        same-machine, same-flags captures.
+feedback
+        Prints notes grouped by version and shot, with status.
+
+Exit 0 ok, 1 problem (failed capture, missing tool, diff error), 2 usage.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import datetime as dt
+import http.server
+import json
+import math
+import mimetypes
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import urllib.parse
+from pathlib import Path
+from typing import Any
+
+SKILL_ROOT = Path(__file__).resolve().parent.parent
+VIEWER_DIR = SKILL_ROOT / "assets" / "preview"
+SHOT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+VERSION_RE = re.compile(r"^v(\d{3,})$")
+MAX_BODY = 20 * 1024 * 1024
+
+MIME = {
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".bin": "application/octet-stream",
+    ".hdr": "application/octet-stream",
+    ".exr": "application/octet-stream",
+    ".ktx2": "image/ktx2",
+    ".wasm": "application/wasm",
+    ".json": "application/json",
+    ".jsonl": "text/plain; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+}
+
+GL_FLAG_SETS = [
+    ("default", []),
+    ("gpu", ["--ignore-gpu-blocklist", "--enable-webgl"]),
+    ("software", ["--use-gl=angle", "--use-angle=swiftshader-webgl", "--enable-unsafe-swiftshader"]),
+]
+SOFTWARE_RE = re.compile(r"swiftshader|llvmpipe|software|basic render|softpipe", re.I)
+
+
+def now() -> str:
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def die(msg: str, code: int = 1) -> "None":
+    print(f"preview: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+# ---------------------------------------------------------------- project data
+
+def version_ids(root: Path) -> list[str]:
+    vdir = root / "versions"
+    if not vdir.is_dir():
+        return []
+    ids = [p.name for p in vdir.iterdir() if p.is_dir() and VERSION_RE.match(p.name)]
+    return sorted(ids, key=lambda s: int(s[1:]))
+
+
+def read_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def load_shots(path: Path) -> list[dict]:
+    data = read_json(path, [])
+    shots = data.get("shots", []) if isinstance(data, dict) else data
+    out = []
+    for i, s in enumerate(shots if isinstance(shots, list) else []):
+        if isinstance(s, dict):
+            sid = str(s.get("id") or s.get("name") or f"shot{i + 1}")
+            out.append({**s, "id": sid})
+    return out
+
+
+def scan_version(root: Path, vid: str) -> dict:
+    vdir = root / "versions" / vid
+    manifest = read_json(vdir / "manifest.json", {})
+    files = sorted(
+        str(p.relative_to(vdir)).replace(os.sep, "/")
+        for p in vdir.rglob("*")
+        if p.is_file() and p.name != "manifest.json"
+    )
+    return {"id": vid, "manifest": manifest, "files": files, "base": f"versions/{vid}/"}
+
+
+def list_refs(root: Path) -> list[dict]:
+    refs = []
+    rdir = root / "refs"
+    if rdir.is_dir():
+        for d in sorted(p for p in rdir.iterdir() if p.is_dir()):
+            fdir = d / "frames"
+            frames = sorted(p.name for p in fdir.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")) if fdir.is_dir() else []
+            refs.append({"name": d.name, "base": f"refs/{d.name}/frames/", "frames": frames})
+    return refs
+
+
+def read_feedback(root: Path) -> list[dict]:
+    path = root / "feedback.jsonl"
+    out = []
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+    return out
+
+
+def state(root: Path, shots_path: Path) -> dict:
+    return {
+        "root": root.name,
+        "versions": [scan_version(root, v) for v in version_ids(root)],
+        "shots": load_shots(shots_path),
+        "refs": list_refs(root),
+        "feedback": read_feedback(root),
+    }
+
+
+# --------------------------------------------------------------------- server
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    root: Path
+    shots_path: Path
+    lock = threading.Lock()
+    server_version = "3dpreview"
+
+    def log_message(self, fmt: str, *args: Any) -> None:  # quiet
+        if os.environ.get("PREVIEW_VERBOSE"):
+            sys.stderr.write("preview: " + (fmt % args) + "\n")
+
+    def _headers(self, code: int, ctype: str, length: int) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(length))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "content-type")
+        self.end_headers()
+
+    def _send(self, code: int, body: bytes, ctype: str = "application/json") -> None:
+        self._headers(code, ctype, len(body))
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _json(self, code: int, obj: Any) -> None:
+        self._send(code, json.dumps(obj).encode("utf-8"))
+
+    def _resolve(self, url_path: str) -> Path | None:
+        rel = urllib.parse.unquote(url_path).lstrip("/")
+        if rel in ("", "index.html"):
+            rel = "viewer.html"
+        for base in (self.root, VIEWER_DIR):
+            base_r = base.resolve()
+            cand = (base_r / rel).resolve()
+            if (cand == base_r or base_r in cand.parents) and cand.is_file():
+                return cand
+        return None
+
+    def do_OPTIONS(self) -> None:
+        self._headers(204, "text/plain", 0)
+
+    def do_HEAD(self) -> None:
+        self.do_GET()
+
+    def do_GET(self) -> None:
+        path = urllib.parse.urlsplit(self.path).path
+        if path == "/favicon.ico":
+            return self._send(204, b"", "image/x-icon")
+        if path == "/api/state":
+            return self._json(200, state(self.root, self.shots_path))
+        f = self._resolve(path)
+        if not f:
+            return self._json(404, {"error": "not found", "path": path})
+        ctype = MIME.get(f.suffix.lower()) or mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+        data = f.read_bytes()
+        self._send(200, data, ctype)
+
+    def _body(self) -> Any:
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > MAX_BODY:
+            raise ValueError("body too large")
+        return json.loads(self.rfile.read(n) or b"{}")
+
+    def do_POST(self) -> None:
+        path = urllib.parse.urlsplit(self.path).path
+        try:
+            body = self._body()
+            if not isinstance(body, dict):
+                raise ValueError("JSON object expected")
+            if path == "/feedback":
+                return self._json(200, self._feedback(body))
+            if path == "/shots":
+                return self._json(200, self._save_shot(body))
+        except (ValueError, TypeError) as e:
+            return self._json(400, {"error": str(e)})
+        self._json(404, {"error": "not found", "path": path})
+
+    def _feedback(self, b: dict) -> dict:
+        note = str(b.get("note", "")).strip()
+        status = b.get("status")
+        if status not in (None, "approved", "changes"):
+            raise ValueError("status must be approved or changes")
+        if not note and not status:
+            raise ValueError("note or status required")
+        version = str(b.get("version", ""))
+        if not VERSION_RE.match(version):
+            raise ValueError("version must look like v001")
+        rec: dict[str, Any] = {"ts": now(), "version": version, "shot": str(b.get("shot", ""))[:64], "note": note[:4000]}
+        for k in ("x", "y"):
+            if b.get(k) is not None:
+                v = float(b[k])
+                if not 0.0 <= v <= 1.0:
+                    raise ValueError(f"{k} must be 0..1 (normalised)")
+                rec[k] = round(v, 4)
+        if status:
+            rec["status"] = status
+        rec["kind"] = "resolved" if b.get("kind") == "resolved" else ("status" if status and not note else "note")
+        if isinstance(b.get("refs"), list):
+            rec["refs"] = [str(r)[:32] for r in b["refs"]][:20]
+        fb = self.root / "feedback.jsonl"
+        with self.lock:
+            self.root.mkdir(parents=True, exist_ok=True)
+            n = fb.read_bytes().count(b"\n") if fb.is_file() else 0
+            rec = {"id": f"f{n + 1:04d}", **rec}
+            with fb.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+        return rec
+
+    def _save_shot(self, b: dict) -> dict:
+        """Write one shot in the shots.v1 shape (references/brief-spec.md)."""
+        sid = str(b.get("id") or b.get("name") or "")
+        if not SHOT_ID_RE.match(sid):
+            raise ValueError("shot id must match ^[A-Za-z0-9_-]+$ (max 64)")
+        shot: dict[str, Any] = {"id": sid}
+        for k in ("position", "target"):
+            v = b.get(k)
+            if not (isinstance(v, list) and len(v) == 3 and all(isinstance(x, (int, float)) for x in v)):
+                raise ValueError(f"{k} must be [x, y, z]")
+            shot[k] = [round(float(x), 5) for x in v]
+        lens = [k for k in ("focal_mm", "fov", "ortho_height") if isinstance(b.get(k), (int, float)) and b[k] > 0]
+        if len(lens) != 1:
+            raise ValueError("exactly one of focal_mm, fov (vertical degrees), ortho_height is required")
+        if isinstance(b.get("roll_deg"), (int, float)) and b["roll_deg"]:
+            shot["roll_deg"] = round(float(b["roll_deg"]), 3)
+        sp = self.shots_path
+        with self.lock:
+            data = read_json(sp, {})
+            if isinstance(data, list):
+                data = {"shots": data}
+            if not isinstance(data, dict):
+                data = {}
+            old_list = data.get("shots", []) if isinstance(data.get("shots"), list) else []
+            old = next((s for s in old_list if isinstance(s, dict) and str(s.get("id") or s.get("name")) == sid), {})
+            # keep the author's lens convention when overwriting: a focal_mm shot stays focal_mm
+            k = lens[0]
+            if k == "fov" and "focal_mm" in old:
+                shot["focal_mm"] = round(12.0 / math.tan(math.radians(float(b["fov"])) / 2), 2)
+            else:
+                shot[k] = round(float(b[k]), 3)
+            keep = {kk: vv for kk, vv in old.items() if kk not in ("focal_mm", "fov", "ortho_height", "name")}
+            merged = {**keep, **shot}
+            data["shots"] = [s for s in old_list if s is not old] + [merged]
+            data["schema"] = "shots.v1"
+            data.setdefault("aspect", "16:9")
+            sp.parent.mkdir(parents=True, exist_ok=True)
+            tmp = sp.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            os.replace(tmp, sp)
+        return merged
+
+
+def make_server(root: Path, port: int, shots_path: Path | None = None) -> http.server.ThreadingHTTPServer:
+    handler = type("BoundHandler", (Handler,), {"root": root, "shots_path": shots_path or root / "shots.json", "lock": threading.Lock()})
+    return http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+
+
+def cmd_serve(a: argparse.Namespace) -> int:
+    root = Path(a.root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    if not VIEWER_DIR.joinpath("viewer.html").is_file():
+        die(f"viewer missing at {VIEWER_DIR}")
+    try:
+        srv = make_server(root, a.port)
+    except OSError as e:
+        die(f"cannot bind 127.0.0.1:{a.port}: {e} (pick another --port)")
+    print(f"preview: serving {root} at http://127.0.0.1:{srv.server_address[1]}/  (Ctrl-C to stop)", flush=True)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+# ---------------------------------------------------------------- new-version
+
+def cmd_new_version(a: argparse.Namespace) -> int:
+    root = Path(a.root)
+    ids = version_ids(root)
+    nxt = (int(ids[-1][1:]) + 1) if ids else 1
+    vid = f"v{nxt:03d}"
+    vdir = root / "versions" / vid
+    vdir.mkdir(parents=True)
+    manifest = {"version": vid, "created": now(), "note": a.note or "", "files": []}
+    (vdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"version": vid, "dir": str(vdir)}))
+    return 0
+
+
+# -------------------------------------------------------------------- capture
+
+PROBE_JS = """() => {
+  const c = document.createElement('canvas');
+  const out = {webgl2: false, webgpu: !!navigator.gpu, renderer: null, vendor: null};
+  const gl = c.getContext('webgl2') || c.getContext('webgl');
+  if (!gl) return out;
+  out.webgl2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+  const e = gl.getExtension('WEBGL_debug_renderer_info');
+  out.renderer = e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown (no debug info)';
+  out.vendor = e ? gl.getParameter(e.UNMASKED_VENDOR_WEBGL) : null;
+  return out;
+}"""
+
+# 64x36 luma stddev of a PNG data URL: ~0 means blank or constant.
+BLANK_JS = """async (url) => {
+  const img = new Image(); img.src = url; await img.decode();
+  const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0, 64, 36);
+  const d = x.getImageData(0, 0, 64, 36).data; let s = 0, s2 = 0, n = d.length / 4;
+  for (let i = 0; i < d.length; i += 4) { const l = 0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]; s += l; s2 += l*l; }
+  const m = s / n; return Math.sqrt(Math.max(0, s2 / n - m * m));
+}"""
+
+
+def latest_version(root: Path) -> str | None:
+    ids = version_ids(root)
+    return ids[-1] if ids else None
+
+
+def cmd_capture(a: argparse.Namespace) -> int:
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+    except ImportError:
+        die("python playwright is not installed. Install: pip install playwright "
+            "(do NOT run `playwright install`; this tool drives your installed Google Chrome).")
+    try:
+        w, h = (int(x) for x in a.size.lower().split("x"))
+    except ValueError:
+        die("--size must look like 1600x900", 2)
+    root = Path(a.root)
+    shots_path = Path(a.shots) if a.shots else root / "shots.json"
+    shots = load_shots(shots_path)
+    version = a.version or latest_version(root)
+    if not VERSION_RE.match(version or "") and not a.url:
+        die("no versions yet: run `preview new-version` and copy outputs in, or pass --url", 1)
+    if not shots:
+        shots = [{"id": "default", "_default": True}]
+        print(f"preview: no shots in {shots_path}; capturing one 'default' view", file=sys.stderr)
+    out_dir = root / "evidence" / (version or "live")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    srv = None
+    if a.url:
+        sep = "&" if "?" in a.url else "?"
+        target = a.url + sep + "3d-preview"
+    else:
+        srv = make_server(root.resolve(), 0, shots_path.resolve())
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        target = f"http://127.0.0.1:{srv.server_address[1]}/?3d-preview&bare&version={version}"
+
+    report: dict[str, Any] = {"version": version, "url": target, "size": [w, h], "shots": [], "renderer": None, "flags": None, "software": None}
+    rc = 0
+    try:
+        with sync_playwright() as p:
+            tried: list[str] = []
+            best = None  # (label, browser, ctx, page, probe); first non-software wins
+            sets = [("headed", GL_FLAG_SETS[0][1])] if a.headed else GL_FLAG_SETS
+            for label, flags in sets:
+                try:
+                    br = p.chromium.launch(channel="chrome", headless=not a.headed, args=flags)
+                except Exception as e:  # missing Chrome etc.
+                    msg = str(e).splitlines()[0] if str(e) else repr(e)
+                    if "Executable doesn't exist" in str(e) or "distribution 'chrome' is not found" in str(e):
+                        die("Google Chrome not found for Playwright (channel=chrome). Install Chrome; no browser download is performed.")
+                    tried.append(f"{label}: launch failed: {msg}")
+                    continue
+                cx = br.new_context(viewport={"width": w, "height": h}, device_scale_factor=1)
+                pg = cx.new_page()
+                pg.goto("about:blank")
+                probe = pg.evaluate(PROBE_JS)
+                soft = bool(probe.get("renderer")) and bool(SOFTWARE_RE.search(probe["renderer"]))
+                if not probe.get("renderer"):
+                    tried.append(f"{label}: no WebGL context")
+                elif soft:
+                    tried.append(f"{label}: software renderer ({probe['renderer']})")
+                if probe.get("renderer") and (not soft or best is None):
+                    if best:
+                        best[1].close()
+                    best = (label, br, cx, pg, probe)
+                    if not soft:
+                        break
+                else:
+                    br.close()
+            if best is None:
+                report["error"] = "no WebGL context in any flag set: " + "; ".join(tried)
+                print(json.dumps(report, indent=2))
+                print("preview: headless GL unavailable. Retry with --headed (visible, un-occluded window), "
+                      "or fall back to a Blender reference render.", file=sys.stderr)
+                return 1
+            label, browser, ctx, page, probe = best
+            report.update(renderer=probe["renderer"], flags=label, webgl2=probe["webgl2"], webgpu=probe["webgpu"],
+                          software=bool(SOFTWARE_RE.search(probe["renderer"])))
+            if tried:
+                report["tried"] = tried
+            if report["software"]:
+                report["warning"] = ("SOFTWARE renderer: framing/layout evidence only; do not judge shading cost, "
+                                     "fps or exact colour from these frames.")
+            page = ctx.pages[-1]
+            console: list[str] = []
+            page.on("console", lambda m: console.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
+            page.on("pageerror", lambda e: console.append(f"pageerror: {e}"))
+            page.goto(target, wait_until="load")
+            try:
+                page.wait_for_function("window.__3d && window.__3d.ready", timeout=int(a.timeout * 1000))
+            except Exception:
+                report["error"] = "window.__3d.ready never became true (viewer failed to load the asset, or the app lacks the ?3d-preview bridge)"
+                report["console"] = console[-10:]
+                print(json.dumps(report, indent=2))
+                return 1
+            if a.url:  # live app: hand it the shot list from the project
+                page.evaluate("s => window.__3d.loadShots && window.__3d.loadShots(s)", [x for x in shots if not x.get("_default")])
+            for s in shots:
+                poses = [("", 0.0)] + ([("_end", 1.0)] if a.end and s.get("to") else [])
+                for suffix, t in poses:
+                    sid = s["id"] + suffix
+                    entry: dict[str, Any] = {"id": sid}
+                    try:
+                        if not s.get("_default"):
+                            page.evaluate("([id, t]) => window.__3d.setShot(id, t)", [s["id"], t])
+                        page.evaluate("n => window.__3d.frame(n)", a.settle)
+                        data_url = page.evaluate("window.__3d.capture ? window.__3d.capture() : null")
+                        if data_url:
+                            png = base64.b64decode(data_url.split(",", 1)[1])
+                            std = page.evaluate(BLANK_JS, data_url)
+                        else:  # image/video versions or app without capture(): screenshot the page
+                            png = page.screenshot(type="png")
+                            std = 99
+                        dest = out_dir / f"{sid}.png"
+                        dest.write_bytes(png)
+                        entry.update(file=str(dest), bytes=len(png), luma_stddev=round(float(std), 2))
+                        if std < 1.0:
+                            entry["error"] = "blank or constant frame: not evidence"
+                            rc = 1
+                    except Exception as e:
+                        entry["error"] = str(e).splitlines()[0] if str(e) else repr(e)
+                        rc = 1
+                    report["shots"].append(entry)
+            report["info"] = page.evaluate("window.__3d.info ? window.__3d.info() : null")
+            if console:
+                report["console"] = console[-10:]
+            browser.close()
+    finally:
+        if srv:
+            srv.shutdown()
+    print(json.dumps(report, indent=2))
+    return rc
+
+
+# ----------------------------------------------------------------------- diff
+
+def ffprobe_size(path: Path) -> tuple[int, int]:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                        "-of", "csv=p=0:s=x", str(path)], capture_output=True, text=True)
+    try:
+        w, h = r.stdout.strip().split("x")
+        return int(w), int(h)
+    except ValueError:
+        die(f"cannot read image size of {path}: {r.stderr.strip()[:200]}")
+    return 0, 0
+
+
+def ffmpeg(args: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", *args], capture_output=True, text=True)
+
+
+def diff_pair(a: Path, b: Path, out: Path) -> dict:
+    w, h = ffprobe_size(a)
+    out.mkdir(parents=True, exist_ok=True)
+    pre = f"[0:v]format=rgb24[a];[1:v]scale={w}:{h}:flags=bicubic,format=rgb24[b];"
+    inputs = ["-i", str(a), "-i", str(b)]
+    res: dict[str, Any] = {"a": str(a), "b": str(b), "size": [w, h]}
+    r = ffmpeg([*inputs, "-filter_complex", pre + "[a][b]ssim[o]", "-map", "[o]", "-f", "null", "-"])
+    m = re.search(r"SSIM.*?All:([\d.]+)", r.stderr)
+    res["ssim"] = float(m.group(1)) if m else None
+    r = ffmpeg([*inputs, "-filter_complex", pre + "[a][b]psnr[o]", "-map", "[o]", "-f", "null", "-"])
+    m = re.search(r"PSNR.*?average:(\S+)", r.stderr)
+    if m:
+        res["psnr_db"] = None if m.group(1) in ("inf", "nan") else float(m.group(1))
+        res["identical"] = m.group(1) == "inf"
+    else:
+        res["psnr_db"] = None
+    outs = {
+        "side_by_side": pre + "[a][b]hstack[o]",
+        "blend": pre + "[a][b]blend=all_mode=average[o]",
+        "difference": pre + "[a][b]blend=all_mode=difference,eq=brightness=0.0:contrast=4[o]",
+    }
+    for name, graph in outs.items():
+        dest = out / f"{name}.png"
+        r = ffmpeg([*inputs, "-filter_complex", graph, "-map", "[o]", "-frames:v", "1", str(dest)])
+        res[name] = str(dest) if dest.is_file() else None
+    return res
+
+
+def cmd_diff(a: argparse.Namespace) -> int:
+    for tool in ("ffmpeg", "ffprobe"):
+        if not shutil.which(tool):
+            die(f"{tool} not found. Install ffmpeg (e.g. `brew install ffmpeg`); it is the only dependency of diff.")
+    root = Path(a.root)
+    A, B = a.a, a.b
+    pairs: list[tuple[str, Path, Path]] = []
+    if VERSION_RE.match(A) and VERSION_RE.match(B):
+        da, db = root / "evidence" / A, root / "evidence" / B
+        if not (da.is_dir() and db.is_dir()):
+            die(f"missing evidence folder(s): {da if not da.is_dir() else ''} {db if not db.is_dir() else ''}".strip())
+        common = sorted({p.name for p in da.glob("*.png")} & {p.name for p in db.glob("*.png")})
+        if not common:
+            die("no shot images in common between the two versions")
+        pairs = [(Path(n).stem, da / n, db / n) for n in common]
+        base = Path(a.out) if a.out else root / "diffs" / f"{A}__{B}"
+    else:
+        fa, fb = Path(A), Path(B)
+        for f in (fa, fb):
+            if not f.is_file():
+                die(f"not a file: {f}")
+        pairs = [("", fa, fb)]
+        base = Path(a.out) if a.out else root / "diffs" / f"{fa.stem}__{fb.stem}"
+    results = []
+    for name, fa, fb in pairs:
+        r = diff_pair(fa, fb, base / name if name else base)
+        if name:
+            r = {"shot": name, **r}
+        results.append(r)
+    print(json.dumps(results[0] if len(results) == 1 and not pairs[0][0] else {"pairs": results}, indent=2))
+    return 0 if all(r.get("ssim") is not None for r in results) else 1
+
+
+# ------------------------------------------------------------------- feedback
+
+def cmd_feedback(a: argparse.Namespace) -> int:
+    items = read_feedback(Path(a.root))
+    if a.version:
+        items = [i for i in items if i.get("version") == a.version]
+    if a.json:
+        print(json.dumps(items, indent=2))
+        return 0
+    if not items:
+        print("no feedback yet" + (f" for {a.version}" if a.version else ""))
+        return 0
+    groups: dict[str, dict[str, list[dict]]] = {}
+    for i in items:
+        groups.setdefault(i.get("version", "?"), {}).setdefault(i.get("shot") or "(whole version)", []).append(i)
+    for ver in sorted(groups, key=lambda s: int(s[1:]) if VERSION_RE.match(s) else 0):
+        statuses = [i["status"] for sh in groups[ver].values() for i in sh if i.get("status")]
+        print(f"== {ver}  status: {statuses[-1] if statuses else 'none yet'}")
+        for shot, notes in groups[ver].items():
+            print(f"  [{shot}]")
+            for n in notes:
+                pin = f" @({n['x']:.2f},{n['y']:.2f})" if "x" in n and "y" in n else ""
+                st = f" <{n['status']}>" if n.get("status") else ""
+                kind = f" ({n['kind']})" if n.get("kind") == "resolved" else ""
+                print(f"    {n.get('id', '?')}{pin}{st}{kind} {n.get('note', '')}".rstrip())
+    return 0
+
+
+# ------------------------------------------------------------------------ cli
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="preview", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    def common(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument("--root", default=".3d", help="project .3d directory (default .3d)")
+
+    s = sub.add_parser("serve", help="serve the viewer + feedback endpoints")
+    common(s)
+    s.add_argument("--port", type=int, default=4173)
+    s.set_defaults(fn=cmd_serve)
+
+    s = sub.add_parser("new-version", help="create .3d/versions/vNNN/")
+    common(s)
+    s.add_argument("--note", default="")
+    s.set_defaults(fn=cmd_new_version)
+
+    s = sub.add_parser("capture", help="capture every shot headlessly")
+    common(s)
+    s.add_argument("--version")
+    s.add_argument("--url", help="user's running app URL (Mode B); ?3d-preview is appended")
+    s.add_argument("--shots", help="default <root>/shots.json")
+    s.add_argument("--size", default="1600x900")
+    s.add_argument("--settle", type=int, default=120, help="fixed-dt frames to run per shot (default 120)")
+    s.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for __3d.ready")
+    s.add_argument("--end", action="store_true", help="also capture each shot's end pose (`to`) as <id>_end.png")
+    s.add_argument("--headed", action="store_true", help="visible window instead of headless")
+    s.set_defaults(fn=cmd_capture)
+
+    s = sub.add_parser("diff", help="ssim/psnr + side-by-side/blend/difference images")
+    common(s)
+    s.add_argument("a")
+    s.add_argument("b")
+    s.add_argument("--out")
+    s.set_defaults(fn=cmd_diff)
+
+    s = sub.add_parser("feedback", help="print notes grouped by version and shot")
+    common(s)
+    s.add_argument("--version")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_feedback)
+
+    args = ap.parse_args(argv)
+    return int(args.fn(args))
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except KeyboardInterrupt:
+        sys.exit(130)

@@ -1,0 +1,20 @@
+{
+  "name": "3d-skill-dev",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only toolchain: type-checks skills/3d/assets/web. Not shipped.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.0.0",
+    "@types/react": "^19.0.0",
+    "@types/three": "^0.186.0",
+    "gsap": "^3.13.0",
+    "motion": "^12.0.0",
+    "react": "^19.0.0",
+    "three": "^0.186.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "schema": "refspec.v1",
+  "refs": [
+    {
+      "id": "r1",
+      "path": ".3d/refs/hero/hero.jpg",
+      "kind": "image",
+      "role": "primary",
+      "intent": "style",
+      "weight": 1.0,
+      "meta": { "w": 2400, "h": 1350, "fps": null, "duration_s": null, "exif": {}, "color": { "space": "sRGB (assumed)" } }
+    }
+  ],
+  "type": { "value": "photoreal product still", "confidence": "high", "evidence": "read" },
+  "medium": { "value": "cgi-real", "confidence": "med", "evidence": "read" },
+  "style_tokens": ["dark seamless studio", "rim-lit glossy hard surface"],
+  "anchors": [
+    "thin cool rim light tracing the top edge",
+    "near-black graduated background",
+    "polished dark metal with sharp strip reflections",
+    "subject centred, low three-quarter view"
+  ],
+  "aspect": { "ratio": "16:9", "orientation": "landscape" },
+  "composition": {
+    "framing": { "value": "centred", "confidence": "high", "evidence": "read" },
+    "subject_frac": { "range": [0.45, 0.6], "confidence": "med", "evidence": "measured" },
+    "subject_pos": { "x": 0.5, "y": 0.55 },
+    "horizon_y": { "confidence": "low", "evidence": "unknown" },
+    "negative_space": { "where": "top", "frac": 0.25 },
+    "layers": [
+      { "depth": "fg", "content": "none", "blur": "sharp" },
+      { "depth": "mid", "content": "hero object", "blur": "sharp" },
+      { "depth": "bg", "content": "dark gradient", "blur": "soft" }
+    ]
+  },
+  "camera": {
+    "shot_size": { "value": "MS", "confidence": "med", "evidence": "read" },
+    "angle": { "value": "low", "confidence": "med", "evidence": "read" },
+    "height": { "value": "knee", "confidence": "low", "evidence": "inferred" },
+    "focal_class": { "value": "tele", "confidence": "low", "evidence": "inferred" },
+    "focal_mm_ff": { "range": [70, 135], "confidence": "low", "evidence": "inferred" },
+    "sensor": "FF 36x24, assumed",
+    "perspective": { "vp_count": 2, "convergence": "weak", "distortion": "none" },
+    "dof": { "look": "moderate", "focus_plane": "front edge of object", "bokeh": "round" }
+  },
+  "lighting": {
+    "key": {
+      "dir_clock": "10",
+      "elev_deg": { "range": [30, 50], "confidence": "low", "evidence": "inferred" },
+      "type": "softbox",
+      "hardness": "soft",
+      "k": { "range": [5000, 6500], "confidence": "low", "evidence": "inferred" }
+    },
+    "fill": { "ratio_stops": { "range": [2, 3], "confidence": "low", "evidence": "inferred" } },
+    "rim": { "present": true, "dir": "behind right", "strength": "high", "color": "#bcd4ff" },
+    "env": { "kind": "studio", "contrast": "high" },
+    "shadows": { "hardness": "soft", "density": "dark", "contact": "present" },
+    "volumetrics": "none",
+    "mood": "controlled and quiet: low ambient, a single bright rim defines the form"
+  },
+  "colour": {
+    "palette": [
+      { "hex": "#0b0d12", "role": "dominant", "share": 0.62 },
+      { "hex": "#2a2f3a", "role": "support", "share": 0.25 },
+      { "hex": "#bcd4ff", "role": "accent", "share": 0.04 }
+    ],
+    "value_key": "low",
+    "contrast": "high",
+    "luma_p1_p50_p99": [0.001, 0.02, 0.62],
+    "saturation": "muted",
+    "temp_overall": "cool",
+    "grade": { "shadows_tint": "#0b1020", "highlights_tint": "#e8f0ff", "lut_family": "none" }
+  },
+  "materials": [
+    {
+      "surface": "body",
+      "coverage": 0.8,
+      "base_color": "#1a1d24",
+      "roughness": [0.1, 0.25],
+      "metalness": 1,
+      "anisotropy": "none",
+      "clearcoat": "none",
+      "transmission": "opaque",
+      "emissive": "none",
+      "normal_relief": "none",
+      "wear": "none"
+    }
+  ],
+  "form": {
+    "primitives": ["rounded cuboid"],
+    "symmetry": "bilateral",
+    "shape_language": "geometric",
+    "bevel": "fine",
+    "topology_note": "hard-surface"
+  },
+  "fx": {
+    "bloom": { "range": [0.05, 0.2], "confidence": "low", "evidence": "inferred" },
+    "grain": "none",
+    "vignette": { "range": [0.1, 0.3], "confidence": "low", "evidence": "measured" },
+    "motion_blur": "none"
+  },
+  "hidden_or_unknown": ["back and underside not shown", "absolute scale", "source colour space"],
+  "conflicts": [],
+  "negative_prompt": ["warm tungsten cast", "plastic look", "visible floor texture", "text or logos"]
+}
