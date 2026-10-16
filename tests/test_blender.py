@@ -103,6 +103,30 @@ class BlenderScripts(unittest.TestCase):
         self.assertEqual(len(res["files"]), 3)
         self.assertTrue((out / "S01.png").exists())
 
+    def test_render_shots_t_sets_frame(self):
+        """`t` moves the scene clock: a cube animated across the view renders differently at t=0 and t=1."""
+        anim = self.tmp / "anim.py"
+        anim.write_text("""
+import bpy
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.mesh.primitive_cube_add(size=2, location=(-3, 0, 1))
+c = bpy.context.object
+c.keyframe_insert("location", frame=0)
+c.location = (3, 0, 1)
+c.keyframe_insert("location", frame=30)
+bpy.ops.wm.save_as_mainfile(filepath=%r)
+""" % str(self.tmp / "anim.blend"))
+        self.bl(None, "--python", str(anim))
+        shots = self.tmp / "t.json"
+        base = {"focal_mm": 35, "position": [0, 1, 9], "target": [0, 1, 0]}
+        shots.write_text(json.dumps({"schema": "shots.v1", "aspect": "16:9", "fps": 30, "shots": [
+            dict(base, id="A", t=0), dict(base, id="B", t=1)]}))
+        out = self.tmp / "tr"
+        r = self.bl(self.tmp / "anim.blend", "--python", str(BPY / "render_shots.py"), "--", "--shots",
+                    str(shots), "--out", str(out), "--engine", "workbench", "--res", "160")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotEqual((out / "A.png").read_bytes(), (out / "B.png").read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()

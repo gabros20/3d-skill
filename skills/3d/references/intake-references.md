@@ -74,6 +74,10 @@ Focal length is only reliable as a class (`focal_class` table in [refspec](refsp
 5. **Transition** at each cut: hard, dissolve, fade, whip, match, wipe or morph.
 6. **Motion honesty**: pixels are not causal (translate, mask and crossfade look alike). Report observations; label mechanism guesses `proposed`. Keep easing as a sampled list first, a named ease only if it fits; non-monotone motion is "spring-like, family unknown".
 
+**In-frame element motion** (UI, props, particles, not the camera): run `<skill>/scripts/ref-extract --regions N` (per-cell motion energy grid) and `--kymo` (row and column time-slice images) before any hand-rolled analysis.
+
+**Fitting geometry to a still**: overlay your capture on the reference and run `<skill>/scripts/preview diff --edges` (compares structure only, independent of lighting); adjust until edges coincide.
+
 ## Several references
 
 - Give each an `id`, `role` and `weight` 0-1. The merged spec is built by field ownership: each top-level field comes from exactly one owner, others stay as `alt`. Defaults: composition and camera from the primary; light and colour from the `light`/`palette` reference else the primary; materials from `material` else primary; motion from the video, never a still.

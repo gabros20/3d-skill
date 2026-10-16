@@ -12,6 +12,30 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-16
+
+Fixes and features from a live end-to-end test (recreating a generated video loop in three.js).
+
+### Added
+- `shots.v1` optional `t` (seconds) for time-driven scenes and loops; the bridge `setTime(t)` hook,
+  viewer, `preview capture` and `render_shots.py` honour it.
+- `preview serve --app DIR` (static pages at `/app/`), `preview new-version --snapshot PATH...`,
+  `preview diff --edges` (structure-only comparison), `preview capture --clip SECONDS` (deterministic
+  frame sequence + mp4 of the render).
+- `ref-extract --regions N` (per-cell motion energy + dominant period) and `--kymo` (time-slice images).
+- "Recreating a reference" ladder in `brief-approach`: light-only over the plate → 2D warp → projection
+  mapping (clean plates only) → rebuild geometry → baked lighting → pre-rendered video; intake asks for
+  clean plates and source stills.
+
+### Changed
+- Fresh-critic gate: the same anchored rubric (pass criteria derived from refspec measurements) every
+  round; the render is measured like the reference before any critic round; the loop is bounded
+  (3 non-converging rounds → stop and ask) and a category stuck at 1 for 3 rounds is a plateau →
+  change approach.
+- Gates 2–4 can be pre-approved at intake as "approve on critic pass".
+- Explainer video re-timed for reading: every hold is computed from its on-screen text
+  (2 s + words/3 + 1 s per visual group); scenes trimmed to their key lines (4:04).
+
 ## [0.2.0] — 2026-10-16
 
 ### Added

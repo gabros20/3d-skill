@@ -3,11 +3,11 @@
 
 Usage (invoke by path with the project root as cwd; defaults like .3d resolve against cwd,
 the viewer is found relative to this script):
-  preview serve [--dir .3d] [--port 4173] [--allow-origin http://localhost:3000]
-  preview new-version [--dir .3d] [--note "what changes"]
+  preview serve [--dir .3d] [--port 4173] [--app DIR] [--allow-origin http://localhost:3000]
+  preview new-version [--dir .3d] [--note "what changes"] [--snapshot PATH...]
   preview capture [--dir .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
-                  [--size WxH] [--end] [--headed] [--settle 120]
-  preview diff A B [--dir .3d] [--out DIR]       A, B: image files or version ids
+                  [--size WxH] [--end] [--clip SECONDS [--fps N]] [--headed] [--settle 120]
+  preview diff A B [--dir .3d] [--out DIR] [--edges]       A, B: image files or version ids
   preview feedback [--dir .3d] [--version vNNN] [--json]
   preview board [--dir .3d] [--version vNNN]
   preview stop [--dir .3d]
@@ -16,19 +16,28 @@ the viewer is found relative to this script):
 serve   Loopback-only static server. Viewer comes from the skill's assets/preview/,
         project files from --dir. POST /feedback appends a JSON line to
         <dir>/feedback.jsonl; POST /shots saves a named camera into <dir>/shots.json.
+        --app DIR also serves a static page directory at /app/ (same Host guard; no path
+        escapes DIR) so a built page can be captured with --url http://127.0.0.1:<port>/app/.
         Responses are no-store. Same-origin only: Host must be 127.0.0.1/localhost:<port>,
         POST needs Content-Type: application/json and no foreign Origin; --allow-origin
         opts one exact origin into CORS. Stop it (Ctrl-C / kill) when the session ends.
 new-version
         Creates <dir>/versions/vNNN/ with manifest.json; copy outputs in afterwards
         and list them in manifest.json "files" (the viewer also scans the folder).
+        --snapshot PATH... copies files/dirs in and lists them for you.
 capture Drives the user's installed Chrome through Playwright (python, channel="chrome",
         no browser download). Opens the viewer (or --url + ?3d-preview), waits for
-        window.__3d.ready, then per shot: __3d.setShot(id[, t]); __3d.frame(n) (fixed dt);
+        window.__3d.ready, then per shot: __3d.setShot(id[, progress]) (a shot's optional `t`
+        seconds is applied by setShot itself: glTF animation time in the viewer, the app's
+        setTime hook in the bridge); __3d.frame(n) (fixed dt);
         saves the canvas to <dir>/evidence/vNNN/<shot>.png. It probes the GL renderer
         first and says plainly if it is software or absent. Exit 1 when capture fails
         or a frame is blank/constant. Needs: pip install playwright (no `playwright
         install`) and Google Chrome.
+          --clip SECONDS [--fps N] records, per shot, SECONDS*fps frames at time (shot t or 0) + i/fps
+          (via __3d.setTime, camera moving along `to` over the clip) with fixed-dt stepping, never the
+          wall clock; writes <dir>/evidence/vNNN/<shot>_clip/frame_NNNN.png and <shot>_clip.mp4
+          (ffmpeg, H.264) so `ref-extract --regions/--kymo` measures it like a reference video.
           Chrome GL flag sets tried in order until a non-software renderer appears
           (verified on macOS arm64, Chrome 155 + Playwright 1.60: headless "default"
           already gets the Metal GPU; the software set also works there):
@@ -222,6 +231,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     root: Path
     shots_path: Path
     allowed_hosts: frozenset = frozenset()
+    app_dir: Path | None = None  # serve --app DIR, exposed at /app/
     allow_origin: str | None = None  # opt-in, exact match (serve --allow-origin); never "*"
     lock = threading.Lock()
     server_version = "3dpreview"
@@ -269,10 +279,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _resolve(self, url_path: str) -> Path | None:
         rel = urllib.parse.unquote(url_path).lstrip("/")
-        if rel in ("", "index.html"):
+        bases: tuple[Path, ...] = (self.root, VIEWER_DIR)
+        if rel == "app" or rel.startswith("app/"):
+            if self.app_dir is None:
+                return None
+            rel = rel[4:]
+            bases = (self.app_dir,)
+            if rel in ("", "/") or rel.endswith("/"):
+                rel += "index.html"
+        elif rel in ("", "index.html"):
             rel = "viewer.html"
         try:
-            for base in (self.root, VIEWER_DIR):
+            for base in bases:
                 base_r = base.resolve()
                 cand = (base_r / rel).resolve()
                 if (cand == base_r or base_r in cand.parents) and cand.is_file():
@@ -294,6 +312,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._guard():
             return
         path = urllib.parse.urlsplit(self.path).path
+        if path == "/app" and self.app_dir is not None:
+            self.send_response(301)
+            self.send_header("Location", "/app/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if path == "/favicon.ico":
             return self._send(204, b"", "image/x-icon")
         if path == "/api/state":
@@ -406,9 +430,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return merged
 
 
-def make_server(root: Path, port: int, shots_path: Path | None = None, allow_origin: str | None = None) -> http.server.ThreadingHTTPServer:
+def make_server(root: Path, port: int, shots_path: Path | None = None, allow_origin: str | None = None,
+                app_dir: Path | None = None) -> http.server.ThreadingHTTPServer:
     handler = type("BoundHandler", (Handler,), {"root": root, "shots_path": shots_path or root / "shots.json",
-                                                "lock": threading.Lock(), "allow_origin": allow_origin})
+                                                "lock": threading.Lock(), "allow_origin": allow_origin,
+                                                "app_dir": app_dir.resolve() if app_dir else None})
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     p = srv.server_address[1]
     handler.allowed_hosts = frozenset({f"127.0.0.1:{p}", f"localhost:{p}"})
@@ -424,8 +450,11 @@ def cmd_serve(a: argparse.Namespace) -> int:
     root.mkdir(parents=True, exist_ok=True)
     if not VIEWER_DIR.joinpath("viewer.html").is_file():
         die(f"viewer missing at {VIEWER_DIR}")
+    app_dir = Path(a.app) if a.app else None
+    if app_dir and not (app_dir / "index.html").is_file():
+        die(f"--app {app_dir}: no index.html there", 2)
     try:
-        srv = make_server(root, a.port, allow_origin=a.allow_origin)
+        srv = make_server(root, a.port, allow_origin=a.allow_origin, app_dir=app_dir)
     except OSError as e:
         die(f"cannot bind 127.0.0.1:{a.port}: {e} (pick another --port)")
     port = srv.server_address[1]
@@ -438,6 +467,9 @@ def cmd_serve(a: argparse.Namespace) -> int:
     signal.signal(signal.SIGTERM, _term)
     print(f"preview: serving {root} at http://127.0.0.1:{port}/  pid {os.getpid()}  "
           f"(stop: `preview stop` or Ctrl-C)", flush=True)
+    if app_dir:
+        print(f"preview: app {app_dir.resolve()} at http://127.0.0.1:{port}/app/  "
+              f"(capture: --url http://127.0.0.1:{port}/app/)", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
@@ -548,12 +580,27 @@ def cmd_selftest(_: argparse.Namespace | None = None) -> int:
 
 def cmd_new_version(a: argparse.Namespace) -> int:
     root = Path(a.dir)
+    snaps = [Path(x) for x in (a.snapshot or [])]
+    for sp in snaps:
+        if not sp.exists():
+            die(f"--snapshot path not found: {sp}")
+        if sp.name == "manifest.json":
+            die("--snapshot cannot include a file named manifest.json")
     ids = version_ids(root)
     nxt = (int(ids[-1][1:]) + 1) if ids else 1
     vid = f"v{nxt:03d}"
     vdir = root / "versions" / vid
     vdir.mkdir(parents=True)
-    manifest = {"version": vid, "created": now(), "note": a.note or "", "files": []}
+    files: list[str] = []
+    for sp in snaps:
+        if sp.is_dir():
+            dest = vdir / sp.name
+            shutil.copytree(sp, dest)
+            files += sorted(str(f.relative_to(vdir)).replace(os.sep, "/") for f in dest.rglob("*") if f.is_file())
+        else:
+            shutil.copy2(sp, vdir / sp.name)
+            files.append(sp.name)
+    manifest = {"version": vid, "created": now(), "note": a.note or "", "files": sorted(set(files))}
     (vdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"version": vid, "dir": str(vdir)}))
     return 0
@@ -598,6 +645,42 @@ def default_size(shots_path: Path) -> str:
     return "1600x900"
 
 
+def capture_clip(page: Any, s: dict, a: argparse.Namespace, out_dir: Path, fps: int) -> dict:
+    """Deterministic clip: frame i is at time (shot t or 0) + i/fps, camera at progress i/(n-1) along `to`.
+    Nothing reads the wall clock; the app is stepped through __3d.setTime/setShot/frame/capture."""
+    sid = s["id"]
+    n = max(2, round(a.clip * fps))
+    t0 = float(s.get("t") or 0.0)
+    fdir = out_dir / f"{sid}_clip"
+    shutil.rmtree(fdir, ignore_errors=True)
+    fdir.mkdir(parents=True)
+    entry: dict[str, Any] = {"id": f"{sid}_clip", "frames": n, "fps": fps, "seconds": round(n / fps, 3), "t_start": t0}
+    try:
+        has_time = page.evaluate("typeof window.__3d.setTime === 'function'")
+        for i in range(n):
+            if not s.get("_default"):
+                page.evaluate("([id, p]) => window.__3d.setShot(id, p)", [sid, i / (n - 1) if s.get("to") else 0.0])
+            if has_time:
+                page.evaluate("t => window.__3d.setTime(t)", t0 + i / fps)
+            page.evaluate("n => window.__3d.frame(n)", 1)
+            data_url = page.evaluate("window.__3d.capture ? window.__3d.capture() : null")
+            if not data_url:
+                raise RuntimeError("__3d.capture() returned nothing (image/video version or app without capture())")
+            (fdir / f"frame_{i:04d}.png").write_bytes(base64.b64decode(data_url.split(",", 1)[1]))
+        if not has_time:
+            entry["warning"] = "no setTime hook: animation time is not stepped (camera `to` move still plays)"
+        mp4 = out_dir / f"{sid}_clip.mp4"
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", "-framerate", str(fps), "-i", str(fdir / "frame_%04d.png"),
+                            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "16",
+                            "-movflags", "+faststart", str(mp4)], capture_output=True, text=True)
+        if r.returncode != 0 or not mp4.is_file():
+            raise RuntimeError("ffmpeg encode failed: " + (r.stderr.strip().splitlines() or ["?"])[-1][:200])
+        entry.update(file=str(mp4), frames_dir=str(fdir), bytes=mp4.stat().st_size)
+    except Exception as e:
+        entry["error"] = str(e).splitlines()[0] if str(e) else repr(e)
+    return entry
+
+
 def cmd_capture(a: argparse.Namespace) -> int:
     try:
         from playwright.sync_api import sync_playwright  # type: ignore
@@ -615,6 +698,10 @@ def cmd_capture(a: argparse.Namespace) -> int:
     shots_path = Path(a.shots) if a.shots else root / "shots.json"
     shots = load_shots(shots_path)
     version = a.version or latest_version(root)
+    sdata = read_json(shots_path, {})
+    fps = a.fps or (int(sdata["fps"]) if isinstance(sdata, dict) and isinstance(sdata.get("fps"), (int, float)) and sdata["fps"] > 0 else 30)
+    if a.clip is not None and not (0 < a.clip <= 120):
+        die("--clip SECONDS must be between 0 and 120", 2)
     if not VERSION_RE.match(version or "") and not a.url:
         die("no versions yet: run `preview new-version` and copy outputs in, or pass --url", 1)
     if not shots:
@@ -693,11 +780,21 @@ def cmd_capture(a: argparse.Namespace) -> int:
                 return 1
             if a.url:  # live app: hand it the shot list from the project
                 page.evaluate("s => window.__3d.loadShots && window.__3d.loadShots(s)", [x for x in shots if not x.get("_default")])
+            if a.clip:
+                if not shutil.which("ffmpeg"):
+                    die("ffmpeg not found; --clip needs it to encode the mp4 (e.g. `brew install ffmpeg`).")
+                for s in shots:
+                    report["shots"].append(capture_clip(page, s, a, out_dir, fps))
+                    if report["shots"][-1].get("error"):
+                        rc = 1
+                shots = []
             for s in shots:
                 poses = [("", 0.0)] + ([("_end", 1.0)] if a.end and s.get("to") else [])
                 for suffix, t in poses:
                     sid = s["id"] + suffix
                     entry: dict[str, Any] = {"id": sid}
+                    if s.get("t") is not None or (t and (s.get("to") or {}).get("t") is not None):
+                        entry["t_seconds"] = (s.get("to") or {}).get("t") if t and (s.get("to") or {}).get("t") is not None else s.get("t")
                     try:
                         if not s.get("_default"):
                             page.evaluate("([id, t]) => window.__3d.setShot(id, t)", [s["id"], t])
@@ -747,12 +844,15 @@ def ffmpeg(args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", *args], capture_output=True, text=True)
 
 
-def diff_pair(a: Path, b: Path, out: Path) -> dict:
+def diff_pair(a: Path, b: Path, out: Path, edges: bool = False) -> dict:
     w, h = ffprobe_size(a)
+    out = out / "edges" if edges else out
     out.mkdir(parents=True, exist_ok=True)
-    pre = f"[0:v]format=rgb24[a];[1:v]scale={w}:{h}:flags=bicubic,format=rgb24[b];"
+    # --edges: compare structure only. Edge maps (edgedetect on luma) ignore lighting and colour.
+    ed = ",format=gray,edgedetect=low=0.08:high=0.2" if edges else ""
+    pre = f"[0:v]scale={w}:{h}:flags=bicubic{ed},format=rgb24[a];[1:v]scale={w}:{h}:flags=bicubic{ed},format=rgb24[b];"
     inputs = ["-i", str(a), "-i", str(b)]
-    res: dict[str, Any] = {"a": str(a), "b": str(b), "size": [w, h]}
+    res: dict[str, Any] = {"a": str(a), "b": str(b), "size": [w, h], "edges": edges}
     r = ffmpeg([*inputs, "-filter_complex", pre + "[a][b]ssim[o]", "-map", "[o]", "-f", "null", "-"])
     m = re.search(r"SSIM.*?All:([\d.]+)", r.stderr)
     res["ssim"] = float(m.group(1)) if m else None
@@ -800,7 +900,7 @@ def cmd_diff(a: argparse.Namespace) -> int:
         base = Path(a.out) if a.out else root / "diffs" / f"{fa.stem}__{fb.stem}"
     results = []
     for name, fa, fb in pairs:
-        r = diff_pair(fa, fb, base / name if name else base)
+        r = diff_pair(fa, fb, base / name if name else base, a.edges)
         if name:
             r = {"shot": name, **r}
         results.append(r)
@@ -912,12 +1012,14 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("serve", help="serve the viewer + feedback endpoints")
     common(s)
     s.add_argument("--port", type=int, default=4173)
+    s.add_argument("--app", metavar="DIR", help="also serve this static page directory (needs index.html) at /app/; capture it with --url http://127.0.0.1:<port>/app/")
     s.add_argument("--allow-origin", help="opt-in: exact origin (e.g. http://localhost:3000) allowed to POST from another app; never *")
     s.set_defaults(fn=cmd_serve)
 
     s = sub.add_parser("new-version", help="create .3d/versions/vNNN/")
     common(s)
     s.add_argument("--note", default="")
+    s.add_argument("--snapshot", nargs="+", metavar="PATH", help="copy these files/dirs into the new version and list them in manifest.json")
     s.set_defaults(fn=cmd_new_version)
 
     s = sub.add_parser("capture", help="capture every shot headlessly")
@@ -928,6 +1030,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--size", help="WxH (default 1600 wide; height from shots.json aspect, else 900)")
     s.add_argument("--settle", type=int, default=120, help="fixed-dt frames to run per shot (default 120)")
     s.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for __3d.ready")
+    s.add_argument("--clip", type=float, metavar="SECONDS", help="record a deterministic clip per shot: <id>_clip/frame_NNNN.png + <id>_clip.mp4")
+    s.add_argument("--fps", type=int, help="clip frame rate (default: shots.json fps, else 30)")
     s.add_argument("--end", action="store_true", help="also capture each shot's end pose (`to`) as <id>_end.png")
     s.add_argument("--headed", action="store_true", help="visible window instead of headless")
     s.set_defaults(fn=cmd_capture)
@@ -936,6 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
     common(s)
     s.add_argument("a")
     s.add_argument("b")
+    s.add_argument("--edges", action="store_true", help="compare edge maps (ffmpeg edgedetect) instead of pixels: fits geometry independent of lighting; images go to <out>/edges/")
     s.add_argument("--out")
     s.set_defaults(fn=cmd_diff)
 

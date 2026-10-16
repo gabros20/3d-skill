@@ -1,7 +1,7 @@
 # remotion — "How 3d works" explainer
 
 The explainer for the **3d** skill's site (`site/index.html` → `#idea` player): 1200×520, 30 fps,
-4134 frames (137.8 s), loops. Two acts: one 3D task end to end (request → measured refspec →
+7307 frames (243.6 s), loops. Two acts: one 3D task end to end (request → measured refspec →
 grill → brief and gates → pipeline → build → previews → fresh critic → the user's note → approved
 → `3D.md`), then the pack (router, preflight, scroll conductor, where outputs land). The scene
 timeline is the `SCENES` const in [`src/HowThreeDWorks.tsx`](src/HowThreeDWorks.tsx); the
@@ -28,14 +28,17 @@ Render the two theme variants + poster stills into the site (paths are relative 
 ```bash
 npx remotion render how-3d-works-light ../site/assets/how-3d-works-light.mp4 --codec=h264 --crf=23
 npx remotion render how-3d-works-dark  ../site/assets/how-3d-works-dark.mp4  --codec=h264 --crf=23
-npx remotion still  how-3d-works-light ../site/assets/how-3d-works-light-poster.png --frame=1731
-npx remotion still  how-3d-works-dark  ../site/assets/how-3d-works-dark-poster.png  --frame=1731
+npx remotion still  how-3d-works-light ../site/assets/how-3d-works-light-poster.png --frame=2979
+npx remotion still  how-3d-works-dark  ../site/assets/how-3d-works-dark-poster.png  --frame=2979
 ```
 
 The page swaps `how-3d-works-{light,dark}.mp4` on theme change and falls back to the poster PNG
-(and to the static diagram) when video or motion is unavailable. The poster is frame 1731, the
+(and to the static diagram) when video or motion is unavailable. The poster is frame 2979, the
 preview viewer with the reference overlay — a hold, not frame 0. When `SCENES` changes, update the
 page's PLAYER-META (`data-duration`, `data-chapters` = scene start / 30) to match.
+
+If a render dies with `Visited "http://localhost:…" but got no response` (a tab crashed under memory
+pressure), re-run it with `--concurrency=2`.
 
 Rendered videos are multi-megabyte binaries. If `git push` fails with HTTP 400, raise the buffer
 for that push: `git -c http.postBuffer=524288000 push`.
@@ -50,13 +53,20 @@ Build each scene as three explicit phases:
 animate IN  →  HOLD fully still (a reading beat)  →  fade OUT
 ```
 
-- Size the **hold** to the text: ~2.3s for a short line, up to ~4s for a dense grid or code block.
-  Read the scene aloud at a natural pace; that is the floor.
-- Compute duration as `dur = content-in-end + reading-hold + fade`. The fade-out must begin at
-  `dur − fade`, **after** every element has finished appearing — never at or before the last element
-  lands (that yields zero or negative reading time, the exact bug this note exists to prevent).
-- Verify before a full render: `npx remotion still <id> <out> --frame=N` at the middle of each hold,
-  and confirm the scene is complete and legible.
+- **Compute the hold; never set it by feel.** This is the canonical rule:
+
+  ```text
+  HOLD ≥ 2.0 s settle + W / 3 s + 1.0 s × G
+  ```
+
+  - HOLD is the time everything is still, after the last element lands.
+  - W counts the new words a viewer should read: headline, key lines and caption. Monospace and code words count × 1.3.
+  - G is the number of visual groups to parse (diagram, card, table, chart, viewer).
+  - A caption is fully opaque for ≥ 1.0 + words / 3.3 s, and is never cut before its scene's hold ends.
+  - `readingLoad()` in `src/HowThreeDWorks.tsx` applies it. Each scene's `DEFS` entry lists exactly the strings it shows, so the code derives `dur = IN + hold + OUT`.
+- Too long? Cut words, not seconds: a headline, one caption and 3–5 key lines per scene.
+- The fade-out must begin at `dur − fade`, **after** every element has finished appearing. Never let text animate during a hold.
+- Verify before a full render: `npx remotion still <id> <out> --frame=N` at the middle of each hold, and confirm the scene is complete and legible.
 
 A dense explainer runs well over a minute once every scene holds long enough to read; a cut that
 feels "tight" to its author is almost always too fast for a first-time viewer.

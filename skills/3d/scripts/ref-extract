@@ -7,7 +7,15 @@ weight), luma.json (16-bin histogram, mean, key, contrast, p5/p50/p95 on 0..1). 
 seconds) and motion.json (8 samples/s; per sample: t seconds, energy 0..1 = mean abs frame diff,
 dx/dy = global content shift in pixels of a 32x18 grey frame, positive = content moves right/down,
 found by brute-force SAD over +-3 px, so camera pan/tilt is the opposite sign; speed_w_pct_s and
-speed_h_pct_s = |dx|,|dy| as percent of frame width/height per second). Needs ffmpeg and ffprobe.
+speed_h_pct_s = |dx|,|dy| as percent of frame width/height per second).
+--regions N (2..8, video only) writes regions.json: {n, fps, t[], cells[]} where each cell is
+{row, col, energy[] (mean abs frame diff 0..1 per sample, aligned with t[]), mean, peak, period_s};
+period_s is the dominant repeat period of the cell's mean luma (autocorrelation peak > 0.3, 2 samples
+to half the clip), null when the cell is static or not periodic. A blink on/off cycle reads as its full
+period. --kymo (video only) writes kymo-rows.png (width = frame x, height = time; the horizontal line
+at y) and kymo-cols.png (width = time, height = frame y; the vertical line at x), 8 samples/s, 480x270
+sampling; --kymo-at X,Y sets the line position as 0..1 fractions (default 0.5,0.5) and implies --kymo.
+Needs ffmpeg and ffprobe.
 Run it by path with your project root as the working directory; --out (.3d/refs) and inputs resolve against it.
 Exit 0 ok, 1 problems (missing ffmpeg, unreadable input), 2 usage. Stdlib + ffmpeg only.
 """
@@ -19,8 +27,10 @@ import math
 import random
 import re
 import shutil
+import struct
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".gif", ".mpg", ".mpeg"}
@@ -233,6 +243,93 @@ def motion_energy(path: Path) -> list[dict]:
     return out
 
 
+def cell_period(series: list[float], fps: int) -> float | None:
+    """Smallest lag whose normalised autocorrelation is a local peak above 0.3, in seconds."""
+    n = len(series)
+    if n < 6:
+        return None
+    mu = sum(series) / n
+    x = [v - mu for v in series]
+    var = sum(v * v for v in x)
+    if var / n < 1.0:  # flat signal (luma units^2)
+        return None
+    top = n // 2
+    r = [sum(x[i] * x[i + lag] for i in range(n - lag)) / var for lag in range(top + 2)]
+    for lag in range(2, top + 1):
+        if r[lag] > 0.3 and r[lag] >= r[lag - 1] and r[lag] >= r[lag + 1]:
+            return round(lag / fps, 3)
+    return None
+
+
+def region_grid(path: Path, n: int) -> dict:
+    side = n * max(4, math.ceil(48 / n))
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-t", str(MOTION_MAX_S), "-i", arg(path), "-an",
+               "-vf", f"fps={MOTION_FPS},scale={side}:{side},format=gray", "-f", "rawvideo", "-"], binary=True)
+    if res.returncode != 0:
+        raise ExtractError(f"regions pass failed: {res.stderr.decode(errors='replace').strip()[:200]}")
+    data, size, cs = res.stdout, side * side, side // n
+    frames = len(data) // size
+    luma = [[[] for _ in range(n)] for _ in range(n)]
+    energy = [[[] for _ in range(n)] for _ in range(n)]
+    for f in range(frames):
+        cur = data[f * size:(f + 1) * size]
+        prev = data[(f - 1) * size:f * size] if f else None
+        for r in range(n):
+            for c in range(n):
+                tot = dif = 0
+                for y in range(r * cs, (r + 1) * cs):
+                    row = cur[y * side + c * cs: y * side + (c + 1) * cs]
+                    tot += sum(row)
+                    if prev is not None:
+                        dif += sum(abs(a - b) for a, b in zip(row, prev[y * side + c * cs: y * side + (c + 1) * cs]))
+                luma[r][c].append(tot / (cs * cs))
+                if prev is not None:
+                    energy[r][c].append(round(dif / (cs * cs) / 255, 5))
+    cells = []
+    for r in range(n):
+        for c in range(n):
+            e = energy[r][c]
+            cells.append({"row": r, "col": c, "energy": e, "mean": round(sum(e) / len(e), 5) if e else 0.0,
+                          "peak": max(e) if e else 0.0, "period_s": cell_period(luma[r][c], MOTION_FPS)})
+    return {"n": n, "fps": MOTION_FPS, "t": [round(i / MOTION_FPS, 3) for i in range(1, frames)], "cells": cells}
+
+
+def write_png(path: Path, w: int, h: int, rows: list[bytes]) -> None:
+    def chunk(tag: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + tag + body + struct.pack(">I", zlib.crc32(tag + body))
+    raw = b"".join(b"\x00" + r for r in rows)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
+
+
+def kymographs(path: Path, dest: Path, fx: float, fy: float) -> None:
+    w, h = 480, 270
+    x, y = min(int(fx * w), w - 1), min(int(fy * h), h - 1)
+    try:
+        proc = subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-t", str(MOTION_MAX_S), "-i", arg(path),
+                                 "-an", "-vf", f"fps={MOTION_FPS},scale={w}:{h},format=rgb24", "-f", "rawvideo", "-"],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError as exc:
+        raise ExtractError(f"kymograph pass failed: {exc}")
+    size, rows, cols = w * h * 3, [], []
+    assert proc.stdout is not None
+    while True:
+        buf = proc.stdout.read(size)
+        if len(buf) < size:
+            break
+        rows.append(buf[y * w * 3:(y + 1) * w * 3])
+        cols.append(b"".join(buf[(r * w + x) * 3:(r * w + x) * 3 + 3] for r in range(h)))
+    proc.stdout.close()
+    proc.wait()
+    if not rows:
+        raise ExtractError("kymograph pass produced no frames")
+    write_png(dest / "kymo-rows.png", w, len(rows), rows)
+    # kymo-cols: width = time, height = y; transpose the per-frame columns
+    t = len(cols)
+    write_png(dest / "kymo-cols.png", t, h,
+              [b"".join(cols[i][r * 3:r * 3 + 3] for i in range(t)) for r in range(h)])
+
+
 def unique_dir(out_root: Path, src: Path, used: set[str]) -> Path:
     name = re.sub(r"[^A-Za-z0-9._-]+", "-", src.stem).strip("-") or "ref"
     base, n = name, 2
@@ -242,7 +339,8 @@ def unique_dir(out_root: Path, src: Path, used: set[str]) -> Path:
     return out_root / name
 
 
-def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
+def process(src: Path, dest: Path, frames_n: int, scene: float, regions: int = 0,
+            kymo_at: tuple[float, float] | None = None) -> dict:
     meta = probe(src)
     is_video = src.suffix.lower() in VIDEO_EXT and duration_of(meta) > 0
     dest.mkdir(parents=True, exist_ok=True)
@@ -263,6 +361,10 @@ def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
             raise ExtractError(f"no frames could be extracted from {src}")
         (dest / "cuts.json").write_text(json.dumps({"threshold": scene, "duration": dur, "cuts": cuts}, indent=2))
         (dest / "motion.json").write_text(json.dumps({"fps": MOTION_FPS, "samples": motion_energy(src)}, indent=2))
+        if regions:
+            (dest / "regions.json").write_text(json.dumps(region_grid(src, regions)))
+        if kymo_at:
+            kymographs(src, dest, *kymo_at)
     else:
         if src.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
             f = fdir / f"frame_001{src.suffix.lower()}"
@@ -287,10 +389,24 @@ def main() -> int:
     ap.add_argument("inputs", nargs="+")
     ap.add_argument("--out", default=".3d/refs", help="output dir, relative to the current directory (your project root)")
     ap.add_argument("--frames", type=int, default=12, help="max keyframes per video (default 12)")
+    ap.add_argument("--regions", type=int, default=0, metavar="N",
+                    help="video: write regions.json, an NxN grid (2..8) of per-cell motion energy and dominant period")
+    ap.add_argument("--kymo", action="store_true", help="video: write kymo-rows.png and kymo-cols.png time-slice images")
+    ap.add_argument("--kymo-at", default=None, metavar="X,Y",
+                    help="kymograph line position as 0..1 fractions (default 0.5,0.5); implies --kymo")
     ap.add_argument("--scene", type=float, default=0.3, help="scene-cut threshold 0..1 (default 0.3)")
     args = ap.parse_args()
     if args.frames < 1 or not 0 < args.scene < 1:
         ap.error("--frames must be >= 1 and --scene in (0,1)")
+    if args.regions and not 2 <= args.regions <= 8:
+        ap.error("--regions must be 2..8")
+    kymo_at = None
+    if args.kymo or args.kymo_at:
+        try:
+            kymo_at = tuple(float(v) for v in (args.kymo_at or "0.5,0.5").split(","))  # type: ignore[assignment]
+            assert len(kymo_at) == 2 and all(0 <= v <= 1 for v in kymo_at)
+        except (ValueError, AssertionError):
+            ap.error("--kymo-at must be X,Y fractions between 0 and 1, e.g. 0.5,0.5")
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         print("ref-extract: ffmpeg and ffprobe are required and were not found on PATH.\n"
               "  install: brew install ffmpeg   (or your package manager); then re-run.", file=sys.stderr)
@@ -303,7 +419,7 @@ def main() -> int:
             failed = True
             continue
         try:
-            res = process(src, unique_dir(out_root, src, used), args.frames, args.scene)
+            res = process(src, unique_dir(out_root, src, used), args.frames, args.scene, args.regions, kymo_at)
         except ExtractError as exc:
             print(f"ref-extract: {raw}: {exc}", file=sys.stderr)
             failed = True

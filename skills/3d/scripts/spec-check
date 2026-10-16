@@ -187,6 +187,8 @@ def check_shots(doc: dict, r: Report) -> None:
         check_pose(s, p, r)
         if "duration_s" in s and not (is_num(s["duration_s"]) and s["duration_s"] > 0):
             r.add(f"{p}.duration_s", "must be a positive number")
+        if "t" in s and not (is_num(s["t"]) and s["t"] >= 0):
+            r.add(f"{p}.t", "must be a number >= 0 (seconds)")
         if "ease" in s and s["ease"] not in EASES:
             r.add(f"{p}.ease", f"must be one of {sorted(EASES)}")
         sc = s.get("scroll")

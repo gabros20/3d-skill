@@ -18,7 +18,7 @@ Produces:
 
 ## Contents
 
-- Decision rule · Matrix · Fallback ladder · Stages · Adjacent skills · Traps
+- Decision rule · Matrix · Fallback ladder · Recreating a reference · Stages · Adjacent skills · Traps
 
 ## Decision rule
 
@@ -52,6 +52,19 @@ State it in the brief, top to bottom, and give the trigger for each step:
 4. **Static composition**: the poster from the first real frame. Trigger: `prefers-reduced-motion`, no JS, failed load.
 
 Poster, reduced-motion frame and live first frame must match; the poster carries first paint.
+
+## Recreating a reference
+
+At intake, ask whether the user has a **clean plate** (the reference without baked-in UI or animation) or source stills; an unused plate wastes rounds. Then try the cheapest faithful route first and change approach when lookdev plateaus (trigger: the plateau rule in [shared-verification](shared-verification.md)):
+
+1. **Light-only animation over the untouched plate**: exact look; fits a static subject.
+2. **2D displacement warp of the plate** for small-amplitude motion: no separate geometry, nothing doubles; edges stretch slightly.
+3. **Camera-projection mapping** onto matching geometry, only with a clean plate (moving elements absent) or motion smaller than the geometry-fit error. A plate with the moving elements baked in fails: the baked copy stays and the moving geometry doubles. Paint out animated elements and render them live.
+4. **Rebuild geometry from the plate** (thickness, filleted edges, surface texture) with a contrasty studio environment for metals.
+5. **Baked lighting or lightmaps** for static looks that live light cannot reach.
+6. **Pre-rendered video**: [scroll-video](scroll-video.md) when interaction is not needed.
+
+Record the switch and the reason in the `3D.md` decision log.
 
 ## Stages
 

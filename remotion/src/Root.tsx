@@ -27,7 +27,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition id="how-3d-works-light" {...COMMON} defaultProps={{ theme: "light" as const }} />
       <Composition id="how-3d-works-dark" {...COMMON} defaultProps={{ theme: "dark" as const }} />
       <Folder name="Scenes">
-        {SCENES.map(({ id, dur, Scene }) => (
+        {SCENES.map(({ id, dur, title, caption, out, Scene }) => (
           <Composition
             key={id}
             id={`scene-${id}`}
@@ -36,7 +36,7 @@ export const RemotionRoot: React.FC = () => {
             height={520}
             fps={30}
             durationInFrames={dur}
-            defaultProps={{ theme: "light" as const, dur }}
+            defaultProps={{ theme: "light" as const, dur, title, caption, out }}
           />
         ))}
         {/* a bounded element: its standalone registration supplies the band's background */}

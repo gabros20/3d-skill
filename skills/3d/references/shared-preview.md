@@ -22,10 +22,10 @@ Produces:
 
 **A. Standalone.** Assets under `.3d/` viewed in the skill's own viewer.
 ```
-<skill>/scripts/preview serve [--dir .3d] [--port 4173]
+<skill>/scripts/preview serve [--dir .3d] [--port 4173] [--app DIR]
 <skill>/scripts/preview stop        # reads .3d/preview.pid
 ```
-Routes: `/` viewer, `/api/state` (versions, shots, refs, feedback), everything else from `--dir`. `POST /feedback` body: `version` (required), `note` and/or `status` (`approved|changes`; at least one), optional `shot`, `x`, `y` (0..1); the server adds `id` (`f0001…`), `kind` and `ts`. `POST /shots` body: one `shots.v1` shot entry, merged into `.3d/shots.json`. Own port, loopback only. Viewer keys: 1–9 shots, `[` `]` versions. The viewer loads three.js from a pinned CDN, so it needs network. It reads `.3d/look.json` (`look.v1`: `toneMapping`, `exposure`, `environment`, `background`; default neutral) so the preview matches the chosen look. You start it; stop it with `<skill>/scripts/preview stop` when the session ends. Open the printed URL for the user.
+Routes: `/` viewer, `/api/state` (versions, shots, refs, feedback), everything else from `--dir`. `POST /feedback` body: `version` (required), `note` and/or `status` (`approved|changes`; at least one), optional `shot`, `x`, `y` (0..1); the server adds `id` (`f0001…`), `kind` and `ts`. `POST /shots` body: one `shots.v1` shot entry, merged into `.3d/shots.json`. Own port, loopback only. Viewer keys: 1–9 shots, `[` `]` versions. The viewer loads three.js from a pinned CDN, so it needs network. It reads `.3d/look.json` (`look.v1`: `toneMapping`, `exposure`, `environment`, `background`; default neutral) so the preview matches the chosen look. You start it; stop it with `<skill>/scripts/preview stop` when the session ends. `--app DIR` also serves a static page directory at `/app/`; capture it with `--url http://127.0.0.1:<port>/app/` (`?3d-preview` is appended). Open the printed URL for the user.
 
 **B. Live in the user's app.** The scene runs in their project, opened with `?3d-preview`. The `window.__3d` bridge (`assets/web/bridge.ts`) exposes `window.__3d = { ready, shots(), loadShots(shots), setShot(id), frame(n), capture(), info() }` (`capture()` returns a PNG data URL; a shot with `scroll` calls the app's `setProgress`). `<skill>/scripts/preview capture` drives it, so capture is deterministic. Adding the bridge is a change in their repo: ask first, guard it to development builds, list the added files in the handoff, and remove it at the end if asked.
 
@@ -35,7 +35,7 @@ Default to A for assets and look-dev; use B for anything whose truth is the page
 
 ## The loop
 
-1. `<skill>/scripts/preview new-version [--note "<what changes>"]` creates `.3d/versions/vNNN/` (prints `{"version","dir"}`, writes `manifest.json`); drop the asset in that dir (the viewer opens the first `.glb/.gltf`, else image, else video). One version per change-set, never edit a shown version.
+1. `<skill>/scripts/preview new-version [--note "<what changes>"] [--snapshot PATH...]` creates `.3d/versions/vNNN/` (prints `{"version","dir"}`, writes `manifest.json`); `--snapshot` copies the given files into the version (never copy builds by hand); otherwise drop the asset in that dir (the viewer opens the first `.glb/.gltf`, else image, else video). One version per change-set, never edit a shown version.
 2. Build the change into that version.
 3. Capture consent first: read `capture: ask|auto` in `3D.md`. `auto` is the default for the skill's own preview server; ALWAYS ask before driving the user's app or browser (Mode B) unless it says `auto`. Capture needs python playwright + Chrome ([shared-preflight](shared-preflight.md)). Preview at low resolution first (`--size 854x480`), full size (default 1600x900) only for approval. Then `<skill>/scripts/preview capture [--version vNNN] [--url URL] [--shots .3d/shots.json]` writes `.3d/evidence/vNNN/<shot>.png` for EVERY shot, not only the one you changed. It appends `?3d-preview` to `--url`, loads the project's `shots.json`, then per shot does `setShot` → `frame(--settle, default 120)` → `capture()` (flags `--size --headed --timeout --dir`; `--end` also captures each shot's `to` pose as `<id>_end.png`). Read the report: renderer string and probe path (default, gpu, software flags). Software-only GL is a warning; no WebGL, a blank or constant frame, or `ready` never true exits 1: a failed capture, not evidence.
 4. Compare: against the reference image (side by side, by eye, plus palette and luma numbers from `<skill>/scripts/ref-extract`) and against the previous version:
@@ -53,7 +53,8 @@ Default to A for assets and look-dev; use B for anything whose truth is the page
 - Render after every stage and look at it: validation passing is not visual verification.
 - Corrections are new lines referencing earlier ids; never rewrite `feedback.jsonl`.
 - Stop when the user marks a version `approved` (status note) or says so. Then write the final version-log line in `3D.md` with budget numbers from [shared-performance](shared-performance.md).
-- Three rounds on the same shot without convergence: pause, show a before/after strip, and ask whether the reference or the brief should change.
+- Three non-converging rounds (shot or critic): STOP. Report the score trend and `preview board`, and ask the user: iterate on X, accept, or change approach. "Iterate until it passes" never overrides this.
+- A shot may carry `t` (seconds); the bridge's time hook applies it before capture.
 
 ## Traps
 

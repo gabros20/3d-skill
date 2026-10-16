@@ -300,6 +300,10 @@ class SpecCheckTest(unittest.TestCase):
             res = run("spec-check", str(TEMPLATES / t))
             self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
 
+    def test_shot_time_t_accepted(self) -> None:
+        path = self.variant("shots.json", lambda d: d["shots"][0].update(t=2.5))
+        self.assertEqual(run("spec-check", str(path)).returncode, 0)
+
     def test_look_valid_and_broken(self) -> None:
         look = self.tmp / "look.json"
         base = {"schema": "look.v1", "toneMapping": "agx", "exposure": 1.1,
@@ -328,6 +332,8 @@ class SpecCheckTest(unittest.TestCase):
         self.fails(self.variant("shots.json", lambda d: d["shots"][1].update(scroll=[0.2, 0.5])), "overlaps")
         self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(ease="bounce")), "$.shots[0].ease")
         self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(id="a b")), "$.shots[0].id")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(t=-1)), "$.shots[0].t")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(t="3")), "$.shots[0].t")
         self.fails(self.variant("shots.json", lambda d: d.update(aspect="wide")), "$.aspect")
         self.fails(self.variant("shots.json", lambda d: d["shots"][0]["to"].update(colour="x")), "$.shots[0].to.colour")
 
@@ -418,6 +424,38 @@ class RefExtractTest(unittest.TestCase):
                              capture_output=True, text=True, cwd=self.tmp, timeout=120)
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertFalse(stale.exists())
+
+    def test_regions_and_kymo(self) -> None:
+        vid = self.tmp / "blink.mp4"
+        # top-left quarter blinks white at 1 Hz; everything else is static black
+        self.ff("-f", "lavfi", "-i", "color=black:size=320x180:rate=15:duration=6",
+                "-vf", "drawbox=x=0:y=0:w=160:h=90:color=white:t=fill:enable='lt(mod(t,1),0.5)'",
+                "-pix_fmt", "yuv420p", str(vid))
+        out = self.tmp / "out"
+        res = run("ref-extract", str(vid), "--out", str(out), "--frames", "2", "--regions", "2", "--kymo-at", "0.25,0.25")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        reg = json.loads((out / "blink" / "regions.json").read_text())
+        self.assertEqual((reg["n"], len(reg["cells"])), (2, 4))
+        self.assertEqual(len(reg["cells"][0]["energy"]), len(reg["t"]))
+        tl = reg["cells"][0]
+        self.assertGreater(tl["mean"], 10 * max(c["mean"] for c in reg["cells"][1:]) + 1e-9)
+        self.assertIsNotNone(tl["period_s"])
+        self.assertAlmostEqual(tl["period_s"], 1.0, delta=0.15)
+        self.assertTrue(all(c["period_s"] is None for c in reg["cells"][1:]))
+        for name, dims in (("kymo-rows.png", None), ("kymo-cols.png", None)):
+            data = (out / "blink" / name).read_bytes()
+            self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n", name)
+            w, h = struct.unpack(">II", data[16:24])
+            if name == "kymo-rows.png":
+                self.assertEqual(w, 480)
+                self.assertGreater(h, 30)
+            else:
+                self.assertEqual(h, 270)
+                self.assertGreater(w, 30)
+
+    def test_bad_regions_usage(self) -> None:
+        self.assertEqual(run("ref-extract", "x.mp4", "--regions", "20").returncode, 2)
+        self.assertEqual(run("ref-extract", "x.mp4", "--kymo-at", "3,1").returncode, 2)
 
     def test_missing_input_exit_1(self) -> None:
         res = run("ref-extract", str(self.tmp / "nope.png"), "--out", str(self.tmp / "o"))

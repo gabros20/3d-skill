@@ -105,6 +105,7 @@ Canonical, schema `shots.v1`. Read by `<skill>/scripts/preview capture --shots .
 | `roll_deg` | optional, default 0 |
 | `duration_s` | optional; required for video renders |
 | `scroll` | optional `[start, end]` progress 0-1; ranges ordered and non-overlapping |
+| `t` | optional seconds, for time-driven scenes and loops; the app exposes `setTime(t)` and capture and render honour it. Use it instead of inventing scroll ranges |
 | `ease` | `linear` \| `in` \| `out` \| `inOut`; default `inOut` |
 | `to` | optional end pose: any of `position`, `target`, `focal_mm`/`fov`, `roll_deg`; omitted keys hold. Without `to` the shot is a held frame |
 | `notes` | free text, never parsed |
@@ -123,7 +124,7 @@ Stop for the user's explicit approval at each gate; work past a gate only on a y
 | 4 Lookdev | hero shots with final light and materials | light, colour, materials |
 | 5 Final | full captures or render, performance numbers, fallback path | delivery |
 
-A change that crosses an approved gate re-opens that gate.
+A change that crosses an approved gate re-opens that gate. At intake the user may pre-approve gates 2-4 as "approve on critic pass"; record it in `3D.md`. Without that, a run with no live user stops at each gate.
 
 ## Video deliverable spec
 

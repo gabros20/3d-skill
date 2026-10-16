@@ -33,6 +33,7 @@ Produces:
    - cheapest: three named presets from [design-lookdev-presets](design-lookdev-presets.md) on a greybox of the subject;
    - stills: if the `generate-image` skill is installed, recommend it for the 3 frames; the user runs it. Never invoke it.
 8. **3D-specific items are asked or defaulted, never skipped**: device class, asset budget, scroll length (SCROLL), fallback and poster, reduced motion. Defaults resolve through `3D.md`, then [shared-performance](shared-performance.md).
+   **Delegated gates**: ask once whether gates 2-4 ([brief-spec](brief-spec.md)) may be "approve on critic pass"; record the answer in `3D.md`; default no.
    **Facts file rule**: numbers (budgets, durations, sizes, prices, specs) live only in `3D.md` and the brief's facts; nothing else invents them. Label neutral defaults `[assumed]`.
 9. **Challenge pass, inside the rounds.** Name contradictions (photoreal plus a 60 KB budget; parallax plus "calm"; 4K video plus mobile data), vague words (below), and claims about a real product the user has not evidenced (ports, labels, numbers).
 10. **Restate and gate.** Write the brief: Outcome, Audience, Use, Style, Constraints, Deliverables, every guess tagged `[assumed]`, and `Out of scope`. Ask for an explicit yes. "Whatever you think" or "sounds good" is delegation, not approval: re-ask the 2-3 riskiest assumptions as A/B. A structured ask tool fits only this closing yes/no. End the turn on the question; start no build work in the same message.

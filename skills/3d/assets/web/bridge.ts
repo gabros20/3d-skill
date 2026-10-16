@@ -18,6 +18,8 @@ export interface BridgePose {
   fov?: number;
   ortho_height?: number;
   roll_deg?: number;
+  /** Seconds for time-driven scenes and loops; handed to the app's `setTime` hook. */
+  t?: number;
 }
 
 export interface BridgeShot extends BridgePose {
@@ -49,6 +51,8 @@ export interface Bridge {
   loadShots(list: ReadonlyArray<Partial<BridgeShot>>): void;
   /** t in 0..1 moves along the shot's `to` end pose (default 0 = start). */
   setShot(id: string, t?: number): boolean;
+  /** Put time-driven state at `t` seconds via the app's setTime hook; false when no hook is registered. */
+  setTime(t: number): boolean;
   frame(n?: number): number;
   capture(): string;
   info(): BridgeInfo;
@@ -64,6 +68,8 @@ export interface BridgeOptions {
   shots?: ReadonlyArray<Partial<BridgeShot>>;
   /** Advance your own time-based animation by a fixed dt (seconds) per frame(n) step. */
   advance?: (dt: number) => void;
+  /** Put time-driven state (animation, loop) at `t` seconds; shots with `t` call it. Register like setProgress. */
+  setTime?: (t: number) => void;
   /** Move scroll-driven state to normalised progress; shots with `scroll` call it. */
   setProgress?: (progress: number) => void;
   /** Draw one frame. Default gl.render(scene, camera); pass your composer's render for postprocessed apps. */
@@ -97,6 +103,7 @@ interface Pose {
   fov?: number;
   ortho?: number;
   roll: number;
+  time?: number;
 }
 
 function lensOf(o: BridgePose): Pick<Pose, 'fov' | 'ortho'> {
@@ -107,12 +114,13 @@ function lensOf(o: BridgePose): Pick<Pose, 'fov' | 'ortho'> {
 }
 
 function poseAt(s: BridgeShot, t: number): Pose {
-  const a: Pose = { position: s.position, target: s.target, roll: s.roll_deg ?? 0, ...lensOf(s) };
+  const a: Pose = { position: s.position, target: s.target, roll: s.roll_deg ?? 0, time: s.t, ...lensOf(s) };
   if (!s.to || !t) return a;
   const k = EASE[s.ease ?? 'inOut'](Math.min(1, Math.max(0, t)));
   const b: Pose = { ...a, ...(s.to.position && { position: s.to.position }), ...(s.to.target && { target: s.to.target }),
-    ...(s.to.roll_deg !== undefined && { roll: s.to.roll_deg }), ...lensOf(s.to) };
+    ...(s.to.roll_deg !== undefined && { roll: s.to.roll_deg }), ...(s.to.t !== undefined && { time: s.to.t }), ...lensOf(s.to) };
   const out: Pose = { roll: mix(a.roll, b.roll, k) };
+  if (a.time !== undefined) out.time = mix(a.time, b.time ?? a.time, k);
   if (a.position && b.position) out.position = mixV(a.position, b.position, k);
   if (a.target && b.target) out.target = mixV(a.target, b.target, k);
   if (a.ortho !== undefined) out.ortho = mix(a.ortho, b.ortho ?? a.ortho, k);
@@ -159,6 +167,7 @@ export function installBridge(opts: BridgeOptions): () => void {
       if (!s) throw new Error(`3d bridge: unknown shot "${id}"`);
       current = id;
       const p = poseAt(s, t);
+      if (p.time !== undefined) opts.setTime?.(p.time);
       if (s.scroll) opts.setProgress?.(mix(s.scroll[0], s.scroll[1], t));
       if (p.position) camera.position.set(...p.position);
       if (p.target) {
@@ -183,6 +192,10 @@ export function installBridge(opts: BridgeOptions): () => void {
       rollRad = (p.roll * Math.PI) / 180;
       camera.updateMatrixWorld(true);
       return true;
+    },
+    setTime(t) {
+      opts.setTime?.(t);
+      return opts.setTime !== undefined;
     },
     // Hidden/occluded tabs never fire requestAnimationFrame, so drive frames synchronously.
     frame(n = 1) {

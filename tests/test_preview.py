@@ -49,6 +49,29 @@ def cube_glb() -> bytes:
             + struct.pack("<I4s", len(bin_), b"BIN\0") + bin_)
 
 
+def animated_cube_glb() -> bytes:
+    """The cube plus a 1 s translation animation (x: 0 -> 3) on its node."""
+    base = cube_glb()
+    jlen = struct.unpack("<I", base[12:16])[0]
+    j = json.loads(base[20:20 + jlen])
+    binoff = 20 + jlen + 8
+    blen = struct.unpack("<I", base[20 + jlen:24 + jlen])[0]
+    bin_ = base[binoff:binoff + blen]
+    extra = struct.pack("<2f", 0.0, 1.0) + struct.pack("<6f", 0, 0, 0, 3, 0, 0)
+    off = len(bin_)
+    bin_ += extra
+    j["buffers"][0]["byteLength"] = len(bin_)
+    j["bufferViews"] += [{"buffer": 0, "byteOffset": off, "byteLength": 8}, {"buffer": 0, "byteOffset": off + 8, "byteLength": 24}]
+    j["accessors"] += [{"bufferView": 2, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0.0], "max": [1.0]},
+                       {"bufferView": 3, "componentType": 5126, "count": 2, "type": "VEC3"}]
+    j["animations"] = [{"samplers": [{"input": 2, "output": 3, "interpolation": "LINEAR"}],
+                        "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}]}]
+    js = json.dumps(j).encode()
+    js += b" " * ((4 - len(js) % 4) % 4)
+    return (struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(js) + 8 + len(bin_)) + struct.pack("<I4s", len(js), b"JSON") + js
+            + struct.pack("<I4s", len(bin_), b"BIN\0") + bin_)
+
+
 def cli(*args: str, cwd: Path, timeout: int = 120) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(PREVIEW), *args], cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
@@ -224,6 +247,59 @@ class ServeTests(unittest.TestCase):
         self.assertEqual(http(self.base + "/api/state").status, 200)
 
 
+class AppServeTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = load_module()
+        self.tmp = Path(tempfile.mkdtemp())
+        self.root = self.tmp / ".3d"
+        self.root.mkdir()
+        (self.root / "secret.txt").write_text("project secret")
+        self.app = self.tmp / "dist"
+        (self.app / "sub").mkdir(parents=True)
+        (self.app / "index.html").write_text("<title>app</title>")
+        (self.app / "sub" / "x.js").write_text("export const a = 1")
+        (self.tmp / "outside.txt").write_text("outside")
+        self.srv = self.mod.make_server(self.root, 0, app_dir=self.app)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.srv.server_address[1]}"
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_serves_app_index_and_assets(self):
+        r = http(self.base + "/app/")
+        self.assertEqual((r.status, r.read()), (200, b"<title>app</title>"))
+        r = http(self.base + "/app/sub/x.js")
+        self.assertEqual((r.status, r.headers["Content-Type"]), (200, "text/javascript; charset=utf-8"))
+        self.assertEqual(http(self.base + "/app/sub/").status, 404)
+        self.assertEqual(http(self.base + "/").status, 200)  # viewer still at /
+
+    def test_app_has_no_escape(self):
+        for p in ("/app/../outside.txt", "/app/%2e%2e/outside.txt", "/app/..%2foutside.txt", "/app/%2e%2e/.3d/secret.txt", "/app/%00"):
+            self.assertEqual(http(self.base + p).status, 404, p)
+        self.assertEqual(http(self.base + "/app/secret.txt").status, 404)  # .3d is not part of the app dir
+
+    def test_app_host_guard(self):
+        self.assertEqual(http(self.base + "/app/", headers={"Host": "evil.example"}).status, 403)
+
+    def test_app_absent_without_flag(self):
+        tmp = Path(tempfile.mkdtemp())
+        srv = self.mod.make_server(tmp, 0)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            self.assertEqual(http(f"http://127.0.0.1:{srv.server_address[1]}/app/").status, 404)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_serve_app_requires_index(self):
+        r = cli("serve", "--app", str(self.tmp / "sub-missing"), cwd=self.tmp)
+        self.assertEqual(r.returncode, 2)
+
+
 class LookStateTests(unittest.TestCase):
     def test_state_exposes_look_json(self):
         mod = load_module()
@@ -359,6 +435,25 @@ class CliTests(unittest.TestCase):
         self.assertEqual((m["version"], m["note"], m["files"]), ("v001", "blockout", []))
         self.assertIn("created", m)
 
+    def test_new_version_snapshot(self):
+        (self.tmp / "dist" / "assets").mkdir(parents=True)
+        (self.tmp / "dist" / "index.html").write_text("x")
+        (self.tmp / "dist" / "assets" / "a.js").write_text("y")
+        (self.tmp / "model.glb").write_bytes(b"glTF")
+        r = cli("new-version", "--note", "snap", "--snapshot", "model.glb", "dist", cwd=self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        vdir = self.tmp / ".3d" / "versions" / "v001"
+        self.assertTrue((vdir / "model.glb").is_file())
+        self.assertTrue((vdir / "dist" / "assets" / "a.js").is_file())
+        m = json.loads((vdir / "manifest.json").read_text())
+        self.assertEqual(m["files"], ["dist/assets/a.js", "dist/index.html", "model.glb"])
+        self.assertEqual(m["note"], "snap")
+
+    def test_new_version_snapshot_missing_path_creates_nothing(self):
+        r = cli("new-version", "--snapshot", "nope.glb", cwd=self.tmp)
+        self.assertEqual(r.returncode, 1)
+        self.assertFalse((self.tmp / ".3d" / "versions").exists())
+
     def test_feedback_command_groups(self):
         d = self.tmp / ".3d"
         d.mkdir()
@@ -418,6 +513,26 @@ class DiffTests(unittest.TestCase):
         pairs = json.loads(r.stdout)["pairs"]
         self.assertEqual([p["shot"] for p in pairs], ["hero"])
 
+    def test_diff_edges_ignores_lighting_not_geometry(self):
+        def box(name: str, bg: str, fg: str, x: int) -> Path:
+            p = self.tmp / name
+            subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                            f"color=c={bg}:s=320x180,drawbox=x={x}:y=50:w=100:h=80:color={fg}:t=fill", "-frames:v", "1", str(p)], check=True)
+            return p
+        a = box("a.png", "black", "white", 100)
+        lit = box("b.png", "0x303030", "0xc0c0c0", 100)   # same geometry, different lighting
+        moved = box("c.png", "black", "white", 170)        # same lighting, different geometry
+        same = json.loads(cli("diff", "--edges", str(a), str(lit), "--out", str(self.tmp / "o1"), cwd=self.tmp).stdout)
+        diff = json.loads(cli("diff", "--edges", str(a), str(moved), "--out", str(self.tmp / "o2"), cwd=self.tmp).stdout)
+        self.assertTrue(same["edges"])
+        self.assertGreater(same["ssim"], 0.99)  # identical edge maps
+        self.assertLess(diff["ssim"], same["ssim"] - 0.005)  # a moved box changes the edges
+        self.assertTrue(Path(same["difference"]).is_file())
+        self.assertIn("edges", Path(same["difference"]).parts)
+        plain = json.loads(cli("diff", str(a), str(lit), "--out", str(self.tmp / "o3"), cwd=self.tmp).stdout)
+        self.assertFalse(plain["edges"])
+        self.assertLess(plain["ssim"], 0.5)  # pixel diff is hurt by lighting; edge diff is not
+
     def test_board_contact_sheet_and_legend(self):
         for sid, c in (("S01", "red"), ("S02", "green"), ("S03", "blue"), ("S04", "yellow")):
             d = self.tmp / ".3d" / "evidence" / "v001"
@@ -474,11 +589,13 @@ const gl = { render: (s, c) => { const up = new THREE.Vector3(0, 1, 0).applyQuat
   domElement: { toDataURL: () => 'data:image/png;base64,', width: 1, height: 1 }, info: { render: {}, memory: {} }, getContext: () => ({}) };
 const target = new THREE.Vector3();
 const controls = { target: { set: (x, y, z) => target.set(x, y, z) }, update: () => camera.lookAt(target) }; // like OrbitControls: re-aims, drops roll
-installBridge({ gl, scene: new THREE.Scene(), camera, controls, shots: [{ id: 'a', position: [0, 0, 5], target: [0, 0, 0], fov: 30, roll_deg: 20, to: { roll_deg: 40 } }] });
+const times = [];
+installBridge({ gl, scene: new THREE.Scene(), camera, controls, setTime: (t) => times.push(t), shots: [{ id: 'a', position: [0, 0, 5], target: [0, 0, 0], fov: 30, roll_deg: 20, t: 2, to: { roll_deg: 40, t: 4 } }, { id: 'b', position: [0, 0, 5], target: [0, 0, 0], fov: 30 }] });
 window.__3d.setShot('a'); window.__3d.frame(5); window.__3d.capture();
 window.__3d.setShot('a', 1); window.__3d.frame(5);
 const after = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-console.log(JSON.stringify({ rolls, afterRoll: Math.atan2(-after.x, after.y) * 180 / Math.PI }));
+window.__3d.setShot('b');
+console.log(JSON.stringify({ times, rolls, afterRoll: Math.atan2(-after.x, after.y) * 180 / Math.PI }));
 """
         # unique scratch dir inside the repo so node resolves node_modules; no shared file names between runs
         work = Path(tempfile.mkdtemp(prefix=".rolltest-", dir=ROOT))
@@ -496,6 +613,7 @@ console.log(JSON.stringify({ rolls, afterRoll: Math.atan2(-after.x, after.y) * 1
         self.assertAlmostEqual(out["rolls"][0], 20, delta=0.5)   # rendered with roll after setShot + frame(5)
         self.assertAlmostEqual(out["rolls"][-1], 40, delta=0.5)  # end pose roll at t=1
         self.assertAlmostEqual(out["afterRoll"], 0, delta=0.5)   # roll is undone after drawing (not accumulated)
+        self.assertEqual(out["times"], [2, 4])                   # setTime hook: start t, then end t; shot b has no t
 
 
 def _chrome_and_playwright() -> str | None:
@@ -545,6 +663,47 @@ class CaptureTests(unittest.TestCase):
         end = (self.tmp / ".3d/evidence/v001/hero_end.png").read_bytes()
         self.assertNotEqual(a, end, "end pose `to` did not move the camera")
         self.assertEqual(rep["info"]["camera"], "orthographic")
+
+    def test_capture_applies_shot_t_to_gltf_animation(self):
+        cli("new-version", cwd=self.tmp)
+        (self.tmp / ".3d" / "versions" / "v001" / "anim.glb").write_bytes(animated_cube_glb())
+        cam = {"position": [0, 0, 8], "target": [1.5, 0, 0], "fov": 40}
+        (self.tmp / ".3d" / "shots.json").write_text(json.dumps({"schema": "shots.v1", "shots": [
+            {"id": "t0", "t": 0, **cam}, {"id": "t1", "t": 1, **cam}, {"id": "hold", **cam}]}))
+        r = cli("capture", "--size", "480x270", "--settle", "5", cwd=self.tmp, timeout=180)
+        self.assertEqual(r.returncode, 0, r.stdout[-1200:] + r.stderr)
+        rep = json.loads(r.stdout)
+        self.assertEqual({e["id"]: e.get("t_seconds") for e in rep["shots"]}, {"t0": 0, "t1": 1, "hold": None})
+        ev = self.tmp / ".3d" / "evidence" / "v001"
+        self.assertNotEqual((ev / "t0.png").read_bytes(), (ev / "t1.png").read_bytes(), "t did not move the animation")
+
+    def test_capture_clip_is_deterministic_and_steps_time(self):
+        cli("new-version", cwd=self.tmp)
+        (self.tmp / ".3d" / "versions" / "v001" / "anim.glb").write_bytes(animated_cube_glb())
+        (self.tmp / ".3d" / "shots.json").write_text(json.dumps({"schema": "shots.v1", "fps": 8, "shots": [
+            {"id": "S01", "position": [0, 0, 8], "target": [1.5, 0, 0], "fov": 40}]}))
+        frames = self.tmp / ".3d" / "evidence" / "v001" / "S01_clip"
+        runs = []
+        for _ in range(2):
+            r = cli("capture", "--clip", "1", "--size", "320x180", cwd=self.tmp, timeout=240)
+            self.assertEqual(r.returncode, 0, r.stdout[-1200:] + r.stderr)
+            entry = json.loads(r.stdout)["shots"][0]
+            self.assertEqual((entry["id"], entry["frames"], entry["fps"]), ("S01_clip", 8, 8))
+            runs.append([f.read_bytes() for f in sorted(frames.glob("frame_*.png"))])
+        self.assertEqual(len(runs[0]), 8)
+        self.assertEqual(runs[0], runs[1], "clip capture is not deterministic")
+        self.assertNotEqual(runs[0][0], runs[0][-1], "setTime did not step the animation")
+        mp4 = self.tmp / ".3d" / "evidence" / "v001" / "S01_clip.mp4"
+        self.assertTrue(mp4.is_file())
+        if shutil.which("ffprobe"):
+            out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                                  "stream=nb_read_frames,r_frame_rate", "-of", "json", str(mp4)], capture_output=True, text=True).stdout
+            st = json.loads(out)["streams"][0]
+            self.assertEqual((st["nb_read_frames"], st["r_frame_rate"]), ("8", "8/1"))
+
+    def test_capture_clip_bad_seconds(self):
+        cli("new-version", cwd=self.tmp)
+        self.assertEqual(cli("capture", "--clip", "0", cwd=self.tmp).returncode, 2)
 
     def test_capture_rejects_bad_version(self):
         r = cli("capture", "--version", "../../x", cwd=self.tmp)

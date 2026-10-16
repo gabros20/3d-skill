@@ -163,7 +163,7 @@ const MEDIA_EXT = { img: /\.(png|jpe?g|webp|gif)$/i, vid: /\.(mp4|webm|mov)$/i, 
 
 const S = {
   data: { versions: [], shots: [], refs: [], feedback: [] },
-  version: null, versionB: '', shot: null, shotT: 0, roll: 0, mode: 'empty',
+  version: null, versionB: '', shot: null, shotT: 0, roll: 0, time: null, mode: 'empty',
   env: 'room', exposure: 1, tone: 'Neutral', bgColor: 0x14161c, look: null, turntable: false, envBg: false,
   cmp: 'off', cmpVal: 50, pinMode: false, pending: null, status: {},
   stats: { A: null, B: null }, error: null,
@@ -183,6 +183,7 @@ controls.enableDamping = true; controls.dampingFactor = 0.08; controls.autoRotat
 const scenes = { A: new THREE.Scene(), B: new THREE.Scene() };
 for (const s of Object.values(scenes)) s.background = new THREE.Color(0x14161c);
 const roots = { A: null, B: null };
+let mixer = null; // glTF animation time for shots with `t` (seconds); driven only by setShot, never by the clock
 let envTex = null, envToken = 0;
 
 const draco = new DRACOLoader().setDecoderPath(THREE_CDN + 'draco/gltf/');
@@ -335,6 +336,7 @@ async function loadGltfInto(slot, v, file) {
     gltf = await gltfLoader.parseAsync(buf, url.slice(0, url.lastIndexOf('/') + 1));
   } else gltf = await gltfLoader.loadAsync(url);
   roots[slot] = gltf.scene; scenes[slot].add(gltf.scene);
+  if (slot === 'A') { mixer = gltf.animations?.length ? new THREE.AnimationMixer(gltf.scene) : null; mixer && gltf.animations.forEach((c) => { const a = mixer.clipAction(c); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.play(); }); } // clamp: t past the clip end holds the last pose
   S.stats[slot] = { version: v.id, file, ...measure(gltf.scene, bytes) };
 }
 function fitCamera() {
@@ -394,12 +396,13 @@ const lensOf = (o) => (o.ortho_height != null ? { ortho: +o.ortho_height } : o.f
 const mix = (a, b, k) => a + (b - a) * k;
 const mixV = (a, b, k) => a.map((v, i) => mix(v, b[i], k));
 function poseAt(s, t = 0) {
-  const a = { position: s.position, target: s.target, roll: s.roll_deg || 0, ...lensOf(s) };
+  const a = { position: s.position, target: s.target, roll: s.roll_deg || 0, time: s.t ?? null, ...lensOf(s) };
   if (!s.to || !t) return a;
   const k = (EASE[s.ease || 'inOut'] || EASE.inOut)(Math.min(1, Math.max(0, t)));
   const b = { ...a, ...(s.to.position && { position: s.to.position }), ...(s.to.target && { target: s.to.target }),
-    ...(s.to.roll_deg != null && { roll: s.to.roll_deg }), ...lensOf(s.to) };
+    ...(s.to.roll_deg != null && { roll: s.to.roll_deg }), ...(s.to.t != null && { time: s.to.t }), ...lensOf(s.to) };
   const out = { position: mixV(a.position, b.position, k), target: mixV(a.target, b.target, k), roll: mix(a.roll, b.roll, k) };
+  if (a.time != null) out.time = mix(a.time, b.time ?? a.time, k);
   if (a.ortho != null) out.ortho = mix(a.ortho, b.ortho ?? a.ortho, k); else if (a.fov != null) out.fov = mix(a.fov, b.fov ?? a.fov, k);
   return out;
 }
@@ -410,6 +413,9 @@ function applyShot(id, quiet, t = 0) {
   const p = poseAt(s, t);
   if (p.ortho != null) { useCamera(ocam); setOrthoHeight(p.ortho); } else { useCamera(pcam); if (p.fov != null) pcam.fov = p.fov; }
   camera.position.set(...p.position); controls.target.set(...p.target); S.roll = p.roll;
+  S.time = p.time ?? null;
+  if (p.time != null) { if (mixer) mixer.setTime(p.time); else if (!applyShot.warned) { applyShot.warned = true; toast('Shot has t but the model has no animation', 4000); } }
+  const vid = document.querySelector('#media-wrap video'); if (vid && p.time != null) vid.currentTime = p.time;
   camera.updateProjectionMatrix(); controls.update();
   if (s.ref) { ensureRefOption('/' + s.ref.replace(/^\/+/, ''), 'shot ref: ' + s.ref); $('selRef').value = '/' + s.ref.replace(/^\/+/, ''); updateCompare(); }
   $('rngShot').value = t * 100; $('rngShot').disabled = !s.to;
@@ -559,11 +565,12 @@ const api = {
   shots: () => S.data.shots.map((s) => ({ ...s })),
   loadShots(list) { S.data.shots = list.map((s, i) => ({ ...s, id: String(s.id || `shot${i + 1}`) })); renderShotButtons(); },
   setShot(id, t = 0) { if (!applyShot(id, true, t)) throw new Error(`unknown shot "${id}"`); return true; },
+  setTime(t) { S.time = t; if (mixer) mixer.setTime(t); const v = document.querySelector('#media-wrap video'); if (v) v.currentTime = t; return !!(mixer || v); },
   frame(n = 1) { for (let i = 0; i < n; i++) controls.update(1 / 60); render(); return n; },
   capture() { render(); return S.mode === 'gltf' ? canvas.toDataURL('image/png') : null; },
   info() {
     const a = S.stats.A;
-    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, look: S.look, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
+    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, look: S.look, time: S.time, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
       size: [canvas.width, canvas.height], tris: a?.tris ?? null, drawCalls: renderer.info.render.calls, textures: a?.textures ?? null,
       texMB: a?.texMB ?? null, glbBytes: a?.glbBytes ?? null, visibility: document.visibilityState, three: THREE.REVISION };
   },

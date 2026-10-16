@@ -9,7 +9,8 @@ Runs only inside Blender:
 Reads the canonical `shots.v1` file (schema in references/brief-spec.md): per shot `id`,
 exactly one of `focal_mm` (36x24 full-frame) | `fov` (vertical deg) | `ortho_height`,
 `position`/`target` in three.js/glTF axes (Y up, metres; converted here to Blender Z up:
-x->x, y->z, z->-y), optional `roll_deg`, `duration_s`, `ease`, end pose `to`.
+x->x, y->z, z->-y), optional `roll_deg`, `duration_s`, `ease`, end pose `to`, `t` (seconds: the scene frame is set to
+round(t * fps) before that shot renders, for animated scenes).
 Top-level `aspect` ("W:H") and `fps` are honoured.
 
 Args after `--`:
@@ -181,6 +182,8 @@ def main() -> int:
     first = None
     for shot in shots:
         sid = str(shot["id"])
+        if "t" in shot:  # time-driven scenes: scene frame = round(t * fps)
+            sc.frame_set(round(float(shot["t"]) * o["fps"]))
         place(cam, cam_data, shot)
         if first is None:
             first = (cam.location.copy(), to_blender(shot["target"]))
