@@ -118,7 +118,7 @@ Stop for the user's explicit approval at each gate; work past a gate only on a y
 | Gate | Evidence shown | Approves |
 |---|---|---|
 | 1 Brief | restated brief | scope, assumptions, Out of scope |
-| 2 Style frames | three directions, then the chosen one | the look |
+| 2 Style frames | rendered style frames of the chosen direction | the look. Picking A/B/C in the grill is a direction choice, not this gate; it passes only when rendered frames are shown and the user says yes |
 | 3 Blockout | greybox captures of every `shots.json` shot | framing, beats, timing |
 | 4 Lookdev | hero shots with final light and materials | light, colour, materials |
 | 5 Final | full captures or render, performance numbers, fallback path | delivery |

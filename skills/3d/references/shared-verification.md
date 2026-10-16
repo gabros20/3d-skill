@@ -75,7 +75,8 @@ Validation passing is not visual verification: render after every stage and look
 1. After each iteration, hand the evidence PNGs, the brief and the refspec to a FRESH reviewer context (a new subagent or a clean pass) that is NEVER told what was just fixed or which notes were addressed.
 2. It lists defects and a scorecard; you fix only what it confirms against evidence.
 3. Record each round in the `3D.md` version log (round, critic verdict, defects found, fixed).
-4. Iterate at low resolution (`--size 854x480`); judge the approval candidate at full resolution.
+4. A failing critic round is fixed as a NEW version and re-captured; only a version whose critic round passes is shown to the user.
+5. Iterate at low resolution (`--size 854x480`); judge the approval candidate at full resolution.
 
 ## Sign-off
 

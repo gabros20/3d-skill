@@ -79,7 +79,7 @@ Recommend it when installed; never invoke it. Without it, apply the pin rule in 
 | Reduced-motion collapse of the pin, live query, pause controls | Poster/no-WebGL alternate for the canvas; skipping the 3D bundle |
 | `ANIMATION.md` scene ledger | World bible + chapter ledger; link one row of `ANIMATION.md` to it |
 | Motion verification, stale-stylesheet check, device discipline | Frame QA, perf (calls, triangles, ms), asset checks ([shared-verification](shared-verification.md)) |
-| Image-sequence and scrub-video scenes | Real-time 3D only |
+| Pre-rendered scrub video and image sequences, DOM/scroll side, when installed | Real-time 3D; pre-rendered scrub video via [scroll-video](scroll-video.md) when `scroll-animation` is absent, otherwise the rendered frames |
 
 ## Traps
 

@@ -178,7 +178,8 @@ project. Never run them from the skill directory.
 | `.3d/evidence/vNNN/`, `.3d/diffs/`, `.3d/boards/` | shot PNGs, diff images and JSON, contact sheets | `preview capture`, `diff`, `board` |
 | `.3d/feedback.jsonl` | append-only notes; corrections are new lines | viewer, `preview feedback` reads |
 
-Suggest gitignoring `.3d/versions` and `.3d/refs`.
+`3D.md` is the live record: update it at every gate (questions resolved, gate passed, version and
+critic round), not only at the end. Suggest gitignoring `.3d/versions` and `.3d/refs`.
 
 ## Completion and handoff
 

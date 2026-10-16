@@ -105,18 +105,70 @@
   .term .c{color:var(--muted)}
   .term .p{color:var(--accent); font-weight:600}
 
-  /* the arc — animated explainer: a Remotion video, light/dark, swapped in
-     as progressive enhancement over the static one-line arc fallback below */
-  .vidwrap{display:none; margin-top:20px}
-  .vidwrap video{display:block; width:100%; aspect-ratio:16/9; border:1px solid var(--line); border-radius:10px; background:var(--bg); box-shadow:0 30px 70px -40px rgba(0,0,0,.45)}
-  body.has-vid .vidwrap{display:block}
-  body.has-vid .poster{display:none}
   .poster{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px; margin-top:20px}
   .arcline{font-family:ui-monospace,Menlo,monospace; font-size:14.5px; line-height:2; color:var(--muted); margin:0}
   .arcline b{color:var(--ink); font-weight:600}
   .arcline .ar{color:var(--glyph); margin:0 2px}
   .pcap{font-size:13.5px; color:var(--muted); margin:14px 0 0; max-width:68ch}
   .pcap b{color:var(--ink)}
+
+  /* the idea — the explainer player (progressive enhancement over the static poster).
+     Steady state: controls hidden, video playing — the undisturbed view. Hover, move, tap or focus
+     shows the bar; it fades after ~2s while playing. Paused keeps it up; an explicit pause is never
+     auto-resumed. Phones keep the readable static diagram first, the player below it, opt-in. */
+  .idea-media{display:flex; flex-direction:column}
+  .player{position:relative; margin:20px 0 0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--bg); outline:none; -webkit-tap-highlight-color:transparent}
+  .player[hidden]{display:none}
+  .player:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+  .pl-stage{position:relative}
+  .player video{display:block; width:100%; height:auto; aspect-ratio:1200/520; background:var(--bg); cursor:pointer}
+  .player[data-ui="hidden"] video{cursor:none}
+  /* the bar has its own strip under the picture: the film's captions are never covered, and showing
+     or hiding it shifts nothing */
+  .pl-bar{display:flex; align-items:center; gap:4px; margin:0 8px 8px; padding:5px 8px; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; opacity:1; transform:none}
+  .player[data-ui="hidden"] .pl-bar{opacity:0; transform:translateY(4px); pointer-events:none}
+  .pl-btn{flex:none; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:8px; background:transparent; color:var(--ink); cursor:pointer; padding:0}
+  .pl-btn:hover{background:var(--code-bg)}
+  .pl-btn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  .pl-btn svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+  .pl-btn .pl-n{position:absolute; font:700 8.5px/1 ui-monospace,Menlo,monospace; color:currentColor; margin-top:1px}
+  .pl-btn[data-act="back"],.pl-btn[data-act="fwd"]{position:relative}
+  .pl-track{position:relative; flex:1; min-width:60px; height:34px; display:flex; align-items:center; cursor:pointer; touch-action:none; margin:0 6px; outline:none}
+  .pl-track:focus-visible .pl-rail{box-shadow:0 0 0 2px var(--accent)}
+  .pl-rail{position:relative; width:100%; height:5px; border-radius:3px; background:var(--line)}
+  .pl-fill{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:3px; background:var(--accent)}
+  .pl-fill::after{content:""; position:absolute; right:-6px; top:50%; width:12px; height:12px; margin-top:-6px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--panel) 70%, transparent)}
+  .pl-tick{position:absolute; top:-2px; width:2px; height:9px; margin-left:-1px; border-radius:1px; background:var(--glyph); opacity:.75}
+  .pl-tip{position:absolute; bottom:30px; transform:translateX(-50%); white-space:nowrap; font:600 11.5px/1.3 ui-monospace,Menlo,monospace; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:4px 8px; box-shadow:0 4px 14px rgba(0,0,0,.14); opacity:0; pointer-events:none}
+  .pl-tip.on{opacity:1}
+  .pl-time{flex:none; font:12px/1 ui-monospace,Menlo,monospace; color:var(--muted); font-variant-numeric:tabular-nums; padding:0 4px}
+  .pl-chap{flex:none; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 12px/1 system-ui,-apple-system,sans-serif; color:var(--ink); padding:0 6px; border-left:1px solid var(--line)}
+  .pl-big{position:absolute; left:50%; top:50%; width:68px; height:68px; margin:-34px 0 0 -34px; border:0; border-radius:50%; background:var(--accent); color:var(--accent-ink); display:none; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .pl-big svg{width:28px; height:28px; margin-left:4px; fill:currentColor}
+  .pl-big:focus-visible{outline:3px solid var(--ink); outline-offset:3px}
+  .player.is-paused .pl-big{display:inline-flex}
+  .pl-flash{position:absolute; left:50%; top:26%; transform:translate(-50%,-50%); font:700 15px/1 ui-monospace,Menlo,monospace; color:var(--ink); background:color-mix(in srgb, var(--panel) 90%, transparent); border:1px solid var(--line); border-radius:999px; padding:9px 16px; opacity:0; pointer-events:none}
+  .pl-flash.on{opacity:1}
+  .pl-flash.l{left:18%} .pl-flash.r{left:82%}
+  .pl-hint{font-size:13px; color:var(--muted); margin:8px 0 0}
+  .player:fullscreen{display:flex; flex-direction:column; justify-content:center; border:0; border-radius:0; background:var(--bg)}
+  .player:fullscreen .pl-stage{display:flex; justify-content:center}
+  .player:fullscreen video{width:auto; max-width:100vw; max-height:calc(100vh - 64px)}
+  .player:fullscreen .pl-bar{width:min(1100px, calc(100vw - 32px)); margin:8px auto}
+  @media (prefers-reduced-motion:no-preference){
+    .pl-bar{transition:opacity .22s ease, transform .22s ease}
+    .pl-tip,.pl-flash{transition:opacity .16s ease}
+  }
+  @media (pointer:coarse){ .pl-btn{width:42px; height:42px} .pl-track{height:42px} .pl-rail{height:6px} }
+  @media (min-width:720px){ body.has-vid .poster{display:none} }
+  @media (max-width:719px){
+    .idea-media .player{order:3; margin-top:16px}
+    .pl-chap{display:none}
+    .pl-time{font-size:11px}
+  }
+  @media (max-width:479px){ .pl-time{display:none} .pl-bar{gap:0; padding:4px} .pl-track{margin:0 4px} }
+  .poster{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px; margin-top:20px}
 
   /* numbered stage timeline */
   .steps{margin-top:20px; counter-reset:step}
@@ -310,16 +362,45 @@
 <span class="p">/3d</span> make it look like this <span class="c">(+ a screenshot, a video, a site capture or a .glb)</span></div>
   <p class="hosts"><span class="hl">runs on</span><span class="ref">Claude Code</span><span>Codex</span><span>Cursor</span><span>Antigravity</span><span>opencode</span><span>Grok Build</span><span>Hermes</span></p>
   <nav class="secnav" aria-label="page sections">
-    <a href="#loop">the loop</a><a href="#refspec">reference → 3D</a><a href="#packs">area packs</a>
-    <a href="#preview">preview tool</a><a href="#preflight">preflight</a><a href="#laws">the laws</a><a href="#start">start here</a>
+    <a href="#idea">the idea</a><a href="#loop">the loop</a><a href="#refspec">reference → spec</a><a href="#packs">area packs</a><a href="#preview">preview tool</a>
+    <a href="#preflight">preflight</a><a href="#laws">the laws</a><a href="#pick">pick by job</a><a href="#start">start here</a>
   </nav>
 </header>
 
-<section id="loop">
-  <h2><svg class="lu" aria-hidden="true"><use href="#lu-workflow"/></svg>The loop</h2>
-  <p>One arc, seven steps: prepare, decompose intent and references, write the brief and shots, pick the approach, build, then <b>preview and iterate</b> until you approve, and record. Detection comes first, so the agent asks only for your decisions, each with a recommended answer. Commands here are written short; the real form is <code>&lt;skill&gt;/scripts/&lt;x&gt;</code>, run from your project root so <code>.3d/</code> lands in the project.</p>
-  <div class="vidwrap" id="vidwrap"></div>
-  <!-- hero video: rendered from remotion/, see remotion/README -->
+<section id="idea">
+  <h2><svg class="lu" aria-hidden="true"><use href="#lu-files"/></svg>The idea</h2>
+  <p>Everything in 3d follows one idea: <b>nothing is built before it is measured, and nothing is called done before it is captured</b>.</p>
+  <p>Your request and every reference become a <b>measured spec</b> first — numbers a script took and
+  judgements marked as such — then an approved <b>brief and shots</b>. Only then does the agent build,
+  and it builds in <b>versions</b>: each one is previewed with a captured image for every shot,
+  checked against the reference and the version before it, and judged by a fresh critic before you
+  see it.</p>
+  <p>Your notes go back in as the next version, so the loop ends when <b>you</b> approve, not when the agent
+  feels finished. The state lives in files — <code>3D.md</code> and <code>.3d/</code> — so the work
+  survives a new session.</p>
+  <div class="idea-media">
+  <!-- PLAYER-META: aria-labels, data-duration (s) and data-chapters mirror remotion/ (how-3d-works, 4134 frames @ 30 fps) -->
+  <figure class="player is-paused" id="player" data-ui="shown" hidden tabindex="0" aria-label="Explainer video, 2 minutes 18 seconds"
+    data-duration="137.8"
+    data-chapters='[[0,"The request"],[3.93,"Measure the reference"],[15.53,"Grill only the gaps"],[24.93,"Brief, shots, gates"],[33.6,"Pick the pipeline"],[42.13,"Build"],[51.2,"Preview every shot"],[60.53,"A fresh critic"],[73.67,"Your note, v003, approved"],[85.2,"The record"],[93.33,"A router, not a library"],[104.53,"Preflight"],[112.93,"Scroll inside the pin"],[121.73,"Where everything lands"],[130.8,"Measured, then captured"]]'>
+    <div class="pl-stage">
+      <video muted playsinline loop preload="metadata" aria-label="Animated explainer in two acts. Act one follows one 3D task from a vague prompt and a reference clip to an approved version. A script measures the clip&#x27;s palette, luma key, cuts and camera speed in percent of frame width per second, and vision passes fill a refspec.v1 file in which every estimate carries a range, a confidence and an evidence tag. The grill asks only the gaps: one round of at most six questions, each with a recommended answer, plus three divergent looks to choose from, and nothing is built before a restated brief gets an explicit yes. A brief, a storyboard and shots.v1 cameras pass the first of five sign-off gates. The target use picks the pipeline and a fallback ladder and names the only files to read next. The build runs Blender headless, compresses a kept master GLB in explicit passes, then checks it with glb-report against the hero budget and with a pixel-parity diff. The preview viewer captures every shot of version one and lays the reference over the render. Before the user sees anything, a fresh critic scores the captures and fails the subject sitting on the frame&#x27;s edge; the fix becomes version two, re-captured and passed by a new critic round. The user pins a note on version two, version three answers it, an A/B split and a diff confirm one local change, the user approves, and 3D.md records the decisions, budgets and all three versions. Act two shows the pack: a router whose lanes load only the files they name, three of thirty-six for a black scene; preflight, which detects tools and proposes installs with their cost in one round and never installs unasked; one scroll conductor inside the pin, fed by a native, Motion or GSAP adapter; and where every output lands, with adjacent skills recommended, never invoked."></video>
+      <button class="pl-big" type="button" data-act="toggle" aria-label="Play the explainer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg></button>
+      <div class="pl-flash" aria-hidden="true"></div>
+    </div>
+    <div class="pl-bar" role="group" aria-label="Video controls">
+      <button class="pl-btn" type="button" data-act="toggle" aria-label="Play"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true" style="display:none"><path d="M8 5v14M16 5v14"/></svg></button>
+      <button class="pl-btn" type="button" data-act="back" aria-label="Back 5 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="pl-n" aria-hidden="true">5</span></button>
+      <button class="pl-btn" type="button" data-act="fwd" aria-label="Forward 5 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg><span class="pl-n" aria-hidden="true">5</span></button>
+      <div class="pl-track" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="138" aria-valuenow="0" aria-valuetext="0:00">
+        <div class="pl-rail"><div class="pl-fill"></div></div>
+        <div class="pl-tip" aria-hidden="true"></div>
+      </div>
+      <span class="pl-time" aria-hidden="true">0:00 / 2:18</span>
+      <span class="pl-chap" aria-live="polite"></span>
+      <button class="pl-btn" type="button" data-act="fs" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    </div>
+  </figure>
   <div class="loopdia poster" role="img" aria-label="Diagram of the 3d loop: decompose intent and references, brief and shots, approach, build, preview, iterate; notes from the user loop back to the next version.">
     <div class="lrow">
       <div class="ln"><div class="dot"><svg class="lu" aria-hidden="true"><use href="#lu-search-check"/></svg></div><b>decompose</b><span>intent + references → spec</span></div>
@@ -332,6 +413,12 @@
     <div class="lback" aria-hidden="true"></div>
     <div class="lgate"><span><b>gate</b> fresh critic judges the evidence before you see it</span><span><b>sign-off</b> brief → style frames → blockout → lookdev → final, each on your yes</span><span><b>stop</b> when you approve</span></div>
   </div>
+  </div>
+</section>
+
+<section id="loop">
+  <h2><svg class="lu" aria-hidden="true"><use href="#lu-workflow"/></svg>The loop in depth</h2>
+  <p>One arc, seven steps: prepare, decompose intent and references, write the brief and shots, pick the approach, build, then <b>preview and iterate</b> until you approve, and record. Detection comes first, so the agent asks only for your decisions, each with a recommended answer. Commands here are written short; the real form is <code>&lt;skill&gt;/scripts/&lt;x&gt;</code>, run from your project root so <code>.3d/</code> lands in the project.</p>
   <p class="pcap">The arc is for a new piece. <b>Debug</b>, <b>add or change one thing</b>, a <b>Blender asset</b> and <b>review and iterate</b> are their own lanes and skip intake and brief unless the change contradicts the approved brief.</p>
 
   <div class="steps">
@@ -347,7 +434,7 @@
 </section>
 
 <section id="refspec">
-  <h2><svg class="lu" aria-hidden="true"><use href="#lu-search-check"/></svg>From reference to 3D</h2>
+  <h2><svg class="lu" aria-hidden="true"><use href="#lu-search-check"/></svg>From reference to spec</h2>
   <p>“Make it look like this” becomes numbers before it becomes code. A mechanical pass measures what a script can; nine vision passes fill the rest; everything lands in one schema, <code>refspec.v1</code>, that the brief and the verification both read.</p>
   <div class="pipe">
     <div class="pn"><b>scripts/ref-extract</b>per reference: <code>meta.json</code> <code>frames/</code> <code>contact.jpg</code> <code>palette.json</code> <code>luma.json</code>; video adds <code>cuts.json</code> <code>motion.json</code></div>
@@ -567,33 +654,243 @@ README.md · CHANGELOG.md · LICENSE</div>
 </footer>
 </div>
 <script>
+/* The explainer player. Steady state: controls hidden, video playing (the undisturbed view).
+   Mouse: move to show the bar, it fades ~2s later or when you leave; click toggles play.
+   Touch: first tap shows the bar, a tap while it shows toggles play, double-tap left/right skips 5s.
+   Paused keeps the bar up and is never auto-resumed. Keys: Space/K play, ←/→ or J/L 5s, F full screen.
+   Autoplay (muted) only on screen, never under reduced motion or on phones; scrolling away pauses it. */
 (function () {
-  // Progressive enhancement over the static loop diagram above: swaps in the
-  // hero Remotion video (light/dark). On any load error it removes the
-  // slot and leaves the static diagram in place.
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  if (innerWidth < 720) return; // the static diagram reads better on phones
-  var wrap = document.getElementById("vidwrap");
-  if (!wrap || !document.createElement("video").canPlayType) return;
+  var fig = document.getElementById("player");
+  if (!fig) return;
+  var v = fig.querySelector("video");
+  if (!v || !v.canPlayType || !v.canPlayType("video/mp4")) return; // the static diagram stays
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var phone = matchMedia("(max-width: 719px)").matches;
+  var autoplay = !reduce && !phone;
   var mq = matchMedia("(prefers-color-scheme: dark)");
-  var v = document.createElement("video");
-  v.muted = true;
-  v.loop = true;
-  v.autoplay = true;
-  v.playsInline = true;
-  v.setAttribute("playsinline", "");
-  v.setAttribute("aria-label", "Animation of the 3d loop: references and intent become a spec, brief and shots, a build, versioned previews and notes that loop back to the next version.");
-  v.addEventListener("loadeddata", function () { document.body.classList.add("has-vid"); });
-  v.addEventListener("error", function () { wrap.remove(); });
-  function apply() {
-    var theme = document.documentElement.getAttribute("data-theme") || (mq.matches ? "dark" : "light");
-    v.poster = "assets/hero-" + theme + "-poster.png";
-    v.src = "assets/hero-" + theme + ".mp4";
-    v.play && v.play().catch(function () {});
+  var bar = fig.querySelector(".pl-bar"), track = fig.querySelector(".pl-track"), rail = fig.querySelector(".pl-rail");
+  var fill = fig.querySelector(".pl-fill"), tip = fig.querySelector(".pl-tip"), flashEl = fig.querySelector(".pl-flash");
+  var timeEl = fig.querySelector(".pl-time"), chapEl = fig.querySelector(".pl-chap");
+  var toggles = fig.querySelectorAll('[data-act="toggle"]'), iPlay = fig.querySelector(".i-play"), iPause = fig.querySelector(".i-pause");
+  var chapters = [];
+  try { chapters = JSON.parse(fig.getAttribute("data-chapters")) || []; } catch (e) {}
+  var DUR = parseFloat(fig.getAttribute("data-duration")) || 0;
+  var hideT = 0, flashT = 0, tapT = 0, raf = 0, lastTap = 0, lastX = 0;
+  var dragging = false, wasPlaying = false, userPaused = !autoplay, kbd = false;
+
+  function dur() { return isFinite(v.duration) && v.duration > 0 ? v.duration : DUR; }
+  function fmt(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+  function chapterAt(s) {
+    var name = chapters.length ? chapters[0][1] : "";
+    for (var i = 0; i < chapters.length; i++) if (s + 0.05 >= chapters[i][0]) name = chapters[i][1];
+    return name;
   }
-  apply();
-  mq.addEventListener && mq.addEventListener("change", apply);
-  wrap.appendChild(v);
+  chapters.forEach(function (c) {
+    if (c[0] <= 0 || !DUR) return;
+    var k = document.createElement("span");
+    k.className = "pl-tick";
+    k.style.left = (c[0] / DUR * 100) + "%";
+    rail.appendChild(k);
+  });
+
+  function render() {
+    var d = dur(), s = v.currentTime || 0, ch = chapterAt(s);
+    fill.style.width = (d ? Math.min(100, s / d * 100) : 0) + "%";
+    timeEl.textContent = fmt(s) + " / " + fmt(d);
+    if (chapEl.textContent !== ch) chapEl.textContent = ch;
+    track.setAttribute("aria-valuenow", Math.round(s));
+    track.setAttribute("aria-valuemax", Math.round(d));
+    track.setAttribute("aria-valuetext", ch ? fmt(s) + ", " + ch : fmt(s));
+  }
+  function frame() { render(); raf = v.paused ? 0 : requestAnimationFrame(frame); }
+  function syncState() {
+    var paused = v.paused;
+    fig.classList.toggle("is-paused", paused);
+    iPlay.style.display = paused ? "" : "none";
+    iPause.style.display = paused ? "none" : "";
+    toggles.forEach(function (b) {
+      b.setAttribute("aria-label", paused ? (b.classList.contains("pl-big") ? "Play the explainer" : "Play") : "Pause");
+    });
+  }
+
+  function showUI(ms) {
+    fig.setAttribute("data-ui", "shown");
+    clearTimeout(hideT);
+    if (!v.paused && !dragging) hideT = setTimeout(hideUI, ms || 2200);
+  }
+  function hideUI() {
+    if (v.paused || dragging || bar.matches(":hover") || (kbd && fig.matches(":focus-within"))) return;
+    fig.setAttribute("data-ui", "hidden");
+    tip.classList.remove("on");
+  }
+  function flash(txt, side) {
+    flashEl.textContent = txt;
+    flashEl.classList.toggle("l", side === "l");
+    flashEl.classList.toggle("r", side === "r");
+    flashEl.classList.add("on");
+    clearTimeout(flashT);
+    flashT = setTimeout(function () { flashEl.classList.remove("on"); }, 550);
+  }
+  function play() { var pr = v.play(); if (pr && pr.catch) pr.catch(function () { syncState(); showUI(); }); }
+  function toggle() {
+    if (v.paused) { userPaused = false; play(); flash("play"); }
+    else { userPaused = true; v.pause(); flash("paused"); }
+  }
+  function seek(s) { v.currentTime = Math.max(0, Math.min(dur() - 0.05, s)); render(); }
+  function skip(n) { seek((v.currentTime || 0) + n); flash(n < 0 ? "−5s" : "+5s", n < 0 ? "l" : "r"); }
+  function fullscreen() {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (fig.requestFullscreen) fig.requestFullscreen().catch(function () {});
+    else if (fig.webkitRequestFullscreen) fig.webkitRequestFullscreen();
+    else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+  }
+
+  // the source follows the page theme; a switch keeps the position
+  function theme() { return document.documentElement.getAttribute("data-theme") || (mq.matches ? "dark" : "light"); }
+  var current = "";
+  function setSource() {
+    var th = theme();
+    if (th === current) return;
+    var at = current ? v.currentTime : 0, resume = current && !v.paused;
+    current = th;
+    v.poster = "assets/how-3d-works-" + th + "-poster.png";
+    v.src = "assets/how-3d-works-" + th + ".mp4";
+    if (at) v.addEventListener("loadedmetadata", function once() {
+      v.removeEventListener("loadedmetadata", once);
+      try { v.currentTime = at; } catch (e) {}
+      if (resume) play();
+    });
+  }
+  setSource();
+  if (mq.addEventListener) mq.addEventListener("change", setSource);
+  new MutationObserver(setSource).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  v.addEventListener("play", function () { syncState(); if (!raf) raf = requestAnimationFrame(frame); showUI(1600); });
+  v.addEventListener("pause", function () { if (dragging) return; syncState(); render(); showUI(); });
+  v.addEventListener("loadedmetadata", render);
+  v.addEventListener("seeked", render);
+  v.addEventListener("timeupdate", function () { if (!raf) render(); });
+
+  // buttons (the big play button, the bar)
+  fig.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]");
+    if (!b) return;
+    var a = b.getAttribute("data-act");
+    if (a === "toggle") toggle(); else if (a === "back") skip(-5); else if (a === "fwd") skip(5); else if (a === "fs") fullscreen();
+    showUI();
+  });
+
+  // the picture itself: click toggles (mouse); tap shows, tap again toggles, double-tap skips (touch)
+  v.addEventListener("pointerup", function (e) {
+    if (e.pointerType === "mouse") { if (e.button === 0) { toggle(); showUI(); } return; }
+    var r = v.getBoundingClientRect(), x = e.clientX - r.left, now = Date.now();
+    if (now - lastTap < 280 && Math.abs(x - lastX) < 70) {
+      clearTimeout(tapT);
+      lastTap = 0;
+      if (x < r.width / 3) skip(-5); else if (x > r.width * 2 / 3) skip(5); else toggle();
+      showUI();
+      return;
+    }
+    lastTap = now;
+    lastX = x;
+    var shown = fig.getAttribute("data-ui") === "shown";
+    clearTimeout(tapT);
+    tapT = setTimeout(function () { if (shown) toggle(); showUI(); }, 280);
+  });
+  fig.addEventListener("pointermove", function (e) { if (e.pointerType === "mouse") showUI(); });
+  fig.addEventListener("pointerleave", function (e) {
+    if (e.pointerType !== "mouse" || v.paused || dragging) return;
+    clearTimeout(hideT);
+    hideT = setTimeout(hideUI, 500);
+  });
+  document.addEventListener("keydown", function () { kbd = true; }, true);
+  document.addEventListener("pointerdown", function () { kbd = false; }, true);
+  fig.addEventListener("focusin", function () { if (kbd) showUI(); });
+  fig.addEventListener("focusout", function (e) {
+    if (fig.contains(e.relatedTarget)) return;
+    clearTimeout(hideT);
+    if (!v.paused) hideT = setTimeout(hideUI, 1200);
+  });
+
+  // scrubbing: drag anywhere on the rail; hover shows time and chapter
+  function frac(e) { var r = track.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); }
+  function showTip(f) {
+    var s = f * dur();
+    tip.textContent = fmt(s) + " · " + chapterAt(s);
+    tip.style.left = Math.max(8, Math.min(92, f * 100)) + "%";
+    tip.classList.add("on");
+  }
+  track.addEventListener("pointerdown", function (e) {
+    dragging = true;
+    wasPlaying = !v.paused;
+    if (wasPlaying) v.pause();
+    try { track.setPointerCapture(e.pointerId); } catch (x) {}
+    var f = frac(e);
+    seek(f * dur());
+    showTip(f);
+    showUI();
+    e.preventDefault();
+  });
+  track.addEventListener("pointermove", function (e) {
+    var f = frac(e);
+    if (dragging) seek(f * dur());
+    if (dragging || e.pointerType === "mouse") showTip(f);
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    tip.classList.remove("on");
+    if (wasPlaying) play(); else { syncState(); }
+    showUI();
+  }
+  track.addEventListener("pointerup", endDrag);
+  track.addEventListener("pointercancel", endDrag);
+  track.addEventListener("pointerleave", function () { if (!dragging) tip.classList.remove("on"); });
+
+  fig.addEventListener("keydown", function (e) {
+    var k = e.key, onBtn = e.target.tagName === "BUTTON";
+    if ((k === " " || k === "Enter") && onBtn) return; // the button handles its own activation
+    if (k === " " || k === "k" || k === "K") { e.preventDefault(); toggle(); }
+    else if (k === "ArrowLeft" || k === "j" || k === "J") { e.preventDefault(); skip(-5); }
+    else if (k === "ArrowRight" || k === "l" || k === "L") { e.preventDefault(); skip(5); }
+    else if (k === "Home") { e.preventDefault(); seek(0); }
+    else if (k === "End") { e.preventDefault(); seek(dur()); }
+    else if (k === "f" || k === "F") { e.preventDefault(); fullscreen(); }
+    else return;
+    showUI();
+  });
+
+  // autoplay only while on screen; scrolling away pauses, coming back resumes unless you paused
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        var seen = en.isIntersecting && en.intersectionRatio >= 0.35;
+        if (seen && autoplay && !userPaused && v.paused) play();
+        else if (!seen && !v.paused) v.pause();
+      });
+    }, { threshold: [0, 0.35, 0.7] }).observe(fig);
+  } else if (autoplay) play();
+
+  if (phone) {
+    var hint = document.createElement("p");
+    hint.className = "pl-hint";
+    hint.textContent = "Best in landscape — tap ⤢ for full screen.";
+    fig.insertAdjacentElement("afterend", hint);
+    hint.style.order = "4";
+  }
+  // the player appears only once a source has loaded; a missing or broken file leaves the static diagram
+  function reveal() { fig.hidden = false; document.body.classList.add("has-vid"); render(); }
+  function unreveal() {
+    if (!v.error) return;
+    if (!v.paused) v.pause();
+    fig.hidden = true;
+    document.body.classList.remove("has-vid");
+  }
+  v.addEventListener("loadedmetadata", reveal);
+  v.addEventListener("error", unreveal);
+  if (v.readyState >= 1) reveal();
+  syncState();
+  render();
 })();
 </script>
 </body>

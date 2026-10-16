@@ -1,8 +1,24 @@
 # 3d
 
-**Describe the 3D you want, or point at a reference. Get a measured spec, an approved brief, a build, and versioned previews you iterate on.**
+**Describe the 3D you want, or point at a reference. Get a measured spec, an approved brief, a build,
+and versioned previews you iterate on until you sign off.**
 
-`3d` is an agent skill for production 3D on the web and in Blender. It decomposes your intent and any image or video references into the most detailed spec it can measure, turns that into a brief and shot list, picks the pipeline, builds, shows you versions in a local preview, and iterates on your notes. Everything it decides is recorded in `3D.md`.
+`3d` is an agent skill for production 3D on the web and in Blender. It decomposes your intent and any
+image or video references into the most detailed spec it can measure, grills only the gaps, turns the
+answers into a brief and a shot list you approve, picks the pipeline for where the piece will live,
+builds it, shows you numbered versions in a local viewer, has a fresh critic judge the evidence
+before you see it, and records every decision in `3D.md`.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**Visual guide:** [3d-skill.vercel.app](https://3d-skill.vercel.app)
+
+<a href="https://3d-skill.vercel.app">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/assets/how-3d-works-dark-poster.png">
+    <img src="site/assets/how-3d-works-light-poster.png" alt="How 3d works: intent and references become a spec, a brief and shots, a build, versioned previews and a record" width="100%">
+  </picture>
+</a>
 
 ```text
 intent + references → spec → brief + shots → approach → build → preview → iterate → record
@@ -10,20 +26,120 @@ intent + references → spec → brief + shots → approach → build → previe
 
 Invoke as `/3d` or `$3d` (Codex) with a request, a reference file or URL, or a GLB or `.blend` path.
 
+## Boundary
+
+`3d` owns **the 3D piece**: request or reference → measured spec → approved brief and shots →
+pipeline → build → versioned previews → the record in `3D.md`. It does not own the page around it:
+2D scroll and DOM motion (`scroll-animation`), layout scaling (`fluid-design`), image or video
+generation (`generate-image`, `generate-video`) and CAD-to-print orchestration
+(`manufacturing-workflow`) belong to adjacent skills. `3d` recommends those, never invokes them, and
+works alone. Project rules (`CLAUDE.md`, a motion doc, decisions already in `3D.md`) win over every
+default in the pack.
+
+Do not use it for a one-line fix you can see in the code; use it when the result has to *look right*.
+
+## The loop
+
+Every build runs the same seven stages ([docs/loop.md](docs/loop.md) has the artifacts, schemas and
+gates for each). Smaller requests enter a lane and skip what they do not need: a symptom goes
+straight to [shared-debug](skills/3d/references/shared-debug.md), a single change skips intake.
+
+1. **Prepare.** With no `3D.md`, [shared-preflight](skills/3d/references/shared-preflight.md) runs
+   `capabilities`, reads your stack and rules, batches one install proposal and fills `3D.md`.
+2. **Intake: measured, then grilled.**
+   - [intake-references](skills/3d/references/intake-references.md): `ref-extract` measures every
+     image or video (frames, palette, luma, cuts, motion), then vision passes fill
+     `.3d/reference-spec.json` in the [refspec](skills/3d/references/refspec.md) (`refspec.v1`) schema.
+     Every estimate carries a range, a confidence and an evidence tag; what a reference cannot show is
+     listed, not invented. [refspec-mapping](skills/3d/references/refspec-mapping.md) turns it into
+     starting camera, light, tone and material values.
+   - [intake-grill](skills/3d/references/intake-grill.md): looks up facts itself, then asks only the
+     gaps, in rounds of at most six questions, each with a recommended answer that "yes" accepts. The
+     turn ends on a restated brief and your explicit yes. No live user: it writes `.3d/questions.md`
+     and stops.
+3. **Brief, shots, sign-off.** [brief-spec](skills/3d/references/brief-spec.md) writes `.3d/brief.md`
+   and `.3d/shots.json` (`shots.v1`); [brief-lexicon](skills/3d/references/brief-lexicon.md) turns
+   "dramatic" and "glossy" into checkable words; the chosen look goes to `.3d/look.json`. Work then
+   passes five gates in order, each on your yes: brief → style frames → blockout → lookdev → final.
+4. **Approach by target use.** [brief-approach](skills/3d/references/brief-approach.md) maps hero,
+   scroll world, scrub video, render, Spline, splat, AR, game asset, print or CAD to a pipeline and a
+   four-rung fallback ladder, and names the area files to read next.
+5. **Build.** Only the files the pipeline names, one change-set per version
+   (`preview new-version`).
+6. **Preview and iterate.** [shared-preview](skills/3d/references/shared-preview.md) captures every
+   shot and diffs it against the reference and the previous version;
+   [shared-verification](skills/3d/references/shared-verification.md) hands the evidence to a fresh
+   critic that is not told what was just fixed; then you get the URL, the version, what changed and a
+   `preview board`. Your notes become the next version.
+7. **Record.** Claim-scoped verdicts, `glb-report` against the recorded budget, a version-log line
+   in `3D.md`, `preview stop`, and a handoff receipt of at most 400 tokens.
+
 ## Areas
 
-| Area | What it covers |
-|---|---|
-| Front door | grilling rounds with recommended answers, reference extraction, `refspec.v1`, brief, storyboard, `shots.v1` |
-| three.js and R3F | renderer, Next App Router, lighting and materials, loaders, post-processing, interaction |
-| Shaders | custom GLSL on `WebGLRenderer`; TSL and `WebGPURenderer` when needed |
-| Scroll-driven 3D | what is inside the pin: one conductor, adapters for native, Motion, GSAP, Lenis |
-| Design | art direction, scene ledger, look-dev presets, one colour policy |
-| Assets | stock and generative sourcing, the glTF pipeline (meshopt, KTX2), budgets |
-| Blender | headless CLI and MCP channels, modeling, look-dev and render, GLB export, 5.x version traps |
-| Optional | Spline, Gaussian splats, WebXR and AR, CAD routing |
+36 references in `skills/3d/references/`, read on demand, never preloaded
+([docs/areas.md](docs/areas.md) says when each one routes).
 
-It does not own 2D scroll or DOM animation (`scroll-animation`), layout scaling (`fluid-design`), image or video generation (`generate-image`, `generate-video`) or CAD-to-print (`manufacturing-workflow`). It recommends those, never invokes them, and works alone.
+| Area | References | Covers |
+|---|---|---|
+| Front door (7) | [intake-grill](skills/3d/references/intake-grill.md), [intake-references](skills/3d/references/intake-references.md), [refspec](skills/3d/references/refspec.md), [refspec-mapping](skills/3d/references/refspec-mapping.md), [brief-spec](skills/3d/references/brief-spec.md), [brief-lexicon](skills/3d/references/brief-lexicon.md), [brief-approach](skills/3d/references/brief-approach.md) | grilling, reference decomposition, brief, storyboard, shots, gates, pipeline choice |
+| Shared (5) | [shared-preflight](skills/3d/references/shared-preflight.md), [shared-debug](skills/3d/references/shared-debug.md), [shared-performance](skills/3d/references/shared-performance.md), [shared-preview](skills/3d/references/shared-preview.md), [shared-verification](skills/3d/references/shared-verification.md) | tooling, symptom triage, budgets, versions and captures, evidence and critic |
+| three.js and R3F (6) | [threejs-renderer](skills/3d/references/threejs-renderer.md), [threejs-r3f-next](skills/3d/references/threejs-r3f-next.md), [threejs-lookdev](skills/3d/references/threejs-lookdev.md), [threejs-loading](skills/3d/references/threejs-loading.md), [threejs-postfx](skills/3d/references/threejs-postfx.md), [threejs-interaction](skills/3d/references/threejs-interaction.md) | renderer, Next App Router, light and materials, loaders, post, picking and clips |
+| Shaders (2) | [shader-glsl](skills/3d/references/shader-glsl.md), [shader-tsl](skills/3d/references/shader-tsl.md) | GLSL on `WebGLRenderer`; TSL and `WebGPURenderer` when needed |
+| Scroll-driven 3D (3) | [scroll-conductor](skills/3d/references/scroll-conductor.md), [scroll-adapters](skills/3d/references/scroll-adapters.md), [scroll-video](skills/3d/references/scroll-video.md) | one conductor, native / Motion / GSAP / Lenis adapters, pre-rendered scrub |
+| Design (2) | [design-art-direction](skills/3d/references/design-art-direction.md), [design-lookdev-presets](skills/3d/references/design-lookdev-presets.md) | world sentence, scene ledger, presets, one colour policy |
+| Assets (2) | [asset-acquire](skills/3d/references/asset-acquire.md), [asset-pipeline](skills/3d/references/asset-pipeline.md) | stock and generative sourcing with licences; meshopt, KTX2, budgets |
+| Blender (5) | [blender-channels](skills/3d/references/blender-channels.md), [blender-modeling](skills/3d/references/blender-modeling.md), [blender-lookdev-render](skills/3d/references/blender-lookdev-render.md), [blender-export](skills/3d/references/blender-export.md), [blender-version-traps](skills/3d/references/blender-version-traps.md) | headless and MCP, modeling, look-dev and render, GLB export, 5.x traps |
+| Optional (3) | [spline](skills/3d/references/spline.md), [splats-xr](skills/3d/references/splats-xr.md), [cad-print](skills/3d/references/cad-print.md) | Spline, Gaussian splats, WebXR and AR, CAD routing |
+| Provenance (1) | [SOURCES](skills/3d/references/SOURCES.md) | where each technique came from, under which licence |
+
+## Tools
+
+`<skill>` is the installed skill directory. **Invoke every script by path, `<skill>/scripts/<x>`,
+with your project root as the working directory**, so defaults such as `.3d` land in your project;
+never run them from the skill directory. `preview` takes `--dir` (default `.3d`) for its work folder.
+
+| Tool | Command | Gives |
+|---|---|---|
+| `capabilities` | `<skill>/scripts/capabilities [--root PROJECT] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender and MCP hints, proposals. Never installs |
+| `ref-extract` | `<skill>/scripts/ref-extract INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3]` | per reference `meta.json`, `frames/`, `contact.jpg`, `palette.json`, `luma.json`; video adds `cuts.json`, `motion.json`. Needs ffmpeg |
+| `spec-check` | `<skill>/scripts/spec-check FILE...` | validates `refspec.v1`, `shots.v1`, `look.v1`; exit 1 names the bad fields |
+| `glb-report` | `<skill>/scripts/glb-report FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | triangles, draw calls, textures, extensions, size; PASS / WARN / FAIL, exit 1 on FAIL |
+| `preview serve` | `<skill>/scripts/preview serve [--dir .3d] [--port 4173] [--allow-origin URL]` | loopback viewer for `.3d/` on its own port; reads `.3d/look.json` |
+| `preview new-version` | `… new-version [--note "what changes"]` | `.3d/versions/vNNN/` with `manifest.json`; shown versions are never edited |
+| `preview capture` | `… capture [--version vNNN] [--url URL] [--shots …] [--size WxH] [--end] [--headed] [--settle 120]` | `.3d/evidence/vNNN/<shot>.png` for every shot, through your installed Chrome |
+| `preview diff` | `… diff A B` | SSIM and PSNR as JSON; side-by-side, blend and difference images in `.3d/diffs/` |
+| `preview board` | `… board [--version vNNN]` | contact sheet `.3d/boards/vNNN.png` with shot ids and open notes |
+| `preview feedback` | `… feedback [--version vNNN] [--json]` | your notes grouped by version and shot |
+| `preview stop` | `… stop` | ends the server named in `.3d/preview.pid` |
+| Blender scripts | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir` |
+| TypeScript blocks | copy into your project and own them; read each header first | `assets/web/conductor.ts`, `adapters/{native,motion,gsap}.ts`, `r3f/SceneCanvas.tsx`, `bridge.ts` |
+| Templates | copy into your project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` in `assets/templates/` |
+
+Every script is Python 3 standard library, exits 0 ok / 1 problems / 2 usage, and is executed by
+[tests/](tests/). `preview capture` needs `pip install playwright` (no `playwright install`) and
+Google Chrome; the viewer loads three.js from a pinned CDN, so preview needs network.
+`<skill>/assets/web/bridge.ts` exposes a dev-only `?3d-preview` bridge in *your* app: the skill asks
+before adding it and removes it on request.
+
+**The dev server is yours.** The skill never starts, kills or restarts it; it asks for the URL.
+`preview serve` serves `.3d/` only, on its own port.
+
+## Preflight and installs
+
+On first use `<skill>/scripts/capabilities` inventories the machine (node, Blender, gltf-transform,
+gltfpack, ktx, ffmpeg, Playwright and Chrome, your 3D stack, Blender and Spline MCP hints) into
+`.3d/capabilities.md`. Missing tools become **one batched proposal** with a cost label: free, free
+account or PAID.
+
+- **Nothing is installed without your explicit yes.** The skill proposes the exact command and why,
+  and runs it only after approval.
+- **`sudo` stays with you.** The KTX-Software `ktx` package (≥ 4.4, not `toktx`) is an official `.pkg`
+  that needs `sudo installer`; the skill hands you the command to run yourself.
+- **gltfpack comes from npm** (`npm i -g gltfpack`); Homebrew has no formula.
+- **Paid generative 3D jobs** are approved per job and never resubmitted on timeout.
+- **Blender MCP servers execute arbitrary Python**, so the skill asks for consent first.
+
+Cost table and MCP setup: [docs/installation.md](docs/installation.md).
 
 ## Install
 
@@ -31,15 +147,28 @@ It does not own 2D scroll or DOM animation (`scroll-animation`), layout scaling 
 npx skills add gabros20/3d-skill -g -y
 ```
 
-Or from a clone:
+Or from a clone, for a specific host:
 
 ```bash
 git clone https://github.com/gabros20/3d-skill.git
 cd 3d-skill
-./install.sh all        # Claude, Codex and the cross-agent path; or claude | codex | agents | cursor | …
+./install.sh codex
 ```
 
-Hosts and optional tools: [docs/installation.md](docs/installation.md).
+| Target | Destination |
+|---|---|
+| `codex` | `${CODEX_HOME:-$HOME/.codex}/skills/3d` |
+| `agents` | `~/.agents/skills/3d` |
+| `claude` | `~/.claude/skills/3d` |
+| `cursor` | `~/.cursor/skills/3d` |
+| `antigravity` | `~/.gemini/config/skills/3d` and `~/.gemini/antigravity-cli/skills/3d` |
+| `opencode` | `~/.config/opencode/skills/3d` |
+| `grok` | `~/.grok/skills/3d` |
+| `hermes` | `~/.hermes/skills/3d` |
+| `all` | Claude, Codex and the cross-agent path |
+
+The installer stages a complete copy before replacing an existing installation and restores the
+previous one if replacement fails. Repository-only docs, evals, tests and site are not installed.
 
 ## Quick start
 
@@ -51,31 +180,27 @@ Use $3d to optimize hero.glb for the web and tell me whether it fits the budget.
 /3d my R3F scene renders black
 ```
 
-A new request gets a few rounds of questions (each with a recommended answer), then a restated brief to approve. Nothing is built before that yes. Worked examples: [docs/usage.md](docs/usage.md). Copyable prompts: [docs/recipes.md](docs/recipes.md).
-
-## The preview tool
-
-`<skill>/scripts/preview` (run from your project root; `<skill>` is the installed skill directory) serves a local viewer for `.3d/` (`--dir`, loopback only, its own port; the viewer reads `.3d/look.json` for tone mapping and environment and loads its three.js build from a pinned CDN, so it needs network). `new-version` records each change-set, `capture` shoots every shot with your installed Chrome, `diff` scores versions and references (SSIM and PSNR), `board` builds a contact sheet of a version's shots with ids and notes, `feedback` reads your notes back, and `stop` ends the server. It never touches your dev server. A fresh critic context judges the evidence before you see a version, and you sign off at each stage rather than only at the end.
-
-`<skill>/scripts/spec-check` validates `refspec.v1`, `shots.v1` and `look.v1` files before anything is built from them. Scroll-scrubbed video (render frames, encode, play by progress) is covered by the `scroll-video` reference.
-
-## Preflight and installs
-
-On first use `<skill>/scripts/capabilities` inventories the machine (node, Blender, gltf-transform, gltfpack, ktx, ffmpeg, Playwright and Chrome, your 3D stack, Blender and Spline MCP hints) into `.3d/capabilities.md`. Missing tools become one batched proposal with cost (free, free account, PAID). The skill never installs anything unasked; paid generative jobs need approval per job and are never resubmitted on timeout. Blender MCP servers execute arbitrary Python, so the skill asks for consent first.
+A new request gets a few rounds of questions (each with a recommended answer), then a restated brief
+to approve. Nothing is built before that yes. Worked examples: [docs/usage.md](docs/usage.md).
+Copyable prompts: [docs/recipes.md](docs/recipes.md).
 
 ## What it writes in your project
 
-`3D.md` at the root (decisions, budgets, colour policy, scroll owner, scene ledger with a licence per asset, version log) and `.3d/` (`capabilities.md`, `brief.md`, `refs/`, `reference-spec.json`, `shots.json`, `look.json`, `versions/vNNN/`, `evidence/`, `feedback.jsonl`). Suggest gitignoring `.3d/versions` and `.3d/refs`.
+`3D.md` at the root (decisions, budgets, colour policy, scroll owner, tooling, scene ledger with a
+licence per asset, version log) and `.3d/` (`capabilities.md`, `brief.md`, `refs/`,
+`reference-spec.json`, `shots.json`, `look.json`, `versions/vNNN/`, `evidence/`, `diffs/`,
+`boards/`, `feedback.jsonl`). Suggest gitignoring `.3d/versions` and `.3d/refs`. Layout and schemas:
+[docs/loop.md](docs/loop.md#the-3d-layout).
 
 ## Repository map
 
 ```text
 skills/3d/        the installed pack: SKILL.md router, references/, scripts/, assets/, agents/openai.yaml
-docs/             installation, usage, recipes, research and design notes
+docs/             installation, usage, loop, areas, recipes, research and design notes
 evals/            activation, traversal, output and compression-ablation fixtures
 tests/            executes every shipped script
 scripts/          check-sync, lint-skill, count-skill-tokens (repo tooling)
-site/ remotion/   documentation site and hero-video project
+site/ remotion/   visual guide and hero-video project
 .codex-plugin/    package and release metadata
 ```
 
@@ -85,16 +210,30 @@ site/ remotion/   documentation site and hero-video project
 ./scripts/check-sync
 ```
 
-Runs the structure lint (frontmatter, routing, header contract, no `/Users/` paths), compiles and tests the scripts, and type-checks `assets/web`.
+Runs the structure lint (frontmatter, direct routing, the reference header contract, no `/Users/`
+paths), compiles and tests every script, and type-checks `assets/web`.
+
+## Documentation
+
+- [Installation](docs/installation.md)
+- [Usage](docs/usage.md)
+- [The loop](docs/loop.md)
+- [Areas](docs/areas.md)
+- [Recipes](docs/recipes.md)
+- [Evaluation fixtures](evals/README.md)
 
 ## Versioning
 
-Semantic versions live in `.codex-plugin/plugin.json`, [CHANGELOG.md](CHANGELOG.md), tags and GitHub Releases, never in `SKILL.md`. Current: 0.1.0.
+Semantic versions live in `.codex-plugin/plugin.json`, [CHANGELOG.md](CHANGELOG.md), git tags and
+GitHub Releases, never in `SKILL.md`. **MAJOR** is an artifact-contract or invocation break (`3D.md`,
+the `.3d/` layout, `refspec.v1`, `shots.v1`), **MINOR** is new areas or behavior-changing reference
+material, **PATCH** is fixes and wording. Current: 0.1.0.
 
 ## Credits
 
-Written in this repository's own words after surveying community three.js, Blender and brief-intake skills; licences, commits and what was adapted versus inspired only are in [SOURCES.md](SOURCES.md).
+Written in this repository's own words after surveying community three.js, Blender and brief-intake
+skills; licences, commits and what was adapted versus inspired only are in [SOURCES.md](SOURCES.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE) · Tamás Gábor ([@gabros20](https://github.com/gabros20))

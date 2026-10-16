@@ -12,6 +12,28 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-16
+
+### Added
+- Explainer video "How 3d works" (Remotion 4.0.536, two acts, 2:18, light + dark) and the
+  orchestrate-style player on the site: controls hidden while playing, chapters, keyboard,
+  fullscreen, reduced-motion and missing-file fallback to the static loop diagram.
+- `docs/loop.md` and `docs/areas.md`; README and docs rebuilt (worked examples, 16 recipes).
+
+### Changed
+- Fresh-critic gate: a failing critic round is fixed as a new version and re-captured; only a
+  passing version is shown to the user.
+- Gate 2 (style frames) passes only on rendered style frames plus the user's yes; picking A/B/C in
+  the grill is a direction choice.
+- Intake answers are marked resolved in `.3d/questions.md` and `3D.md` as they come in; `3D.md` is
+  updated at every gate, not only at the end.
+- `scroll-conductor` ownership: pre-rendered scrub video is owned via `scroll-video` when
+  `scroll-animation` is absent.
+- Remotion authoring skills refreshed from the official source (`npx skills add remotion-dev/skills`).
+
+### Removed
+- The 29 s hero animation (replaced by the explainer).
+
 ## [0.1.0] — 2026-10-16
 
 ### Added

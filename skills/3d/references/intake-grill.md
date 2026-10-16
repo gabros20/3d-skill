@@ -37,7 +37,8 @@ Produces:
 9. **Challenge pass, inside the rounds.** Name contradictions (photoreal plus a 60 KB budget; parallax plus "calm"; 4K video plus mobile data), vague words (below), and claims about a real product the user has not evidenced (ports, labels, numbers).
 10. **Restate and gate.** Write the brief: Outcome, Audience, Use, Style, Constraints, Deliverables, every guess tagged `[assumed]`, and `Out of scope`. Ask for an explicit yes. "Whatever you think" or "sounds good" is delegation, not approval: re-ask the 2-3 riskiest assumptions as A/B. A structured ask tool fits only this closing yes/no. End the turn on the question; start no build work in the same message.
 11. **Headless (no live user).** Write the questions with recommended answers to `.3d/questions.md` and stop. Only if the user explicitly said to assume defaults: proceed on the recommended answers tagged `[assumed]`, record them in the brief, mark `status: needs-confirmation`.
-12. **Record.** Save `.3d/brief.md`. After approval, changes are a new dated version plus a log line; never edit history silently.
+12. **Record as you go.** When the user answers, mark each question resolved in `.3d/questions.md` (the answer, tagged "approved by user" or `[assumed]`) and clear its "Open questions" entry in `3D.md` in the same step. Choosing a direction A/B/C is a direction choice only; style-frame sign-off is gate 2 in [brief-spec](brief-spec.md).
+13. **Save.** Save `.3d/brief.md`. After approval, changes are a new dated version plus a log line; never edit history silently.
 
 ## Look-up vs ask
 

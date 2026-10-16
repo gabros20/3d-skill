@@ -5,10 +5,14 @@ metadata:
   tags: effects, visual-effects, webgl, canvas, video, create-effect
 ---
 
-Use this rule only when the top-level skill lists an effect that matches the requested look, or when the user asks to create a reusable custom effect.
+Read this guidance when adding an effect to a component that supports `effects`,
+or when considering canvas post-processing or a reusable custom effect.
 
 Docs: https://www.remotion.dev/docs/effects
 Custom effect docs: https://www.remotion.dev/docs/create-effect
+
+For exposure, white balance, tonal adjustments, and LUTs, read
+[color-correction.md](color-correction.md).
 
 ## Usage
 
@@ -18,18 +22,35 @@ Install the package that provides the chosen effect:
 npx remotion add @remotion/effects
 ```
 
-Use `npx remotion add @remotion/light-leaks` for `lightLeak()` and `npx remotion add @remotion/starburst` for `starburst()`.
+Effects are functions passed to the `effects` prop of supported components.
 
-Effects are functions passed to the `effects` prop of canvas-based components such as `<Video>` from `@remotion/media`, `<Solid>`, `<CanvasImage>`, and `<HtmlInCanvas>`.
+These components accept `effects` directly:
+
+| Import from        | Components                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `remotion`         | `<Img>`, `<CanvasImage>`, `<AnimatedImage>`, `<Solid>`, `<HtmlInCanvas>`                                                      |
+| `@remotion/media`  | `<Video>`                                                                                                                     |
+| `@remotion/gif`    | `<Gif>`                                                                                                                       |
+| `@remotion/rive`   | `<RemotionRiveCanvas>`                                                                                                        |
+| `@remotion/shapes` | `<Arrow>`, `<Callout>`, `<Circle>`, `<Ellipse>`, `<Heart>`, `<Pie>`, `<Polygon>`, `<Rect>`, `<Spark>`, `<Star>`, `<Triangle>` |
+
+Ordinary HTML elements, `<Interactive.*>` DOM wrappers, `<AbsoluteFill>`, and
+`<Sequence>` do not accept `effects` directly. To apply effects to their content,
+wrap them in `<HtmlInCanvas>` and put the `effects` prop on the wrapper.
+
+For example, apply an effect directly to a video:
 
 ```tsx
 import {Video} from '@remotion/media';
 import {blur} from '@remotion/effects/blur';
 
-<Video src="https://remotion.media/video.mp4" effects={[blur({radius: 8})]} />;
+<Video
+  src="https://remotion.media/video.mp4"
+  effects={[blur({radius: 8})]}
+/>;
 ```
 
-Use the effect docs for exact props and imports. Most `@remotion/effects` imports use `@remotion/effects/<effect-slug>`; `uvTranslate()` and `xyTranslate()` use `@remotion/effects/translate`; `lightLeak()` uses `@remotion/light-leaks`; `starburst()` uses `@remotion/starburst`.
+Use the effect docs for exact props and imports. Most `@remotion/effects` imports use `@remotion/effects/<effect-slug>`; `uvTranslate()` and `xyTranslate()` use `@remotion/effects/translate`.
 
 These effects use WebGL2. During renders, enable WebGL with:
 
@@ -37,6 +58,30 @@ These effects use WebGL2. During renders, enable WebGL with:
 import {Config} from '@remotion/cli/config';
 
 Config.setChromiumOpenGlRenderer('angle');
+```
+
+## Available effects
+
+Built-in effects from `@remotion/effects`:
+
+- Color and tone: `brightness()`, `colorCorrection()`, `colorKey()`, `contrast()`, `duotone()`, `exposure()`, `grayscale()`, `hue()`, `invert()`, `levels()`, `linearGradient()`, `linearGradientTint()`, `lut()`, `saturation()`, `shadowsHighlights()`, `thermalVision()`, `tint()`, `vibrance()`, `whiteBalance()`.
+- Blur and trails: `blur()`, `lightTrail()`, `linearProgressiveBlur()`, `radialProgressiveBlur()`, `regionBlur()`, `zoomBlur()`.
+- Lighting: `dropShadow()`, `glow()`, `lightLeak()`, `shine()`, `starburst()`, `vignette()`.
+- Distortion and transforms: `barrelDistortion()`, `chromaticAberration()`, `cornerPin()`, `fisheye()`, `mirror()`, `noiseDisplacement()`, `scale()`, `skew()`, `tile()`, `uvTranslate()`, `wave()`, `xyTranslate()`.
+- Textures and patterns: `burlap()`, `checkerboard()`, `contourLines()`, `dotGrid()`, `emboss()`, `flannel()`, `gridlines()`, `halftone()`, `halftoneLinearGradient()`, `lines()`, `liquidContours()`, `noise()`, `paper()`, `pattern()`, `rings()`, `scanlines()`, `speckle()`, `tvSignalOff()`, `waves()`, `whiteNoise()`, `zigzag()`.
+- Edges: `outline()`, `roughenEdges()`, `shrinkwrap()`, `tear()`.
+- Pixelation and transitions: `evolve()`, `linearProgressivePixelate()`, `pixelate()`, `pixelDissolve()`, `radialProgressivePixelate()`, `venetianBlinds()`.
+
+Example:
+
+```tsx
+import {Video} from '@remotion/media';
+import {brightness} from '@remotion/effects/brightness';
+
+<Video
+  src="https://remotion.media/video.mp4"
+  effects={[brightness({})]}
+/>;
 ```
 
 ## Custom effects

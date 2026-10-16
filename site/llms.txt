@@ -63,4 +63,4 @@ Optional
 
 ## Optional
 
-- [Visual guide](https://3d-skill.vercel.app): the loop, reference-to-3D decomposition, area packs, preview tool and preflight on one page.
+- [Visual guide](https://3d-skill.vercel.app): the idea (a short explainer video plus a static diagram of the loop), the loop in depth, reference to spec, area packs, the preview tool, preflight, the laws, pick by job and start here, on one page.
