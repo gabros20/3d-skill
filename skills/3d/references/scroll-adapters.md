@@ -3,7 +3,7 @@
 Purpose: Pick and wire the one scroll source that feeds the conductor, state the pin rule when `scroll-animation` is absent, and avoid the iOS Safari traps.
 
 Read when:
-- Connecting `assets/web/conductor.ts` to native scroll, Motion, GSAP ScrollTrigger, Lenis or drei `ScrollControls`.
+- Connecting `<skill>/assets/web/conductor.ts` to native scroll, Motion, GSAP ScrollTrigger, Lenis or drei `ScrollControls`.
 - The pinned canvas jumps, shows page along the bottom, or lags the DOM on iPhone or Safari.
 
 Skip when:
@@ -11,7 +11,7 @@ Skip when:
 - The page already has a `scroll-animation` scene: its pin, authority and verification win; adapt only the feed.
 
 Inputs:
-- `package.json` stack (`scripts/capabilities` lists it), the route's scroll authority, project motion rules.
+- `package.json` stack (`<skill>/scripts/capabilities` lists it), the route's scroll authority, project motion rules.
 
 Produces:
 - One adapter attached to one range wrapper, a pin that holds, a device-check list.
@@ -22,10 +22,10 @@ Project rules first (a MOTION doc, CLAUDE.md): if they ban an engine, never prop
 
 | Found in `package.json` / page | Adapter | Notes |
 |---|---|---|
-| `motion`, no `gsap`, no `lenis` | `assets/web/adapters/motion.ts` | native authority; do not suggest GSAP, Lenis or ScrollControls |
-| `gsap` | `assets/web/adapters/gsap.ts` | ScrollSmoother route: this one only |
+| `motion`, no `gsap`, no `lenis` | `<skill>/assets/web/adapters/motion.ts` | native authority; do not suggest GSAP, Lenis or ScrollControls |
+| `gsap` | `<skill>/assets/web/adapters/gsap.ts` | ScrollSmoother route: this one only |
 | `lenis` (not `@studio-freight/lenis`, renamed) | native or gsap adapter + one tick | `damping: null` on the conductor |
-| nothing | `assets/web/adapters/native.ts` | default |
+| nothing | `<skill>/assets/web/adapters/native.ts` | default |
 | drei `ScrollControls` wanted | only on a full-screen 3D page with no other scroll | it owns a scroll container in front of the canvas |
 
 **Same travel everywhere**: every adapter computes progress over `wrapperHeight - 100lvh` (shared `createLvhProbe`), the distance the `lvh` pin actually travels. Never `bottom bottom`, `['start start','end end']` or `innerHeight`: they follow the visual viewport and, with the iOS toolbar shown, hit 1 up to one toolbar height after the pin releases, holding the last frame while the scene scrolls away.
@@ -87,7 +87,7 @@ Only with no other scroll authority: `pages`, `damping` (default 0.25 s), `useSc
 - Defer geometry reads one `requestAnimationFrame` on `resize`; ignore height-only resizes on touch (toolbar). `native.ts` does both.
 - `overscroll-behavior: none` on the root of a scroll scene.
 - iOS restores scroll after scripts run: re-derive from the wrapper on mount, `pageshow`, focus.
-- Tab-bar tint through a pinned scene on iOS 26: negative result, do not re-chase; check the exact iOS version before spending time.
+- A result from one iOS version is not verified on another; note the exact version tested.
 - DevTools emulation cannot reproduce toolbar or compositing behaviour: verify on a real device, and confirm the deployed build contains the fix first.
 
 ## Traps

@@ -55,15 +55,17 @@ A new request gets a few rounds of questions (each with a recommended answer), t
 
 ## The preview tool
 
-`scripts/preview` serves a local viewer for `.3d/` (loopback only, its own port), records each change-set as a version, captures every shot with your installed Chrome, diffs versions and references (SSIM and PSNR), and reads your notes back from the viewer. It never touches your dev server. A fresh critic context judges the evidence before you see a version.
+`<skill>/scripts/preview` (run from your project root; `<skill>` is the installed skill directory) serves a local viewer for `.3d/` (`--dir`, loopback only, its own port; the viewer reads `.3d/look.json` for tone mapping and environment and loads its three.js build from a pinned CDN, so it needs network). `new-version` records each change-set, `capture` shoots every shot with your installed Chrome, `diff` scores versions and references (SSIM and PSNR), `board` builds a contact sheet of a version's shots with ids and notes, `feedback` reads your notes back, and `stop` ends the server. It never touches your dev server. A fresh critic context judges the evidence before you see a version, and you sign off at each stage rather than only at the end.
+
+`<skill>/scripts/spec-check` validates `refspec.v1`, `shots.v1` and `look.v1` files before anything is built from them. Scroll-scrubbed video (render frames, encode, play by progress) is covered by the `scroll-video` reference.
 
 ## Preflight and installs
 
-On first use `scripts/capabilities` inventories the machine (node, Blender, gltf-transform, gltfpack, ktx, ffmpeg, Playwright and Chrome, your 3D stack, Blender and Spline MCP hints) into `.3d/capabilities.md`. Missing tools become one batched proposal with cost (free, free account, PAID). The skill never installs anything unasked; paid generative jobs need approval per job and are never resubmitted on timeout. Blender MCP servers execute arbitrary Python, so the skill asks for consent first.
+On first use `<skill>/scripts/capabilities` inventories the machine (node, Blender, gltf-transform, gltfpack, ktx, ffmpeg, Playwright and Chrome, your 3D stack, Blender and Spline MCP hints) into `.3d/capabilities.md`. Missing tools become one batched proposal with cost (free, free account, PAID). The skill never installs anything unasked; paid generative jobs need approval per job and are never resubmitted on timeout. Blender MCP servers execute arbitrary Python, so the skill asks for consent first.
 
 ## What it writes in your project
 
-`3D.md` at the root (decisions, budgets, colour policy, scroll owner, scene ledger with a licence per asset, version log) and `.3d/` (`capabilities.md`, `brief.md`, `refs/`, `reference-spec.json`, `shots.json`, `versions/vNNN/`, `evidence/`, `feedback.jsonl`). Suggest gitignoring `.3d/versions` and `.3d/refs`.
+`3D.md` at the root (decisions, budgets, colour policy, scroll owner, scene ledger with a licence per asset, version log) and `.3d/` (`capabilities.md`, `brief.md`, `refs/`, `reference-spec.json`, `shots.json`, `look.json`, `versions/vNNN/`, `evidence/`, `feedback.jsonl`). Suggest gitignoring `.3d/versions` and `.3d/refs`.
 
 ## Repository map
 

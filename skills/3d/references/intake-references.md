@@ -8,13 +8,13 @@ Read when:
 
 Skip when:
 - No reference exists and the look is undefined (→ [intake-grill](intake-grill.md) style frames).
-- The reference is a 3D file to reuse (→ [asset-pipeline](asset-pipeline.md), `scripts/glb-report`).
+- The reference is a 3D file to reuse (→ [asset-pipeline](asset-pipeline.md), `<skill>/scripts/glb-report`).
 
 Inputs:
 - Reference files or URLs, and for each one what the user wants from it.
 
 Produces:
-- `.3d/refs/<name>/` (mechanical output) and `.3d/reference-spec.json` in the [refspec](refspec.md) schema.
+- `.3d/refs/<name>/` (mechanical output) and `.3d/reference-spec.json` in the [refspec](refspec.md) schema, checked with `<skill>/scripts/spec-check`.
 
 ## Contents
 
@@ -35,7 +35,7 @@ Produces:
 Run from the project root, by path:
 
 ```
-scripts/ref-extract INPUT... [--out .3d/refs] [--frames N] [--scene 0.3]
+<skill>/scripts/ref-extract INPUT... [--out .3d/refs] [--frames N] [--scene 0.3]
 ```
 
 Per reference it writes `meta.json` (size, fps, EXIF/ffprobe), `frames/`, `contact.jpg`, `palette.json` (k-means hex plus weight), `luma.json` (histogram, key, contrast), and for video `cuts.json` and `motion.json`. It needs `ffmpeg`; without it the script says so, so propose the install ([shared-preflight](shared-preflight.md)) and continue with vision only, marking every field `read`/`inferred`.
@@ -82,6 +82,11 @@ Focal length is only reliable as a class (`focal_class` table in [refspec](refsp
 - `negative` references fill `negative_prompt` only.
 
 ## Honesty limits
+
+Optional camera-match escalations, each only when a number drives a decision and the user approves the install ([shared-preflight](shared-preflight.md)):
+- **fSpy** (stills): solves camera and FOV from 2-3 vanishing-point lines; manual GUI, imports into Blender. Use for a `match` reference needing exact framing.
+- **Blender motion tracking** or **COLMAP** (video): recover a camera path from footage with enough static texture. Use for a `match` camera move; otherwise the measured %W/s and easing are enough.
+- **Monocular depth model**: relative depth for layer order and relief only, never metres. Check weight licences first: Depth Anything V2 Base/Large weights are CC-BY-NC.
 
 Without the source file you cannot know colour space (assume sRGB/Rec.709, say so), HDR or log, or true scale. A reference URL needs `yt-dlp`; propose, never install. Optional depth or camera-solve tools are escalations, not defaults.
 

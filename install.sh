@@ -18,6 +18,7 @@ install_to() {
   mkdir -p "$parent"
   trap 'rm -rf "$staging" "$backup"' RETURN
   cp -R "$source_dir" "$staging"
+  find "$staging" \( -name __pycache__ -o -name '*.pyc' \) -prune -exec rm -rf {} +
 
   if [ -e "$dest" ]; then
     mv "$dest" "$backup"

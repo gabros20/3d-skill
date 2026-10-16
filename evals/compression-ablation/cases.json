@@ -12,7 +12,7 @@
       "meshopt or Draco, never both",
       "master copy kept",
       "glb-report before and after",
-      "installs proposed, not run"
+      "nothing installed without explicit approval"
     ]
   },
   {
@@ -27,7 +27,8 @@
       "facts looked up, not asked",
       "≤ 6 questions per round with recommended answers",
       "explicit yes before build",
-      "brief written to .3d/brief.md"
+      "brief written to .3d/brief.md",
+      "headless: stop after .3d/questions.md unless told to assume defaults"
     ]
   },
   {

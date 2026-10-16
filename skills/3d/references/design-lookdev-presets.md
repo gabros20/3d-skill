@@ -57,16 +57,29 @@ Produces:
 | Key / fill / rim | large softbox 45 deg high, fill -2 EV, rim +0.5 EV narrow | low cool side key, no fill, strong accent rims | soft overhead key, window gradient behind | huge overcast key, fill -1 EV | sun key, cool sky fill -2.5 EV, warm rim |
 | HDRI | studio softboxes | dark studio with strip lights | high-key gradient or panels | overcast sky | clear sky with sun |
 | Env intensity | 0.5-0.8 | 0.15-0.3 | 0.8-1.0 | 0.8-1.0 | 0.4-0.5 |
-| Exposure | 0 | -0.5 | +0.3 | +0.3 | 0 |
+| Exposure (EV, Blender) | 0 | -0.5 | +0.3 | +0.3 | 0 |
 | Tone mapping | Neutral | AgX (Neutral if an accent hex must match) | Neutral | Neutral | AgX |
 | Palette logic | neutral ground, brand only on the product | near-black ground, one accent on edges | pale ground, glass tint from brand | 3 pastels by role, low contrast | warm key, cool shadow |
 | Finish | satin plastic, anodised, roughness 0.25-0.5 | black glass, dark metal | transmission, polished | matte, sheen | mixed, weathered |
 | Post | none; contact shadow | bloom, light grain after OutputPass | none | light grain | vignette, light radial CA, grain after OutputPass |
 | Chapters | 1-3 | 4-8 | 2-5 | 3-6 | 4-8 |
 
+## `.3d/look.json` values
+
+At build time write `.3d/look.json` (`schema: "look.v1"`) from the chosen preset; the viewer reads it. `exposure` is three's `toneMappingExposure` multiplier (2^EV), not stops.
+
+| | A | B | C | D | E |
+|---|---|---|---|---|---|
+| `toneMapping` | `neutral` | `agx` | `neutral` | `neutral` | `agx` |
+| `exposure` | 1.0 | 0.7 | 1.2 | 1.2 | 1.0 |
+| `environment` | `room` | dark strip-light HDRI (path or URL) | high-key gradient HDRI | overcast HDRI | clear-sky HDRI with sun |
+| `background` | `#f2f2f0` | `#0a0b0d` | `#eef1f4` | `#efe9df` | `#bcc9d8` |
+
+Backgrounds are starting hexes: replace with the brand palette. Env intensity stays in the scene, not in `look.json`.
+
 ## Intake use
 
-Offer A to E as "pick one, then override" with a one-line mood each; map a reference analysis to the nearest preset, then override palette and exposure only. Record `preset`, `tone`, overrides in `3D.md`.
+Offer A to E as "pick one, then override" with a one-line mood each; map a reference analysis to the nearest preset, then override palette and exposure only. Record `preset`, `tone`, overrides in `3D.md` and write `.3d/look.json`.
 
 ## Traps
 

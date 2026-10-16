@@ -35,7 +35,7 @@ Scripts run by path (`<skill>/scripts/...`) with the project root as the working
 
 | Symptom | Likely cause | Check | Fix |
 |---|---|---|---|
-| Scroll-driven scene holds frame one, then snaps to the end; layout or copy unstyled | Stale stylesheet in a tab that stayed open across a dev-server restart plus CSS change; the pin has no travel. Not a scene bug | `getComputedStyle(document.documentElement).getPropertyValue('--x')` for a token you know changed; or open a fresh tab | Ask the developer to close the tab and open a new one; if it persists they run `rm -rf .next` and restart. You never restart their server |
+| Scroll-driven scene holds frame one, then snaps to the end | In order: (1) scrub video with sparse keyframes or a long GOP, so seeks land on one frame; (2) zero pin travel (section height collapsed, so progress spans no scroll distance); (3) progress not wired to the scene (read the value, log it); (4) stale CSS after a dev-server restart, a tab left open across it | (1) `ffprobe` keyframe interval; (2) measure the pinned section's scroll distance; (3) log normalized progress while scrolling; (4) `getComputedStyle(document.documentElement).getPropertyValue('--x')` for a token you know changed, or open a fresh tab | (1) re-encode short-GOP or all-intra ([scroll-video](scroll-video.md)); (2)-(3) [scroll-adapters](scroll-adapters.md), [scroll-conductor](scroll-conductor.md); (4) ask the developer to close the tab and open a new one; if it persists they clear the build cache and restart. You never restart their server |
 | Black canvas, no errors ([threejs-renderer](threejs-renderer.md)) | Canvas has zero CSS size; camera inside or facing away; near/far wrong; no light on a lit material; context never created | element size, `renderer.getContext()`, `camera.position`, `renderer.info.render.calls` | Size the container; frame by bounding box; add environment light |
 | Black canvas only in headless capture | No GL context, or hidden page so rAF never fires | capture report renderer string; `document.visibilityState` | Capture via `frame(n)`; use the headed or alternate flag set the report suggests |
 | Washed-out or desaturated vs Blender or a glTF viewer | R3F `<Canvas>` default ACES tone mapping; wrong view transform; texture colour space | `renderer.toneMapping`, `renderer.outputColorSpace`, texture `colorSpace` | Pick the tone mapper deliberately (Neutral for brand colour, AgX for cinematic); colour textures sRGB, data textures linear ([threejs-lookdev](threejs-lookdev.md), [threejs-renderer](threejs-renderer.md)) |
@@ -64,6 +64,6 @@ Scripts run by path (`<skill>/scripts/...`) with the project root as the working
 
 ## Traps
 
-- Debugging scene code when the stylesheet is stale.
+- Debugging scene code before ruling out zero pin travel and a stale tab.
 - Fixing a colour problem with exposure when the view transform differs.
 - Testing in one tab that has survived several server restarts.

@@ -58,7 +58,7 @@ class BlenderScripts(unittest.TestCase):
         return subprocess.run(cmd, capture_output=True, text=True, cwd=cls.tmp, timeout=600)
 
     def test_inspect_scene(self):
-        out = self.tmp / "inspect.json"
+        out = self.tmp / "new" / "deep" / "inspect.json"  # parent dirs are created
         r = self.bl(self.blend, "--python", str(BPY / "inspect_scene.py"), "--", "--json", str(out))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         rep = json.loads(out.read_text())
@@ -84,7 +84,7 @@ class BlenderScripts(unittest.TestCase):
             self.assertIn("No errors found", v.stdout + v.stderr)
 
     def test_export_web_whole_scene(self):
-        glb = self.tmp / "out" / "all.glb"
+        glb = self.tmp / "n3" / "x" / "all.glb"
         r = self.bl(self.blend, "--python", str(BPY / "export_web.py"), "--", "--out", str(glb))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(last_json(r.stdout)["glb"]["meshes"], 2)
@@ -94,7 +94,7 @@ class BlenderScripts(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
 
     def test_render_shots_still(self):
-        out = self.tmp / "render"
+        out = self.tmp / "new2" / "render"  # parent dirs are created
         r = self.bl(self.blend, "--python", str(BPY / "render_shots.py"), "--", "--shots", str(SHOTS),
                     "--out", str(out), "--engine", "workbench", "--res", "160")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

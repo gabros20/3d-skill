@@ -3,26 +3,29 @@
 
 Usage (invoke by path with the project root as cwd; defaults like .3d resolve against cwd,
 the viewer is found relative to this script):
-  preview serve [--root .3d] [--port 4173] [--allow-origin http://localhost:3000]
-  preview new-version [--root .3d] [--note "what changes"]
-  preview capture [--root .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
+  preview serve [--dir .3d] [--port 4173] [--allow-origin http://localhost:3000]
+  preview new-version [--dir .3d] [--note "what changes"]
+  preview capture [--dir .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
                   [--size WxH] [--end] [--headed] [--settle 120]
-  preview diff A B [--root .3d] [--out DIR]       A, B: image files or version ids
-  preview feedback [--root .3d] [--version vNNN] [--json]
+  preview diff A B [--dir .3d] [--out DIR]       A, B: image files or version ids
+  preview feedback [--dir .3d] [--version vNNN] [--json]
+  preview board [--dir .3d] [--version vNNN]
+  preview stop [--dir .3d]
+  preview --selftest
 
 serve   Loopback-only static server. Viewer comes from the skill's assets/preview/,
-        project files from --root. POST /feedback appends a JSON line to
-        <root>/feedback.jsonl; POST /shots saves a named camera into <root>/shots.json.
+        project files from --dir. POST /feedback appends a JSON line to
+        <dir>/feedback.jsonl; POST /shots saves a named camera into <dir>/shots.json.
         Responses are no-store. Same-origin only: Host must be 127.0.0.1/localhost:<port>,
         POST needs Content-Type: application/json and no foreign Origin; --allow-origin
         opts one exact origin into CORS. Stop it (Ctrl-C / kill) when the session ends.
 new-version
-        Creates <root>/versions/vNNN/ with manifest.json; copy outputs in afterwards
+        Creates <dir>/versions/vNNN/ with manifest.json; copy outputs in afterwards
         and list them in manifest.json "files" (the viewer also scans the folder).
 capture Drives the user's installed Chrome through Playwright (python, channel="chrome",
         no browser download). Opens the viewer (or --url + ?3d-preview), waits for
         window.__3d.ready, then per shot: __3d.setShot(id[, t]); __3d.frame(n) (fixed dt);
-        saves the canvas to <root>/evidence/vNNN/<shot>.png. It probes the GL renderer
+        saves the canvas to <dir>/evidence/vNNN/<shot>.png. It probes the GL renderer
         first and says plainly if it is software or absent. Exit 1 when capture fails
         or a frame is blank/constant. Needs: pip install playwright (no `playwright
         install`) and Google Chrome.
@@ -36,11 +39,23 @@ capture Drives the user's installed Chrome through Playwright (python, channel="
           shading cost or exact colour; the report labels it. --headed opens a visible
           window (always works for WebGL when un-occluded).
 diff    ffmpeg ssim + psnr as JSON on stdout; writes side-by-side, 50% blend and
-        difference images to <root>/diffs/<A>__<B>/. With two version ids, compares
+        difference images to <dir>/diffs/<A>__<B>/. With two version ids, compares
         every shot present in both evidence folders. Scores are a hint: compare only
         same-machine, same-flags captures.
 feedback
         Prints notes grouped by version and shot, with status.
+
+board   Contact sheet of a version's evidence PNGs -> <dir>/boards/vNNN.png (+ vNNN.json legend
+        with shot order and the open notes). Labels via ffmpeg drawtext when this ffmpeg has
+        it; otherwise shots are laid out in legend order, left-to-right, top-to-bottom.
+stop    Stops the server named in <dir>/preview.pid (written by `serve`: pid + port) and
+        removes the file. `serve` prints the pid and URL.
+--selftest
+        Quick in-process check of routes, MIME types, Host guard and POST rules. Exit 0/1.
+
+The viewer loads three.js from a pinned CDN (jsDelivr), so it needs network; capture
+needs it too. An offline vendor mode is not provided. The viewer applies <dir>/look.json
+(look.v1) when present; see assets/preview/viewer.html.
 
 Exit 0 ok, 1 problem (failed capture, missing tool, diff error), 2 usage.
 """
@@ -56,12 +71,16 @@ import mimetypes
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -179,6 +198,7 @@ def state(root: Path, shots_path: Path) -> dict:
         "shots": load_shots(shots_path),
         "refs": list_refs(root),
         "feedback": read_feedback(root),
+        "look": read_json(root / "look.json", None),
     }
 
 
@@ -395,8 +415,12 @@ def make_server(root: Path, port: int, shots_path: Path | None = None, allow_ori
     return srv
 
 
+def pid_path(root: Path) -> Path:
+    return root / "preview.pid"
+
+
 def cmd_serve(a: argparse.Namespace) -> int:
-    root = Path(a.root).resolve()
+    root = Path(a.dir).resolve()
     root.mkdir(parents=True, exist_ok=True)
     if not VIEWER_DIR.joinpath("viewer.html").is_file():
         die(f"viewer missing at {VIEWER_DIR}")
@@ -404,18 +428,126 @@ def cmd_serve(a: argparse.Namespace) -> int:
         srv = make_server(root, a.port, allow_origin=a.allow_origin)
     except OSError as e:
         die(f"cannot bind 127.0.0.1:{a.port}: {e} (pick another --port)")
-    print(f"preview: serving {root} at http://127.0.0.1:{srv.server_address[1]}/  (Ctrl-C to stop)", flush=True)
+    port = srv.server_address[1]
+    pf = pid_path(root)
+    pf.write_text(json.dumps({"pid": os.getpid(), "port": port}) + "\n", encoding="utf-8")
+
+    def _term(signum: int, frame: Any) -> None:
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _term)
+    print(f"preview: serving {root} at http://127.0.0.1:{port}/  pid {os.getpid()}  "
+          f"(stop: `preview stop` or Ctrl-C)", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        srv.server_close()
+        try:
+            if json.loads(pf.read_text()).get("pid") == os.getpid():
+                pf.unlink()
+        except (OSError, ValueError):
+            pass
+    return 0
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    r = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True)
+    return bool(r.stdout.strip()) and not r.stdout.strip().startswith("Z")  # a zombie has exited
+
+
+def cmd_stop(a: argparse.Namespace) -> int:
+    pf = pid_path(Path(a.dir))
+    info = read_json(pf, None)
+    if not isinstance(info, dict) or not isinstance(info.get("pid"), int):
+        print(f"preview: no running server recorded in {pf}")
+        pf.unlink(missing_ok=True)
+        return 0
+    pid = info["pid"]
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        print(f"preview: pid {pid} was not running; removed stale {pf}")
+        pf.unlink(missing_ok=True)
+        return 0
+    except PermissionError:
+        die(f"cannot signal pid {pid} (not ours); left {pf} in place")
+    def wait_exit(seconds: float) -> bool:
+        end = time.time() + seconds
+        while time.time() < end:
+            if not pid_alive(pid):
+                return True
+            time.sleep(0.1)
+        return not pid_alive(pid)
+
+    if not wait_exit(5.0):
+        print(f"preview: pid {pid} ignored SIGTERM for 5 s; sending SIGKILL", file=sys.stderr)
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        if not wait_exit(5.0):
+            die(f"pid {pid} did not exit after SIGKILL; left {pf} in place")
+    pf.unlink(missing_ok=True)
+    print(f"preview: stopped pid {pid} (port {info.get('port')})")
+    return 0
+
+
+def cmd_selftest(_: argparse.Namespace | None = None) -> int:
+    tmp = Path(tempfile.mkdtemp())
+    srv = make_server(tmp, 0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+    base = f"http://127.0.0.1:{port}"
+    (tmp / "x.glb").write_bytes(b"glTF")
+    (tmp / "x.wasm").write_bytes(b"\0asm")
+    fails: list[str] = []
+
+    def call(path: str, data: bytes | None = None, headers: dict | None = None):
+        req = urllib.request.Request(base + path, data=data, headers=headers or {})
+        try:
+            return urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as e:
+            return e
+
+    def check(name: str, ok: bool) -> None:
+        if not ok:
+            fails.append(name)
+
+    try:
+        r = call("/")
+        check("viewer served", r.status == 200 and b"__3d" in r.read())
+        check("glb mime", call("/x.glb").headers["Content-Type"] == "model/gltf-binary")
+        check("wasm mime", call("/x.wasm").headers["Content-Type"] == "application/wasm")
+        check("no-store", call("/api/state").headers["Cache-Control"] == "no-store")
+        check("host guard", call("/api/state", headers={"Host": "evil.example"}).status == 403)
+        check("traversal", call("/%2e%2e/%2e%2e/etc/passwd").status == 404)
+        body = json.dumps({"version": "v001", "note": "selftest"}).encode()
+        check("post needs json", call("/feedback", body, {"Content-Type": "text/plain"}).status == 415)
+        check("cross-origin refused", call("/feedback", body, {"Content-Type": "application/json", "Origin": "http://evil.example"}).status == 403)
+        check("feedback ok", call("/feedback", body, {"Content-Type": "application/json"}).status == 200)
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        shutil.rmtree(tmp, ignore_errors=True)
+    if fails:
+        print("preview selftest FAILED: " + ", ".join(fails), file=sys.stderr)
+        return 1
+    print("preview selftest ok")
     return 0
 
 
 # ---------------------------------------------------------------- new-version
 
 def cmd_new_version(a: argparse.Namespace) -> int:
-    root = Path(a.root)
+    root = Path(a.dir)
     ids = version_ids(root)
     nxt = (int(ids[-1][1:]) + 1) if ids else 1
     vid = f"v{nxt:03d}"
@@ -472,7 +604,7 @@ def cmd_capture(a: argparse.Namespace) -> int:
     except ImportError:
         die("python playwright is not installed. Install: pip install playwright "
             "(do NOT run `playwright install`; this tool drives your installed Google Chrome).")
-    root = Path(a.root)
+    root = Path(a.dir)
     size = a.size or default_size(Path(a.shots) if a.shots else root / "shots.json")
     try:
         w, h = (int(x) for x in size.lower().split("x"))
@@ -647,7 +779,7 @@ def cmd_diff(a: argparse.Namespace) -> int:
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
             die(f"{tool} not found. Install ffmpeg (e.g. `brew install ffmpeg`); it is the only dependency of diff.")
-    root = Path(a.root)
+    root = Path(a.dir)
     A, B = a.a, a.b
     pairs: list[tuple[str, Path, Path]] = []
     if VERSION_RE.match(A) and VERSION_RE.match(B):
@@ -676,10 +808,74 @@ def cmd_diff(a: argparse.Namespace) -> int:
     return 0 if all(r.get("ssim") is not None for r in results) else 1
 
 
+# ---------------------------------------------------------------------- board
+
+CELL_W, CELL_H, BOARD_COLS = 480, 270, 3
+
+
+def open_notes(root: Path, version: str) -> list[dict]:
+    items = [i for i in read_feedback(root) if i.get("version") == version]
+    resolved = {r for i in items if i.get("kind") == "resolved" for r in i.get("refs", [])}
+    return [i for i in items if i.get("kind") == "note" and i.get("id") not in resolved]
+
+
+def has_drawtext() -> bool:
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True)
+    return " drawtext " in r.stdout
+
+
+def cmd_board(a: argparse.Namespace) -> int:
+    if not shutil.which("ffmpeg"):
+        die("ffmpeg not found. Install ffmpeg (e.g. `brew install ffmpeg`); board needs it.")
+    root = Path(a.dir)
+    version = a.version or latest_version(root)
+    if not version or not VERSION_RE.match(version):
+        die("no version: pass --version vNNN or create one with `preview new-version`", 2)
+    edir = root / "evidence" / version
+    pngs = sorted(edir.glob("*.png")) if edir.is_dir() else []
+    order = [s["id"] for s in load_shots(root / "shots.json")]
+    pngs.sort(key=lambda p: (order.index(p.stem.split("_end")[0]) if p.stem.split("_end")[0] in order else 999, p.name))
+    if not pngs:
+        die(f"no evidence PNGs in {edir}; run `preview capture --version {version}` first")
+    n = len(pngs)
+    cols = min(BOARD_COLS, n)
+    rows = -(-n // cols)
+    labelled = has_drawtext()
+    parts, names = [], []
+    for i, p in enumerate(pngs):
+        f = f"[{i}:v]scale={CELL_W}:{CELL_H}:force_original_aspect_ratio=decrease,pad={CELL_W}:{CELL_H}:(ow-iw)/2:(oh-ih)/2:color=0x14161c"
+        if labelled:
+            f += f",drawtext=text='{p.stem}':x=8:y=8:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=4"
+        parts.append(f + f"[c{i}]")
+        names.append(f"[c{i}]")
+    layout = "|".join(f"{(i % cols) * CELL_W}_{(i // cols) * CELL_H}" for i in range(n))
+    graph = ";".join(parts) + ";" + ("".join(names) + f"xstack=inputs={n}:layout={layout}:fill=0x14161c[o]" if n > 1 else "[c0]null[o]")
+    out = root / "boards" / f"{version}.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["ffmpeg", "-hide_banner", "-nostdin", "-y"]
+    for p in pngs:
+        cmd += ["-i", str(p)]
+    r = subprocess.run([*cmd, "-filter_complex", graph, "-map", "[o]", "-frames:v", "1", str(out)], capture_output=True, text=True)
+    if r.returncode != 0 or not out.is_file():
+        die("ffmpeg failed building the board: " + r.stderr.strip().splitlines()[-1][:300] if r.stderr.strip() else "ffmpeg failed")
+    notes = open_notes(root, version)
+    legend = {
+        "version": version, "board": str(out), "cell": [CELL_W, CELL_H], "columns": cols, "rows": rows, "labelled": labelled,
+        "shots": [{"id": p.stem, "file": str(p), "col": i % cols, "row": i // cols} for i, p in enumerate(pngs)],
+        "open_notes": [{"id": x.get("id"), "shot": x.get("shot", ""), "note": x.get("note", ""),
+                        **({"x": x["x"], "y": x["y"]} if "x" in x else {})} for x in notes],
+    }
+    (root / "boards" / f"{version}.json").write_text(json.dumps(legend, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(legend, indent=2))
+    if not labelled:
+        print("preview: this ffmpeg has no drawtext; read the legend for shot order (left-to-right, top-to-bottom).", file=sys.stderr)
+    return 0
+
+
 # ------------------------------------------------------------------- feedback
 
 def cmd_feedback(a: argparse.Namespace) -> int:
-    items = read_feedback(Path(a.root))
+    items = read_feedback(Path(a.dir))
     if a.version:
         items = [i for i in items if i.get("version") == a.version]
     if a.json:
@@ -711,7 +907,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(sp: argparse.ArgumentParser) -> None:
-        sp.add_argument("--root", default=".3d", help="project .3d directory (default .3d)")
+        sp.add_argument("--dir", default=".3d", help="work folder (default .3d)")
 
     s = sub.add_parser("serve", help="serve the viewer + feedback endpoints")
     common(s)
@@ -728,7 +924,7 @@ def main(argv: list[str] | None = None) -> int:
     common(s)
     s.add_argument("--version")
     s.add_argument("--url", help="user's running app URL (Mode B); ?3d-preview is appended")
-    s.add_argument("--shots", help="default <root>/shots.json")
+    s.add_argument("--shots", help="default <dir>/shots.json")
     s.add_argument("--size", help="WxH (default 1600 wide; height from shots.json aspect, else 900)")
     s.add_argument("--settle", type=int, default=120, help="fixed-dt frames to run per shot (default 120)")
     s.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for __3d.ready")
@@ -743,12 +939,23 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--out")
     s.set_defaults(fn=cmd_diff)
 
+    s = sub.add_parser("board", help="contact sheet of a version's evidence + open notes")
+    common(s)
+    s.add_argument("--version")
+    s.set_defaults(fn=cmd_board)
+
+    s = sub.add_parser("stop", help="stop the server recorded in <dir>/preview.pid")
+    common(s)
+    s.set_defaults(fn=cmd_stop)
+
     s = sub.add_parser("feedback", help="print notes grouped by version and shot")
     common(s)
     s.add_argument("--version")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_feedback)
 
+    if "--selftest" in (argv if argv is not None else sys.argv[1:]):
+        return cmd_selftest()
     args = ap.parse_args(argv)
     return int(args.fn(args))
 

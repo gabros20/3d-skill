@@ -6,6 +6,7 @@ import importlib.util
 import json
 import re
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -223,6 +224,80 @@ class ServeTests(unittest.TestCase):
         self.assertEqual(http(self.base + "/api/state").status, 200)
 
 
+class LookStateTests(unittest.TestCase):
+    def test_state_exposes_look_json(self):
+        mod = load_module()
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "look.json").write_text(json.dumps({"schema": "look.v1", "toneMapping": "agx", "exposure": 0.9,
+                                                    "environment": "room", "background": "#101010"}))
+        srv = mod.make_server(tmp, 0)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            st = json.loads(http(f"http://127.0.0.1:{srv.server_address[1]}/api/state").read())
+            self.assertEqual(st["look"]["toneMapping"], "agx")
+            (tmp / "look.json").unlink()
+            st = json.loads(http(f"http://127.0.0.1:{srv.server_address[1]}/api/state").read())
+            self.assertIsNone(st["look"])
+        finally:
+            srv.shutdown()
+            srv.server_close()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class ServeStopTests(unittest.TestCase):
+    def test_pidfile_and_stop(self):
+        import time
+        tmp = Path(tempfile.mkdtemp())
+        with socket.socket() as sk:
+            sk.bind(("127.0.0.1", 0))
+            port = sk.getsockname()[1]
+        proc = subprocess.Popen([sys.executable, str(PREVIEW), "serve", "--port", str(port)], cwd=tmp,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            pf = tmp / ".3d" / "preview.pid"
+            for _ in range(300):
+                if pf.exists():
+                    break
+                time.sleep(0.1)
+            info = json.loads(pf.read_text())
+            self.assertEqual((info["pid"], info["port"]), (proc.pid, port))
+            for _ in range(100):  # server may still be binding under load
+                try:
+                    if http(f"http://127.0.0.1:{port}/api/state").status == 200:
+                        break
+                except OSError:
+                    time.sleep(0.1)
+            r = cli("stop", cwd=tmp, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("stopped", r.stdout)
+            proc.wait(timeout=30)
+            self.assertFalse(pf.exists())
+            out = proc.stdout.read()
+            self.assertIn(str(proc.pid), out)
+            self.assertIn(f"127.0.0.1:{port}", out)
+            with self.assertRaises(OSError):
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=2)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            proc.stdout.close()
+            proc.stderr.close()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_stop_without_server_and_stale_pid(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            self.assertEqual(cli("stop", cwd=tmp).returncode, 0)
+            (tmp / ".3d").mkdir()
+            (tmp / ".3d" / "preview.pid").write_text(json.dumps({"pid": 999999, "port": 1}))
+            r = cli("stop", cwd=tmp)
+            self.assertEqual(r.returncode, 0)
+            self.assertFalse((tmp / ".3d" / "preview.pid").exists())
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class AllowOriginTests(unittest.TestCase):
     def test_opt_in_exact_origin(self):
         mod = load_module()
@@ -253,8 +328,23 @@ class CliTests(unittest.TestCase):
     def test_help_exit_zero(self):
         r = cli("--help", cwd=self.tmp)
         self.assertEqual(r.returncode, 0)
-        for word in ("serve", "new-version", "capture", "diff", "feedback", "swiftshader"):
+        for word in ("serve", "new-version", "capture", "diff", "feedback", "board", "stop", "--selftest", "swiftshader",
+                     "--dir", "needs network"):
             self.assertIn(word, r.stdout)
+        self.assertNotIn("--root", r.stdout)
+        self.assertNotIn("skill root", r.stdout)
+
+    def test_root_flag_is_gone(self):
+        self.assertEqual(cli("new-version", "--root", "x", cwd=self.tmp).returncode, 2)
+
+    def test_dir_flag_redirects_output(self):
+        r = cli("new-version", "--dir", "work", cwd=self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.tmp / "work" / "versions" / "v001" / "manifest.json").is_file())
+
+    def test_selftest(self):
+        r = cli("--selftest", cwd=self.tmp)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "preview selftest ok"), r.stderr)
 
     def test_usage_error_exit_two(self):
         self.assertEqual(cli("bogus", cwd=self.tmp).returncode, 2)
@@ -327,6 +417,35 @@ class DiffTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         pairs = json.loads(r.stdout)["pairs"]
         self.assertEqual([p["shot"] for p in pairs], ["hero"])
+
+    def test_board_contact_sheet_and_legend(self):
+        for sid, c in (("S01", "red"), ("S02", "green"), ("S03", "blue"), ("S04", "yellow")):
+            d = self.tmp / ".3d" / "evidence" / "v001"
+            d.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", f"color=c={c}:s=320x180",
+                            "-frames:v", "1", str(d / f"{sid}.png")], check=True)
+        (self.tmp / ".3d" / "shots.json").write_text(json.dumps({"shots": [{"id": i} for i in ("S04", "S01", "S02", "S03")]}))
+        rows = [{"id": "f0001", "version": "v001", "shot": "S01", "note": "too red", "kind": "note", "x": 0.2, "y": 0.3},
+                {"id": "f0002", "version": "v001", "shot": "S02", "note": "dull", "kind": "note"},
+                {"id": "f0003", "version": "v001", "shot": "S02", "note": "fixed", "kind": "resolved", "refs": ["f0002"]},
+                {"id": "f0004", "version": "v002", "shot": "S01", "note": "other version", "kind": "note"}]
+        (self.tmp / ".3d" / "feedback.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+        r = cli("board", "--version", "v001", cwd=self.tmp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        legend = json.loads(r.stdout)
+        png = self.tmp / ".3d" / "boards" / "v001.png"
+        self.assertTrue(png.is_file())
+        self.assertEqual([s["id"] for s in legend["shots"]], ["S04", "S01", "S02", "S03"])  # shots.json order
+        self.assertEqual((legend["columns"], legend["rows"]), (3, 2))
+        self.assertEqual([n["id"] for n in legend["open_notes"]], ["f0001"])
+        self.assertTrue((self.tmp / ".3d" / "boards" / "v001.json").is_file())
+        w, h = (int(x) for x in subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", str(png)],
+                                               capture_output=True, text=True).stdout.strip().split("x"))
+        self.assertEqual((w, h), (3 * 480, 2 * 270))
+
+    def test_board_without_evidence_exit_one(self):
+        cli("new-version", cwd=self.tmp)
+        self.assertEqual(cli("board", cwd=self.tmp).returncode, 1)
 
     def test_missing_file_exit_one(self):
         self.assertEqual(cli("diff", "nope.png", "nada.png", cwd=self.tmp).returncode, 1)

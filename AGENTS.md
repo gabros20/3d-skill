@@ -20,7 +20,7 @@ invokes them. It works alone, and project rules (CLAUDE.md, a motion doc, `3D.md
 - `skills/3d/references/` is one flat layer of area-prefixed references (`intake-`, `brief-`,
   `refspec`, `shared-`, `threejs-`, `shader-`, `scroll-`, `design-`, `asset-`, `blender-`, optional
   `spline`, `splats-xr`, `cad-print`), each directly linked from `SKILL.md`.
-- `skills/3d/scripts/` (`capabilities`, `glb-report`, `ref-extract`, `preview`) and `assets/`
+- `skills/3d/scripts/` (`capabilities`, `glb-report`, `ref-extract`, `spec-check`, `preview`) and `assets/`
   (`blender/`, `web/`, `preview/`, `templates/`) are the runtime tooling; scripts are Python 3 stdlib,
   run by path with the user's project root as cwd.
 - `skills/3d/agents/openai.yaml` and `.codex-plugin/plugin.json` hold discovery and release metadata.

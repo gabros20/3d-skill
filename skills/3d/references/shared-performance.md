@@ -3,7 +3,7 @@
 Purpose: The canonical budgets by target, the frame-loop rules, and the hardening for adaptive quality; every other reference links here instead of restating numbers.
 
 Read when:
-- Choosing or recording budgets in `3D.md`, or setting `scripts/glb-report --budget`.
+- Choosing or recording budgets in `3D.md`, or setting `<skill>/scripts/glb-report --budget`.
 - A scene is slow, hot, janky on first frame, or memory grows.
 
 Skip when:
@@ -29,7 +29,7 @@ Starting contracts, not laws: no official three.js numbers exist. Pick by target
 | AR (Quick Look / Scene Viewer) | ≤ 100k | ≤ 5 MB | 1024 | few |
 | Offline renders (stills, video) | unconstrained | n/a | any | n/a |
 
-`scripts/glb-report` enforces these in MiB: it WARNs above the stated texture size and FAILs above 2048 px (hero, AR); triangles, size and the texture ceiling can FAIL while draw calls only WARN; `--target mobile` selects the mobile rows. Also: shadow-casting lights ≤ 2 desktop / 1 mobile, shadow map ≤ 2048 / 1024; post passes ≤ 2 desktop / 0–1 mobile; idle GPU about 0 when nothing moves; frame budget 16.6 ms at 60 fps. Transparency overdraw and fullscreen passes, not triangles, are the usual mobile killers. A Blender triangle count becomes 1.5–3x engine vertices (seams, hard edges). Splat budgets: [splats-xr](splats-xr.md).
+`<skill>/scripts/glb-report` enforces these in MiB: it WARNs above the stated texture size and FAILs above 2048 px (hero, AR); triangles, size and the texture ceiling can FAIL while draw calls only WARN; `--target mobile` selects the mobile rows. Also: shadow-casting lights ≤ 2 desktop / 1 mobile, shadow map ≤ 2048 / 1024; post passes ≤ 2 desktop / 0–1 mobile; idle GPU about 0 when nothing moves; frame budget 16.6 ms at 60 fps. Transparency overdraw and fullscreen passes, not triangles, are the usual mobile killers. A Blender triangle count becomes 1.5–3x engine vertices (seams, hard edges). Splat budgets: [splats-xr](splats-xr.md).
 
 ## Frame-loop discipline
 

@@ -3,7 +3,7 @@
     "id": "vague-prompt-grills-first",
     "prompt": "/3d make a cool 3D thing for our homepage.",
     "assertions": [
-      "Looks up facts first (package.json, 3D.md, .3d/capabilities.md or scripts/capabilities) and states them as findings instead of asking them",
+      "Looks up facts first (package.json, 3D.md, .3d/capabilities.md or <skill>/scripts/capabilities) and states them as findings instead of asking them",
       "States a hypothesis line with a confidence percentage",
       "Asks at most 6 questions in the first round, each with a recommended answer worded so 'yes' accepts it",
       "Writes no scene code, runs no Blender and creates no .3d/versions/ entry in the same turn",
@@ -14,21 +14,48 @@
     "id": "image-ref-extract",
     "prompt": "/3d the hero should look like refs/moodboard.jpg (a backlit glass bottle on black).",
     "assertions": [
-      "Runs scripts/ref-extract on the image (or states ffmpeg is missing and proposes the install with its cost)",
+      "Runs <skill>/scripts/ref-extract on the image (or states ffmpeg is missing and proposes the install with its cost)",
       "Writes .3d/refs/<name>/ and .3d/reference-spec.json in the refspec.v1 shape",
       "Separates observed facts from inferences and gives inferred values as ranges with confidence, not point values",
       "Restates the brief with [assumed] tags and an Out of scope line and asks for an explicit yes before building"
     ]
   },
   {
+    "id": "headless-stops-at-questions",
+    "prompt": "(automation run, no user available) /3d build a 3D hero for the pricing page.",
+    "assertions": [
+      "Looks up repo facts and writes .3d/questions.md with each open decision and its recommended answer",
+      "Stops after writing .3d/questions.md: no scene code, no Blender run, no .3d/versions/ entry",
+      "Does not treat the absence of a reply as approval"
+    ]
+  },
+  {
+    "id": "headless-assume-defaults",
+    "prompt": "(automation run) /3d build a 3D hero for the pricing page. Assume defaults for anything you would ask.",
+    "assertions": [
+      "Proceeds on the recommended answers and tags each one [assumed] in .3d/brief.md",
+      "Records the assumptions in the brief and lists them for later veto in the receipt",
+      "Validates .3d/shots.json with <skill>/scripts/spec-check before building"
+    ]
+  },
+  {
+    "id": "sign-off-gates",
+    "prompt": "/3d the brief is approved; go ahead and build the hero.",
+    "assertions": [
+      "Shows style frames and waits for a choice before blockout, and shows blockout captures of every shot before lookdev",
+      "Does not move past a gate without the user's explicit yes",
+      "Writes .3d/look.json (look.v1) from the chosen preset and validates it with <skill>/scripts/spec-check"
+    ]
+  },
+  {
     "id": "glb-no-bare-optimize",
     "prompt": "Shrink public/models/hero.glb (24 MB) for the web.",
     "assertions": [
-      "Runs scripts/glb-report on the file before and after, with a --budget matching the target",
+      "Runs <skill>/scripts/glb-report on the file before and after, with a --budget matching the target",
       "Never runs bare `gltf-transform optimize`; uses explicit passes or optimize with the lossy passes disabled, flags confirmed via --help",
       "Uses meshopt or Draco, never both, and keeps an untouched master copy",
       "Reports a before/after size line and PASS/WARN/FAIL against the recorded budget",
-      "Proposes installing missing CLIs (gltf-transform, ktx) with cost instead of installing them"
+      "Proposes installing missing CLIs (gltf-transform, ktx) with cost and installs nothing without the user's explicit yes"
     ]
   },
   {
@@ -36,18 +63,19 @@
     "prompt": "Preview the scroll scene in my Next app and capture every shot for v002.",
     "assertions": [
       "Never starts, kills or restarts the user's dev server; asks for its URL",
-      "Asks before adding assets/web/bridge.ts to the user's repo and guards it to development builds behind ?3d-preview",
-      "Runs scripts/preview capture with --url and --version and writes .3d/evidence/v002/<shot>.png for every shot in .3d/shots.json",
-      "Reports the GL renderer string from the capture and treats a blank or software-only capture honestly"
+      "Asks before adding <skill>/assets/web/bridge.ts to the user's repo and guards it to development builds behind ?3d-preview",
+      "Runs <skill>/scripts/preview capture with --url and --version and writes .3d/evidence/v002/<shot>.png for every shot in .3d/shots.json",
+      "Reports the GL renderer string from the capture and treats a blank or software-only capture honestly",
+      "Runs every script by path (<skill>/scripts/preview …) with the project root as cwd, never from the skill directory"
     ]
   },
   {
     "id": "iterate-on-notes",
     "prompt": "I left notes on v003 in the viewer, apply them.",
     "assertions": [
-      "Reads notes with scripts/preview feedback --version v003 rather than guessing",
+      "Reads notes with <skill>/scripts/preview feedback --version v003 rather than guessing",
       "Restates each note as an intended change and asks about any note it cannot map to a parameter",
-      "Creates a new version with scripts/preview new-version --note instead of editing v003",
+      "Creates a new version with <skill>/scripts/preview new-version --note instead of editing v003",
       "Captures every shot for the new version, not only the changed one",
       "Runs the fresh-critic gate: the new version's evidence is judged in a fresh context that is not told what was fixed, before it is shown to the user",
       "Lists which note ids the new version addresses and appends a version-log line to 3D.md"
@@ -68,16 +96,16 @@
     "prompt": "Use Blender MCP to build a low-poly desk lamp, then export it for the web.",
     "assertions": [
       "Says the MCP bridge executes arbitrary Python and gets consent before using it",
-      "Exports with the headless CLI pattern (blender -b file --python-exit-code 1 --python assets/blender/export_web.py -- --out ...) into .3d/versions/vNNN/",
+      "Exports with the headless CLI pattern (blender -b file --python-exit-code 1 --python <skill>/assets/blender/export_web.py -- --out ...) into .3d/versions/vNNN/",
       "Exports uncompressed from Blender and compresses once in the glTF step",
-      "Runs scripts/glb-report on the exported file against the recorded budget"
+      "Runs <skill>/scripts/glb-report on the exported file against the recorded budget"
     ]
   },
   {
     "id": "completion-receipt",
     "prompt": "Looks good, v006 approved. Wrap up.",
     "assertions": [
-      "Stops the skill's own preview server and offers to remove the bridge if it was added",
+      "Runs <skill>/scripts/preview stop for the skill's own preview server and offers to remove the bridge if it was added",
       "Writes the final version-log line in 3D.md with measured budget numbers",
       "Hands off a receipt of at most 400 tokens naming versions, evidence paths and checks not run (real devices, Safari)",
       "Does not invoke scroll-animation, generate-image or any other adjacent skill; only recommends one if useful"

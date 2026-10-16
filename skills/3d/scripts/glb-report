@@ -4,7 +4,11 @@
 Reports meshes, primitives, triangles (instance-weighted and unique), a draw-call estimate
 (primitives x node instances), materials, textures (dimensions and format decoded from PNG / JPEG /
 WebP / KTX2 headers), extensions used and required, and file size. Verdict PASS / WARN / FAIL against
-the chosen budget. Exit 0 PASS or WARN, 1 FAIL or unreadable file, 2 usage error. Stdlib only.
+the chosen budget. Draw calls = primitives x node instances over scene-reachable nodes: a static count of the draw
+submissions the file asks for, before frustum culling, shadow passes and any merging. A live
+renderer.info.render.calls reads lower whenever objects are off-screen (a close-up shot of a
+28-pad chip showed 8 against this estimate of 32) and higher with shadow or post passes.
+Exit 0 PASS or WARN, 1 FAIL or unreadable file, 2 usage error. Stdlib only.
 Run it by path with your project root as the working directory; FILE is resolved against it.
 """
 from __future__ import annotations
@@ -314,7 +318,7 @@ def render(report: dict, v: dict) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Report triangles, draw calls, textures and size of a GLB/glTF. Sizes in budgets are MiB (1024*1024 bytes). For .gltf the size includes external buffers and images. Run by path with your project root as the working directory; relative paths and defaults resolve against it.")
+    ap = argparse.ArgumentParser(description="Report triangles, draw calls, textures and size of a GLB/glTF. Sizes in budgets are MiB (1024*1024 bytes). For .gltf the size includes external buffers and images. Draw calls are a static per-file estimate (primitives x node instances), not the live renderer count. Run `<skill>/scripts/glb-report FILE` by path with your project root as the working directory; relative paths resolve against it.")
     ap.add_argument("file")
     ap.add_argument("--budget", choices=sorted(BUDGETS), default="hero")
     ap.add_argument("--target", choices=["desktop", "mobile"], default="desktop",

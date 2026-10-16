@@ -16,18 +16,20 @@ and never invokes them. Project rules (CLAUDE.md, a motion doc, existing `3D.md`
 prepare → intake → brief + shots → approach → build → preview → iterate → record
 ```
 
-1. **Prepare.** No `3D.md`: `scripts/capabilities` inventories tools and stack; one batched install proposal.
-2. **Intake.** References go through `scripts/ref-extract` and vision passes into
+1. **Prepare.** No `3D.md`: `<skill>/scripts/capabilities` inventories tools and stack; one batched install proposal.
+2. **Intake.** References go through `<skill>/scripts/ref-extract` and vision passes into
    `.3d/reference-spec.json`; missing detail is asked in rounds of at most six questions, each with a
    recommended answer. The turn ends on a restated brief and an explicit yes. Headless runs record
    assumptions and do not build.
-3. **Brief and shots.** `.3d/brief.md` and `.3d/shots.json` (cameras, beats, scroll map).
+3. **Brief and shots.** `.3d/brief.md` and `.3d/shots.json` (cameras, beats, scroll map); the chosen look is written to `.3d/look.json`. `<skill>/scripts/spec-check` validates the refspec, shots and look files.
 4. **Approach.** Target use maps to a pipeline and fallback ladder, recorded in `3D.md`.
-5. **Build.** Only the area files the pipeline names; one change-set per version.
+5. **Build.** Only the area files the pipeline names; one change-set per version (`preview new-version`). Scroll-scrubbed video follows the `scroll-video` reference when `scroll-animation` is absent.
 6. **Preview and iterate.** Every shot is captured and diffed against the reference and the previous
-   version; a fresh critic judges that evidence; you get the URL, version and change, and your notes
-   become the next version. Stop on approval.
+   version (`preview capture`, `diff`, `board`); a fresh critic judges that evidence; you get the URL, version and change, and your notes
+   become the next version. You sign off stage by stage; stop on approval, then `preview stop`.
 7. **Record.** Verdicts, `glb-report` against the budget, a version-log line in `3D.md`.
+
+`<skill>` is the installed skill directory; run its scripts by path from your project root. `preview` takes `--dir` (default `.3d`).
 
 ## Lanes
 

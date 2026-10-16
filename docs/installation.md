@@ -38,7 +38,7 @@ previous copy on failure.
 
 ## Tools
 
-The skill detects these (`scripts/capabilities` writes `.3d/capabilities.md`) and proposes missing
+The skill detects these (`<skill>/scripts/capabilities` writes `.3d/capabilities.md`) and proposes missing
 ones with a cost label. It never installs for you. Free, free-account and PAID are the only labels;
 the only PAID items are generative 3D services, approved per job.
 
@@ -50,7 +50,7 @@ the only PAID items are generative 3D services, approved per job.
 | gltfpack | meshopt alternative (optional) | free | `npm i -g gltfpack` |
 | KTX-Software `ktx` ≥ 4.4 | KTX2 textures (not `toktx`) | free | release `.pkg` from KhronosGroup/KTX-Software; needs `sudo` (you run it) |
 | ffmpeg / ffprobe | reference frames, palette, diffs | free | `brew install ffmpeg` |
-| Python `playwright` + Chrome | `preview capture` (uses installed Chrome) | free | `python3 -m pip install playwright` |
+| Python `playwright` + Chrome | `<skill>/scripts/preview capture` (uses installed Chrome) | free | `python3 -m pip install playwright` |
 | uv / uvx | community Blender MCP | free | astral.sh installer |
 | glTF validator | spec conformance (optional) | free | `npm i gltf-validator` |
 | Spline desktop app | Spline MCP | free account | spline.design |

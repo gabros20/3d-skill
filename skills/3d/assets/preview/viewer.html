@@ -164,7 +164,7 @@ const MEDIA_EXT = { img: /\.(png|jpe?g|webp|gif)$/i, vid: /\.(mp4|webm|mov)$/i, 
 const S = {
   data: { versions: [], shots: [], refs: [], feedback: [] },
   version: null, versionB: '', shot: null, shotT: 0, roll: 0, mode: 'empty',
-  env: 'room', exposure: 1, tone: 'ACESFilmic', turntable: false, envBg: false,
+  env: 'room', exposure: 1, tone: 'Neutral', bgColor: 0x14161c, look: null, turntable: false, envBg: false,
   cmp: 'off', cmpVal: 50, pinMode: false, pending: null, status: {},
   stats: { A: null, B: null }, error: null,
 };
@@ -279,7 +279,32 @@ async function applyEnv(key) {
   }
   if (token !== envToken) return;
   envTex?.dispose?.(); envTex = tex;
-  for (const s of Object.values(scenes)) { s.environment = tex; s.background = S.envBg && tex ? tex : new THREE.Color(0x14161c); }
+  for (const s of Object.values(scenes)) { s.environment = tex; s.background = S.envBg && tex ? tex : new THREE.Color(S.bgColor); }
+}
+// look.v1 (.3d/look.json): toneMapping neutral|agx|aces|none, exposure, environment room|<path or url>,
+// background "#rrggbb" or "environment". Applied at load; the UI toggles override per session.
+const LOOK_TONES = { neutral: 'Neutral', agx: 'AgX', aces: 'ACESFilmic', none: 'None' };
+function applyLook(look) {
+  S.look = look && typeof look === 'object' ? look : null;
+  if (!S.look) return;
+  const bad = [];
+  if (S.look.toneMapping != null) { const t = LOOK_TONES[String(S.look.toneMapping).toLowerCase()]; if (t) S.tone = t; else bad.push('toneMapping'); }
+  if (S.look.exposure != null) { if (Number.isFinite(+S.look.exposure) && +S.look.exposure > 0) S.exposure = +S.look.exposure; else bad.push('exposure'); }
+  const env = S.look.environment;
+  if (env != null && env !== 'room') {
+    if (typeof env === 'string' && /\.hdr(\?.*)?$/i.test(env)) {
+      ENVS.look = { label: 'Look: ' + env.split('/').pop(), url: /^https?:/i.test(env) ? env : '/' + env.replace(/^\/+/, '') };
+      S.env = 'look';
+    } else bad.push('environment (only room or an .hdr path/url)');
+  }
+  const bg = S.look.background;
+  if (bg === 'environment') S.envBg = true;
+  else if (typeof bg === 'string' && /^#[0-9a-f]{6}$/i.test(bg)) S.bgColor = parseInt(bg.slice(1), 16);
+  else if (bg != null) bad.push('background');
+  $('selEnv').innerHTML = Object.entries(ENVS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+  $('selEnv').value = S.env; $('chkBg').checked = S.envBg;
+  $('selTone').value = S.tone; $('rngExp').value = S.exposure; $('expVal').textContent = S.exposure.toFixed(2);
+  if (bad.length) toast('look.json: ignored ' + bad.join(', '), 5000);
 }
 function applyTone() { renderer.toneMapping = TONES[S.tone]; renderer.toneMappingExposure = S.exposure; for (const s of Object.values(scenes)) s.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => (m.needsUpdate = true)); }); }
 
@@ -538,7 +563,7 @@ const api = {
   capture() { render(); return S.mode === 'gltf' ? canvas.toDataURL('image/png') : null; },
   info() {
     const a = S.stats.A;
-    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
+    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, look: S.look, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
       size: [canvas.width, canvas.height], tris: a?.tris ?? null, drawCalls: renderer.info.render.calls, textures: a?.textures ?? null,
       texMB: a?.texMB ?? null, glbBytes: a?.glbBytes ?? null, visibility: document.visibilityState, three: THREE.REVISION };
   },
@@ -552,7 +577,7 @@ window.__3d = api;
     const want = qs.get('version'), ids = S.data.versions.map((v) => v.id);
     const first = ids.includes(want) ? want : ids[ids.length - 1];
     S.shot = qs.get('shot') || S.data.shots[0]?.id || null;
-    applyTone(); applyEnv(S.env);
+    applyLook(S.data.look); applyTone(); applyEnv(S.env);
     if (first) { $('selVersion').value = first; await loadVersion(first); }
     else { showMsg('<div><b>No versions yet.</b><br>Run <code>scripts/preview new-version</code>, copy a .glb into it, and reload.</div>'); canvas.style.visibility = 'hidden'; }
     await envReady();

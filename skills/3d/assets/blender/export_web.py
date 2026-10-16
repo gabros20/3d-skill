@@ -4,7 +4,7 @@
 Runs only inside Blender; never save the .blend afterwards (modifiers get applied):
 
     blender -b scene.blend --factory-startup --python-exit-code 1 \
-        --python assets/blender/export_web.py -- --out .3d/versions/v001/hero.glb
+        --python <skill>/assets/blender/export_web.py -- --out .3d/versions/v001/hero.glb
 
 Args after `--`:
   --out FILE            required, .glb path

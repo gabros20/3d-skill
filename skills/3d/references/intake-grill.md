@@ -15,7 +15,7 @@ Inputs:
 - The user prompt, any attached references, the project root (read-only look-ups).
 
 Produces:
-- A restated brief with `[assumed]` tags and an Out of scope line, then `.3d/brief.md` after an explicit yes ([brief-spec](brief-spec.md), template `assets/templates/brief.md`).
+- A restated brief with `[assumed]` tags and an Out of scope line, then `.3d/brief.md` after an explicit yes ([brief-spec](brief-spec.md), template `<skill>/assets/templates/brief.md`).
 
 ## Contents
 
@@ -24,7 +24,7 @@ Produces:
 ## Protocol
 
 1. **Triage, no questions yet.** Sort the 18 dimensions below into `given` / `inferable` / `open`. Detect the target use (HERO, SCROLL, PROD, AR, GAME, PRINT, VIDEO, SPLAT): it sets defaults and the pipeline ([brief-approach](brief-approach.md)).
-2. **Look up facts, then decompose references.** If any reference is attached or linked, run [intake-references](intake-references.md) first (`scripts/ref-extract` plus vision passes) and mark the dimensions it fills `given`, evidence-tagged; ask only each reference's intent (match vs style) and the dimensions still `open`. Run `scripts/capabilities` and read `.3d/capabilities.md`; read `package.json` (three, R3F, scroll libs, framework), brand tokens and fonts, existing `*.glb *.blend *.spline`, Figma links, `3D.md`, an existing `.3d/`. State what you found as "I found X"; never ask it.
+2. **Look up facts, then decompose references.** If any reference is attached or linked, run [intake-references](intake-references.md) first (`<skill>/scripts/ref-extract` plus vision passes) and mark the dimensions it fills `given`, evidence-tagged; ask only each reference's intent (match vs style) and the dimensions still `open`. Run `<skill>/scripts/capabilities` and read `.3d/capabilities.md`; read `package.json` (three, R3F, scroll libs, framework), brand tokens and fonts, existing `*.glb *.blend *.spline`, Figma links, `3D.md`, an existing `.3d/`. State what you found as "I found X"; never ask it.
 3. **Hypothesis line**: one sentence plus confidence %, plus what is missing when under 70%. Example: "Scroll-pinned chip reveal on the homepage; 45%; unknown: scroll vs autoplay, style, budget."
 4. **Round 1: the gating frontier, at most 6 questions.** Target use and placement, subject truth (real product or invented; CAD/photo/Figma available), the one feeling or action wanted, style anchor, hard constraints (device floor, weight, brand, deadline, reduced motion), deliverable formats. Pick from bank rows 1, 2, 3, 4, 15, 16/17; the bank never lets you exceed 6. Every question carries a recommended answer worded so "yes" accepts it.
 5. **Round 2: what round 1 unlocked, at most 6 questions.** Camera and motion beats, lighting and colour, materials, set, FX, interaction. Only dimensions still `open` after defaults. If the user says "your call" and the default is low-regret, record `[assumed]` and move on.
@@ -36,7 +36,7 @@ Produces:
    **Facts file rule**: numbers (budgets, durations, sizes, prices, specs) live only in `3D.md` and the brief's facts; nothing else invents them. Label neutral defaults `[assumed]`.
 9. **Challenge pass, inside the rounds.** Name contradictions (photoreal plus a 60 KB budget; parallax plus "calm"; 4K video plus mobile data), vague words (below), and claims about a real product the user has not evidenced (ports, labels, numbers).
 10. **Restate and gate.** Write the brief: Outcome, Audience, Use, Style, Constraints, Deliverables, every guess tagged `[assumed]`, and `Out of scope`. Ask for an explicit yes. "Whatever you think" or "sounds good" is delegation, not approval: re-ask the 2-3 riskiest assumptions as A/B. A structured ask tool fits only this closing yes/no. End the turn on the question; start no build work in the same message.
-11. **Headless (no one to answer).** Write the brief with all assumptions, mark `status: needs-confirmation`, and do not build.
+11. **Headless (no live user).** Write the questions with recommended answers to `.3d/questions.md` and stop. Only if the user explicitly said to assume defaults: proceed on the recommended answers tagged `[assumed]`, record them in the brief, mark `status: needs-confirmation`.
 12. **Record.** Save `.3d/brief.md`. After approval, changes are a new dated version plus a log line; never edit history silently.
 
 ## Look-up vs ask
@@ -60,7 +60,7 @@ Default = what to recommend when the user does not care. Budgets always resolve 
 | 4 | Style | Pick A/B/C style frames; two references | One coherent route per piece; never mix |
 | 5 | Scene | Void, abstract set, architecture, real place? | HERO/PROD: seamless void; SCROLL: one environment that evolves per beat |
 | 6 | Set dressing | Props, particles, text or logo in 3D? | Few supporting elements; text as real geometry or HTML, never generated |
-| 7 | Camera | Size, angle, height, lens, move per beat | HERO: one shot, 35-50 mm, slow move or pointer parallax; SCROLL: one continuous move plus held frames; PROD: hero 3/4, detail, turntable |
+| 7 | Camera | Size, angle, height, lens, move per beat | HERO: lens per the defaults in [brief-spec](brief-spec.md), slow move or pointer parallax; SCROLL: one continuous move plus held frames; PROD: hero 3/4, detail, turntable |
 | 8 | Lighting | Studio, HDRI, practical; key side; high/low key | Soft key, rim, dark or gradient ground; SCROLL: light change motivated by beat |
 | 9 | Colour | Palette (≤3 plus accent), brand-locked hex, grade | Use looked-up brand tokens; policy in [design-lookdev-presets](design-lookdev-presets.md) |
 | 10 | Materials | Finishes; which must be exact | Glossy needs env reflections; glass costs, fake on mobile; emissive for LEDs |

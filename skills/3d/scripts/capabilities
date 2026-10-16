@@ -226,7 +226,7 @@ def render(info: dict) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Inventory 3D tooling and project stack; writes .3d/capabilities.md. Run by path with your project root as the working directory; relative paths and defaults resolve against it.")
+    ap = argparse.ArgumentParser(description="Inventory 3D tooling and project stack; writes .3d/capabilities.md. Run `<skill>/scripts/capabilities` by path with your project root as the working directory; relative paths and defaults resolve against it.")
     ap.add_argument("--root", default=".", help="project root (default: current directory; run from your project root)")
     ap.add_argument("--json", action="store_true", help="print JSON instead of a summary")
     args = ap.parse_args()

@@ -29,7 +29,7 @@ ALWAYS export and final-render headless: MCP calls have a wall-clock limit and e
 
 ```
 /Applications/Blender.app/Contents/MacOS/Blender -b scene.blend --factory-startup \
-  --python-exit-code 1 --python assets/blender/<script>.py -- --flag value
+  --python-exit-code 1 --python <skill>/assets/blender/<script>.py -- --flag value
 ```
 
 1. Binary: `$BLENDER`, then `blender` on PATH, then the macOS path above. Missing → report `missing_tool`, propose the install (cost: free), never install.
@@ -38,7 +38,7 @@ ALWAYS export and final-render headless: MCP calls have a wall-clock limit and e
 4. `--factory-startup` keeps user add-ons from loading (reproducible; one add-on made network calls in a measured run).
 5. Script args go after `--` (`sys.argv[sys.argv.index("--")+1:]`). Use absolute paths, quote them.
 6. Return data as one JSON line or a JSON file; never regex Blender's log (the format changed in 5.0).
-7. Run from the user's project root and call scripts by their installed path (`<skill>/assets/blender/…`); `.3d/` paths resolve against cwd. One Blender process at a time per agent. Shipped scripts: `assets/blender/inspect_scene.py`, `export_web.py`, `render_shots.py` (flags in each docstring).
+7. Run from the user's project root and call scripts as `<skill>/assets/blender/<x>.py` (as in the block above); `.3d/` paths resolve against cwd. One Blender process at a time per agent. Shipped scripts: `<skill>/assets/blender/inspect_scene.py`, `export_web.py`, `render_shots.py` (flags in each docstring).
 8. Never save the `.blend` after `export_web.py`; modifiers were applied in that session only.
 
 ## MCP bridges

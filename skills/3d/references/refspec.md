@@ -11,10 +11,10 @@ Skip when:
 - Deciding how to analyse a reference (→ [intake-references](intake-references.md)).
 
 Inputs:
-- `scripts/ref-extract` output and your vision passes.
+- `<skill>/scripts/ref-extract` output and your vision passes.
 
 Produces:
-- A valid `.3d/reference-spec.json`; an example is `assets/templates/refspec.example.json`.
+- A valid `.3d/reference-spec.json`; an example is `<skill>/assets/templates/refspec.example.json`.
 
 ## Contents
 
@@ -60,7 +60,7 @@ Compatible with the `generate-image` attribute tree: `type` first; `camera{lens,
 - `focal_class` (full-frame equivalent): ultra-wide <20 mm · wide 20-35 · normal 35-60 · tele 60-135 · long >135. Only the class is reliable from a picture.
 - **camera**: `shot_size` (ECU CU MCU MS MWS WS EWS) · `angle` (eye, low, high, top-down, dutch) · `tilt_deg` · `roll_deg` · `height` (floor, knee, waist, eye, above-head, aerial) · `focal_class` · `focal_mm_ff` · `sensor` (default "FF 36x24, assumed") · `fov_v_deg` · `perspective{vp_count, convergence, distortion}` · `dof{look, focus_plane, bokeh}` · `lens_artefacts[]`.
 - **lighting**: `key{dir_clock, elev_deg, type sun|softbox|window|overcast|practical|neon|area, hardness, k, color}` · `fill{ratio_stops, dir, color}` · `rim{present, dir, strength, color}` · `practicals[]` · `env{kind studio|outdoor-sun|overcast|sunset|night-city|interior|void|gradient, contrast}` · `time_of_day` · `shadows{hardness, density, contact}` · `volumetrics` · `mood` (free text with concrete causes).
-- **colour**: `palette[]{hex, role dominant|support|accent|shadow|highlight, share}` · `value_key` · `contrast` · `luma_p1_p50_p99` · `saturation` · `temp_overall` · `grade{shadows_tint, highlights_tint, lut_family}`.
+- **colour**: `palette[]{hex, role dominant|support|accent|shadow|highlight, share}` · `value_key` · `contrast` · `luma{p5,p50,p95}` (as emitted by `luma.json`) · `saturation` · `temp_overall` · `grade{shadows_tint, highlights_tint, lut_family}`.
 - **materials[]**: `surface`, `coverage`, `base_color`, `roughness` (range), `metalness` (0 or 1), `anisotropy`, `clearcoat`, `transmission`, `ior`, `sss`, `emissive`, `normal_relief`, `pattern_scale`, `wear`.
 - **form**: `primitives[]`, `macro_meso_micro`, `symmetry`, `shape_language`, `bevel`, `topology_note`.
 - **fx**: `bloom`, `halation`, `chromatic_aberration`, `grain`, `vignette`, `motion_blur`, `particles`, `outline`.
@@ -77,7 +77,7 @@ Compatible with the `generate-image` attribute tree: `type` first; `camera{lens,
 
 ## Validation
 
-1. `python3 -m json.tool .3d/reference-spec.json` parses.
+1. `<skill>/scripts/spec-check .3d/reference-spec.json` passes (it covers the rules below; exit 1 names the bad fields).
 2. `schema` is `refspec.v1`; every `refs[].id` is unique.
 3. No `inferred` or `assumed` leaf holds a bare number.
 4. Every `measured` leaf equals the script output.

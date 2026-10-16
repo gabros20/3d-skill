@@ -19,7 +19,7 @@ Produces:
 
 ## Procedure
 
-1. **Ask only what cannot be inferred**: purpose, subject, audience, beats, topology (continuous, connected sets, layered reveal), interaction depth, device floor, existing assets, byte budget. If a working scene or approved reference exists, copy its measured constants into the ledger; never replace measured details with adjectives.
+1. **Intake**: ask only what cannot be inferred, using [intake-grill](intake-grill.md); topology (continuous, connected sets, layered reveal) is the one extra decision here. If a working scene or approved reference exists, copy its measured constants into the ledger; never replace measured details with adjectives.
 2. **World sentence** = subject + spatial journey + transformation ("A reader falls through the model's layers until the chip lights up"). Add an interaction sentence: scroll owns the camera and global time; pointer, touch, keyboard reveal local evidence. Reject any sentence that only describes style.
 3. **Concept-to-form.** Write "This scene shows ___, moving like ___, because ___" before geometry. Icosahedra, torus knots and floating glass blobs are the default trap. **"No hero object" is a valid answer**: real product UI, a gradient field, type, or video can carry the page better. Motion borrows from the referent (mechanical = stepped, signal = pulse then rest). Calm is not frozen: per-node sine drift with a random phase.
 4. **World bible** with real constants, committed in writing before markup: unit (1 u = 1 m), human reference 1.7, bevel 0.5-2% of width, silhouette > structure > accent, palette by role name (one hue family, never one grey), FOV range, horizon, copy-safe zones per breakpoint, motion table (camera damping 4.5-7, pointer parallax 0.1-0.5 deg, dust 0.02-0.12 u/s, word reveal 40-90 ms), named anti-references.
@@ -34,22 +34,22 @@ Produces:
 
 ## Composition
 
-- **Marketing hero**: one subject, negative space reserved for copy, HDRI plus contact shadow instead of hand-placed lights, a 100-135 mm look, a poster that already sells the page.
+- **Marketing hero**: one subject, negative space reserved for copy, HDRI plus contact shadow instead of hand-placed lights, a long-lens look (lens: [brief-spec](brief-spec.md)), a poster that already sells the page.
 - **World**: depth planes separated by fog and value, the focal landmark inside the contrast window, foreground element for parallax, a threshold or occluder to hide every seam, never an open-space teleport.
 - Frame by viewport height. Mobile is a second composition (pull back, own copy zones), not a crop.
 
 ## Camera as cinematography
 
-`camera.setFocalLength(mm)` sets FOV from `filmGauge` (35) and the current aspect: author in mm, re-apply on resize, record both.
+Lens numbers (full-frame equivalent defaults by shot type) live in [brief-spec](brief-spec.md); here you choose intent and rig.
 
-| Shot | Focal | Rig (path / conductor) | Use |
+| Shot intent | Look | Rig (path / conductor) | Use |
 |---|---|---|---|
-| Establish | 24-35 mm | slow dolly in along path | context, scale, first chapter |
-| Neutral | 50 mm | track, lateral curve | explaining parts |
-| Intimate | 85 mm | small orbit, +-0.3 rad | people, UI surfaces |
-| Hero product | 100-135 mm | orbit or push, long dwell | the object, the payoff |
-| Macro / detail | 100 mm+ | push-in, shallow DOF | one feature, close-up texture |
-| Reveal | 35 mm | pedestal or track past an occluder | change of state or place |
+| Establish | wide, deep space | slow dolly in along path | context, scale, first chapter |
+| Neutral | natural perspective | track, lateral curve | explaining parts |
+| Intimate | mild compression | small orbit, +-0.3 rad | people, UI surfaces |
+| Hero product | long, flattering, compressed | orbit or push, long dwell | the object, the payoff |
+| Macro / detail | very long, shallow DOF | push-in | one feature, close-up texture |
+| Reveal | wide-normal | pedestal or track past an occluder | change of state or place |
 
 Move the camera, not the object, unless the object is the story. One lateral or vertical component per path; at least five control points; fog 0.005-0.02, never above 0.03 (unmeasured taste, [U]). Waypoint copy needs a backdrop.
 

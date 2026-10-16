@@ -4,7 +4,7 @@
 Runs only inside Blender:
 
     blender -b scene.blend --factory-startup --python-exit-code 1 \
-        --python assets/blender/render_shots.py -- --shots .3d/shots.json --out .3d/evidence/blender
+        --python <skill>/assets/blender/render_shots.py -- --shots .3d/shots.json --out .3d/evidence/blender
 
 Reads the canonical `shots.v1` file (schema in references/brief-spec.md): per shot `id`,
 exactly one of `focal_mm` (36x24 full-frame) | `fov` (vertical deg) | `ortho_height`,

@@ -25,7 +25,7 @@ Produces:
 
 ## Procedure
 
-1. Run `<skill>/scripts/capabilities` with the project root as the working directory (`--root DIR` if elsewhere; never from the skill directory). Read `.3d/capabilities.md`; grep it, do not paste it. It never installs.
+1. Run `<skill>/scripts/capabilities` with the project root as the working directory (`--root DIR` is the project root, if elsewhere; never from the skill directory). Read `.3d/capabilities.md`; grep it, do not paste it. It never installs.
 2. List your own MCP tools. Scripts cannot see MCP servers: a `blender` or `Spline` tool namespace is evidence, a config file mentioning one is only a hint.
 3. Read the project, about two minutes, inspect before asking:
 
@@ -44,7 +44,7 @@ Produces:
    - Colour: view transform per [design-lookdev-presets](design-lookdev-presets.md); record it.
    - Scroll owner: the project's existing one; else per [scroll-conductor](scroll-conductor.md).
    - Preview mode: A (standalone) by default, B (live app) when the user wants it in-page ([shared-preview](shared-preview.md)).
-5. Propose missing tools in ONE round (see below). Never install unasked.
+5. Propose missing tools in ONE round (see below). Never install without explicit approval.
 6. Write `3D.md` from `assets/templates/3D.md`. Record what you proposed and what the user answered.
 
 ## The proposal round
@@ -70,7 +70,7 @@ Cost labels: **free**, **free-account** (needs a login), **PAID**. Batch all que
 | `gltf-transform` | inspect, dedup, prune, meshopt/draco, KTX2 | `npm i -g @gltf-transform/cli` | free |
 | `gltfpack` | meshopt alternative | `npm i -g gltfpack` (official wasm build; no texture compression; Homebrew has no formula) | free |
 | `ktx` ≥ 4.4.0 (KTX-Software; not `toktx`) | KTX2 via `gltf-transform etc1s`/`uastc` | official latest 4.x release .pkg from github.com/KhronosGroup/KTX-Software/releases: `sudo installer -pkg <file>.pkg -target /` (user runs it; not in Homebrew); confirm `ktx --version` | free |
-| `ffmpeg` / `ffprobe` | `<skill>/scripts/ref-extract`, `preview diff`, contact sheets | `brew install ffmpeg` | free |
+| `ffmpeg` / `ffprobe` | `<skill>/scripts/ref-extract`, `<skill>/scripts/preview diff`, contact sheets | `brew install ffmpeg` | free |
 | python `playwright` + Chrome | `preview capture` (uses the installed Chrome channel, no browser download) | `python3 -m pip install playwright` | free |
 | `gltf-validator` | spec conformance | `npm i gltf-validator` (Node API, project-local; stale since 2024) | free |
 

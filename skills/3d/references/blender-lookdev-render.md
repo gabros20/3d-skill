@@ -39,7 +39,7 @@ Produces:
 1. Compose and lock the camera first, then lights, then materials; check value separation desaturated.
 2. Product rig: key about 45° to the side and 30–40° up, fill opposite at about a third, rim behind, grey backdrop.
 3. Brightness through `view_settings.exposure`, not by scaling lamps. Read the EXR: AgX hides clipping.
-4. Cameras from shots: `assets/blender/render_shots.py` reads the `shots.v1` file `.3d/shots.json` ([brief-spec](brief-spec.md)): Y-up three.js axes in, converted to Z-up inside; `--moves` renders `to` end poses as eased frames. Typical lenses: 85–135 mm product (3/4 view, 10–25° up), 24–35 mm interiors with a level camera.
+4. Cameras from shots: `<skill>/assets/blender/render_shots.py` reads the `shots.v1` file `.3d/shots.json` ([brief-spec](brief-spec.md)): Y-up three.js axes in, converted to Z-up inside; `--moves` renders `to` end poses as eased frames. Typical lenses: 85–135 mm product (3/4 view, 10–25° up), 24–35 mm interiors with a level camera.
 
 ## Colour management
 
@@ -56,7 +56,7 @@ The policy and the pairing with three.js live in [design-lookdev-presets](design
 
 1. Render contract first: audience, still / turntable / sequence, resolution, fps, engine, passes, alpha, view transform. State everything explicitly in the script.
 2. Low-sample diagnostic per camera and open the image before the final.
-3. Turntable: orbit the camera and lights around a pivot, never the asset (contact shadows and reflections stay coherent). Linear keys, rotation 0 → 360° from frame 1 to N+1, render 1..N so frame N+1 equals frame 1. 120–240 frames at 24–30 fps. `assets/blender/render_shots.py --turntable N` does this.
+3. Turntable: orbit the camera and lights around a pivot, never the asset (contact shadows and reflections stay coherent). Linear keys, rotation 0 → 360° from frame 1 to N+1, render 1..N so frame N+1 equals frame 1. 120–240 frames at 24–30 fps. `<skill>/assets/blender/render_shots.py --turntable N` does this.
 4. Write numbered frames first (skip existing so a crash resumes), then encode with ffmpeg. In 5.x set `image_settings.media_type='VIDEO'` before `file_format='FFMPEG'`.
 5. Transparent: `render.film_transparent=True` with PNG or EXR.
 6. Done when a clean process reproduces the render; report paths, versions, samples, denoise, view transform, duration. Evidence goes under `.3d/evidence/` ([shared-verification](shared-verification.md)).

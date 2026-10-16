@@ -16,13 +16,17 @@ Produces:
 
 ## Steps
 
-1. Inspect: `assets/blender/inspect_scene.py -- --json .3d/evidence/scene.json`. Fix FAIL items; resolve warnings or accept them with a reason.
+1. Inspect: `<skill>/assets/blender/inspect_scene.py -- --json .3d/evidence/scene.json`. Fix FAIL items; resolve warnings or accept them with a reason.
 2. Pre-export: model in metres at unit scale 1.0 (the exporter ignores unit scale: 1 BU = 1 m); apply rotation and scale, remove doubles, fix normals, unique ASCII names, no negative scale, at most 4 skin influences, origin at the base for props.
 3. Materials: bake or simplify anything outside the Image Texture → Principled chain ([blender-lookdev-render](blender-lookdev-render.md)); or name the material and patch it at runtime.
 4. Run from the project root (paths resolve against cwd), on an export copy, headless, never saving the `.blend` afterwards:
    `Blender -b scene.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/export_web.py -- --out .3d/versions/v001/hero.glb [--apply auto] [--root HeroRoot] [--images webp]`
 5. Read the JSON line: bytes, meshes, materials, images, animations, `extensionsUsed`, `applied`, `skipped`, `dropped_kwargs`.
-6. Hand off: `scripts/glb-report` for budgets, then compression in [asset-pipeline](asset-pipeline.md). Load the result in the real app before calling it done.
+6. Hand off: `<skill>/scripts/glb-report` for budgets, then compression in [asset-pipeline](asset-pipeline.md). Load the result in the real app before calling it done.
+
+## Axes
+
+Blender is Z-up, front toward -Y; glTF, three.js and `shots.v1` are Y-up. Model "up" along Blender +Z and "front" facing Blender -Y; `export_yup=True` converts, so a chip lying flat in Blender lies flat in three.js. Never pre-rotate the model to compensate.
 
 ## Settings that matter
 
@@ -59,7 +63,7 @@ Params drift between Blender versions (meshopt and gltfpack options are present 
 | Collection instances | Expand to node trees; draw calls multiply |
 | Names | Blender writes them unchanged; GLTFLoader sanitises on load (spaces → `_`, `[].:/` removed, so `Sphere.003` is `Sphere003` in three). Use ASCII names without spaces or dots as the code contract |
 | Animation | An action with no armature or object user is skipped; choose `export_animation_mode` deliberately |
-| Meshopt GLB | Blender cannot re-import it; keep the raw GLB as source |
+| Meshopt or Draco GLB | Lossy and quantised, not for re-editing; Blender 5.2 can import meshopt, earlier versions may not. Keep the raw GLB as the master ([asset-pipeline](asset-pipeline.md)) |
 | Blender | writes PNG, JPEG, WebP only: KTX2 happens downstream |
 
 ## USDZ (iOS Quick Look)

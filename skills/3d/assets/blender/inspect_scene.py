@@ -4,7 +4,7 @@
 Runs only inside Blender (load the .blend before the script):
 
     blender -b scene.blend --factory-startup --python-exit-code 1 \
-        --python assets/blender/inspect_scene.py -- --json .3d/evidence/scene.json
+        --python <skill>/assets/blender/inspect_scene.py -- --json .3d/evidence/scene.json
 
 Args after `--`:  --json PATH   write the full report (default: stdout line only)
                   --help        show this text
@@ -14,6 +14,7 @@ Exit 0 ok / 1 problems found (FAIL-level warnings) / 2 usage.
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 try:
@@ -150,6 +151,7 @@ def main() -> int:
     report = {"ok": not any(w["level"] == "fail" for w in warnings), "summary": summary,
               "warnings": warnings, "objects": objects, "materials": materials}
     if opts["json"]:
+        os.makedirs(os.path.dirname(os.path.abspath(opts["json"])), exist_ok=True)
         with open(opts["json"], "w") as fh:
             json.dump(report, fh, indent=2)
     print(json.dumps({"ok": report["ok"], "summary": summary, "warnings": warnings}))

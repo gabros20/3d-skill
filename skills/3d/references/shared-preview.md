@@ -16,15 +16,16 @@ Inputs:
 Produces:
 - `.3d/versions/vNNN/`, `.3d/evidence/vNNN/<shot>.png`, read-back notes, a version-log line in `3D.md`.
 
-`<skill>` is the installed skill directory. Invoke scripts by that path with the USER'S PROJECT ROOT as the working directory; defaults (`.3d`, `--root .`) resolve against it. Never run them from the skill directory. Everything is written under the project's `.3d/`.
+`<skill>` is the installed skill directory. Invoke scripts by that path with the USER'S PROJECT ROOT as the working directory; defaults (`.3d`) resolve against it. Never run them from the skill directory. Everything is written under the project's `.3d/`.
 
 ## Modes
 
 **A. Standalone.** Assets under `.3d/` viewed in the skill's own viewer.
 ```
-<skill>/scripts/preview serve [--root .3d] [--port 4173]
+<skill>/scripts/preview serve [--dir .3d] [--port 4173]
+<skill>/scripts/preview stop        # reads .3d/preview.pid
 ```
-Routes: `/` viewer, `/api/state` (versions, shots, refs, feedback), everything else from `--root`. `POST /feedback` (server adds id `f0001…` and `ts`; kind `note|status|resolved`; `x`,`y` normalised 0..1; `version` required; status `approved|changes`). `POST /shots` merges the viewer's current camera into `.3d/shots.json`. Own port, loopback only. Viewer keys: 1–9 shots, `[` `]` versions. You start it; stop it when the session ends. Open the printed URL for the user.
+Routes: `/` viewer, `/api/state` (versions, shots, refs, feedback), everything else from `--dir`. `POST /feedback` body: `version` (required), `note` and/or `status` (`approved|changes`; at least one), optional `shot`, `x`, `y` (0..1); the server adds `id` (`f0001…`), `kind` and `ts`. `POST /shots` body: one `shots.v1` shot entry, merged into `.3d/shots.json`. Own port, loopback only. Viewer keys: 1–9 shots, `[` `]` versions. The viewer loads three.js from a pinned CDN, so it needs network. It reads `.3d/look.json` (`look.v1`: `toneMapping`, `exposure`, `environment`, `background`; default neutral) so the preview matches the chosen look. You start it; stop it with `<skill>/scripts/preview stop` when the session ends. Open the printed URL for the user.
 
 **B. Live in the user's app.** The scene runs in their project, opened with `?3d-preview`. The `window.__3d` bridge (`assets/web/bridge.ts`) exposes `window.__3d = { ready, shots(), loadShots(shots), setShot(id), frame(n), capture(), info() }` (`capture()` returns a PNG data URL; a shot with `scroll` calls the app's `setProgress`). `<skill>/scripts/preview capture` drives it, so capture is deterministic. Adding the bridge is a change in their repo: ask first, guard it to development builds, list the added files in the handoff, and remove it at the end if asked.
 
@@ -36,10 +37,10 @@ Default to A for assets and look-dev; use B for anything whose truth is the page
 
 1. `<skill>/scripts/preview new-version [--note "<what changes>"]` creates `.3d/versions/vNNN/` (prints `{"version","dir"}`, writes `manifest.json`); drop the asset in that dir (the viewer opens the first `.glb/.gltf`, else image, else video). One version per change-set, never edit a shown version.
 2. Build the change into that version.
-3. Capture consent first: read `capture: ask|auto` in `3D.md`. `auto` is the default for the skill's own preview server; ALWAYS ask before driving the user's app or browser (Mode B) unless it says `auto`. Capture needs python playwright + Chrome ([shared-preflight](shared-preflight.md)). Preview at low resolution first (`--size 854x480`), full size (default 1600x900) only for approval. Then `<skill>/scripts/preview capture [--version vNNN] [--url URL] [--shots .3d/shots.json]` writes `.3d/evidence/vNNN/<shot>.png` for EVERY shot, not only the one you changed. It appends `?3d-preview` to `--url`, loads the project's `shots.json`, then per shot does `setShot` → `frame(--settle, default 120)` → `capture()` (flags `--size --headed --timeout --root`; `--end` also captures each shot's `to` pose as `<id>_end.png`). Read the report: renderer string and probe path (default, gpu, software flags). Software-only GL is a warning; no WebGL, a blank or constant frame, or `ready` never true exits 1: a failed capture, not evidence.
+3. Capture consent first: read `capture: ask|auto` in `3D.md`. `auto` is the default for the skill's own preview server; ALWAYS ask before driving the user's app or browser (Mode B) unless it says `auto`. Capture needs python playwright + Chrome ([shared-preflight](shared-preflight.md)). Preview at low resolution first (`--size 854x480`), full size (default 1600x900) only for approval. Then `<skill>/scripts/preview capture [--version vNNN] [--url URL] [--shots .3d/shots.json]` writes `.3d/evidence/vNNN/<shot>.png` for EVERY shot, not only the one you changed. It appends `?3d-preview` to `--url`, loads the project's `shots.json`, then per shot does `setShot` → `frame(--settle, default 120)` → `capture()` (flags `--size --headed --timeout --dir`; `--end` also captures each shot's `to` pose as `<id>_end.png`). Read the report: renderer string and probe path (default, gpu, software flags). Software-only GL is a warning; no WebGL, a blank or constant frame, or `ready` never true exits 1: a failed capture, not evidence.
 4. Compare: against the reference image (side by side, by eye, plus palette and luma numbers from `<skill>/scripts/ref-extract`) and against the previous version:
    `<skill>/scripts/preview diff A B` (two images or two version ids) writes `.3d/diffs/A__B/{side_by_side,blend,difference}` and prints JSON `ssim`, `psnr_db` (`null` with `identical:true` when equal); meaning in [shared-verification](shared-verification.md).
-5. Run the fresh-critic gate ([shared-verification](shared-verification.md)) before presenting; log the round in the `3D.md` version log. Then tell the user: URL, version id, what changed, and which note ids this version addresses.
+5. For review, `<skill>/scripts/preview board [--version vNNN]` builds a storyboard contact sheet of the version's shot captures with ids and notes. Run the fresh-critic gate ([shared-verification](shared-verification.md)) before presenting; log the round in the `3D.md` version log. Then tell the user: URL, version id, what changed, and which note ids this version addresses.
 6. `<skill>/scripts/preview feedback [--version vNNN]` prints their notes by version and shot (`--json` available; append-only `.3d/feedback.jsonl`; kinds `note`, `status`, `resolved`).
 7. Map notes to changes, then go to step 1.
 

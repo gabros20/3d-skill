@@ -28,7 +28,7 @@ Produces:
 
 ## Steps
 
-1. Inspect the master: `gltf-transform inspect master.glb` and `scripts/glb-report master.glb --budget hero`. Read which axis is heavy: geometry, textures or draw calls. Check real-world scale here (1 unit = 1 m) before any AR use.
+1. Inspect the master: `gltf-transform inspect master.glb` and `<skill>/scripts/glb-report master.glb --budget hero`. Read which axis is heavy: geometry, textures or draw calls. Check real-world scale here (1 unit = 1 m) before any AR use.
 2. Structural passes, one file per step or a chained shell run, always writing a new file:
    ```
    gltf-transform dedup master.glb a.glb
@@ -57,10 +57,10 @@ Produces:
    gltf-transform optimize c.glb out.glb --prune false --simplify false --join false --flatten false --palette false --instance false --compress meshopt --texture-compress webp --texture-size 2048
    ```
    `--instance false` is required when parts are code-addressed. Confirm each flag with `help optimize` first.
-6. Validate: `gltf-transform validate out.glb` (runs the Khronos validator; errors fail the step) then `scripts/glb-report out.glb --budget hero`. Inspect again; compare node names and material names against the master.
+6. Validate: `gltf-transform validate out.glb` (runs the Khronos validator; errors fail the step) then `<skill>/scripts/glb-report out.glb --budget hero`. Inspect again; compare node names and material names against the master.
 7. Judge by eye: load `out.glb` in a bare scene and compare hero view and one close-up against the master at target DPR. Normal maps that look blocky or albedo that bands means raise quality or leave that slot uncompressed.
 8. R3F component (optional): `npx gltfjsx out.glb --types --keepnames`. Skip `--transform` (it re-runs its own pipeline, defaults to 1024 px textures, and writes `*-transformed.glb`). gltfjsx last released 2024-11: check the generated file against R3F 9 types and replace any `useGLTF` Draco path assumptions per [threejs-loading](threejs-loading.md).
-9. Pixel-parity gate. Capture the same shots from the master and from `out.glb` (`scripts/preview capture`, same camera, DPR and shots file, one version each), then `scripts/preview diff A B`. Lossless-intended passes (dedup, weld, prune, meshopt, instance) FAIL when ssim < 0.99 or more than 0.5% of pixels changed: find the pass that changed the look and redo from the master. Lossy texture passes (resize, WebP, KTX2, simplify) are judged visually against the brief; record the diff numbers. Headless GL may be unavailable: say so rather than passing (→ [shared-verification](shared-verification.md)).
+9. Pixel-parity gate. Capture the same shots from the master and from `out.glb` (`<skill>/scripts/preview capture`, same camera, DPR and shots file, one version each), then `<skill>/scripts/preview diff A B`. Lossless-intended passes (dedup, weld, prune, meshopt, instance) FAIL when ssim < 0.99 or more than 0.5% of pixels changed: find the pass that changed the look and redo from the master. Lossy texture passes (resize, WebP, KTX2, simplify) are judged visually against the brief; record the diff numbers. Headless GL may be unavailable: say so rather than passing (→ [shared-verification](shared-verification.md)).
 10. Budget check: compare the `glb-report` verdict to the budgets in `3D.md` ([shared-performance](shared-performance.md)). Record before/after bytes in the `3D.md` version log.
 
 ## gltfpack (alternative)

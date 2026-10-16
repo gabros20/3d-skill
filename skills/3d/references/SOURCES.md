@@ -57,6 +57,7 @@ Every reference is written in this skill's own words. **Adapted** = MIT, Apache-
 | Source | Licence | Use |
 |---|---|---|
 | MengTo/Skills `build-threejs-scroll-worlds` | MIT | adapted: one conductor, exact and smooth state, world bible |
+| scroll-animation-skill `video.md`, `sequences.md` (same author) | own | scrub encoding, seek and frame-sequence rules behind [scroll-video](scroll-video.md) |
 | agiwhitelist/auteur | MIT | adapted: art direction committed in writing, anti-references |
 | AirsupHQ/machine-skill, RobLe3/cc-blender-skill lighting | MIT | adapted: the critic's bar, lighting recipes |
 | gabremoku/immersive-3d-web | none | inspired only: concept-to-form |

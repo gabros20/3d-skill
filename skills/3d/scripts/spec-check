@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""spec-check FILE... — validate refspec.v1, shots.v1 and look.v1 JSON files.
+
+The schema is detected from each file's `schema` field. Every problem is printed with its JSON path
+(for example `$.shots[1].position: expected 3 finite numbers`). Rules mirror references/refspec.md
+(leaf rule, anchors, unique ref ids), references/brief-spec.md (shots.json) and the look.v1 contract
+(toneMapping, exposure > 0, environment room|.hdr|.exr, background #rrggbb|environment). Unknown extra keys
+are allowed in refspec and shots; in look.json they print a WARN (exit stays 0).
+Run by path with your project root as the working directory. Exit 0 all valid, 1 problems,
+2 usage error (no file, unreadable path). Stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import re
+import sys
+from pathlib import Path
+
+CONFIDENCE = {"high", "med", "low"}
+EVIDENCE = {"measured", "read", "inferred", "assumed", "unknown"}
+MEDIUMS = {"photoreal", "cgi-real", "stylised-3d", "toon", "clay", "low-poly", "isometric",
+           "flat-vector", "painterly", "mixed"}
+EASES = {"linear", "in", "out", "inOut"}
+TONEMAPS = {"neutral", "agx", "aces", "none"}
+LENS_KEYS = ("focal_mm", "fov", "ortho_height")
+ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+ASPECT_RE = re.compile(r"^\d+(\.\d+)?:\d+(\.\d+)?$")
+
+
+def is_num(x: object) -> bool:
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def vec(x: object, n: int = 3) -> bool:
+    return isinstance(x, list) and len(x) == n and all(is_num(v) for v in x)
+
+
+class Report:
+    def __init__(self) -> None:
+        self.problems: list[str] = []
+        self.warnings: list[str] = []
+
+    def add(self, path: str, msg: str) -> None:
+        self.problems.append(f"{path}: {msg}")
+
+    def warn(self, path: str, msg: str) -> None:
+        self.warnings.append(f"{path}: {msg}")
+
+
+# --- refspec.v1 -------------------------------------------------------------------------------
+
+def check_leaf(node: dict, path: str, r: Report) -> None:
+    has_v, has_r = "value" in node, "range" in node
+    if has_v == has_r:
+        if not (node.get("evidence") == "unknown" and not has_v and not has_r):
+            r.add(path, "leaf needs exactly one of `value` or `range` (only `unknown` leaves carry neither)")
+    if node.get("confidence") not in CONFIDENCE:
+        r.add(f"{path}.confidence", f"must be one of {sorted(CONFIDENCE)}")
+    ev = node.get("evidence")
+    if ev not in EVIDENCE:
+        r.add(f"{path}.evidence", f"must be one of {sorted(EVIDENCE)}")
+    if has_r:
+        rg = node["range"]
+        if not (isinstance(rg, list) and len(rg) == 2 and all(is_num(v) for v in rg) and rg[0] <= rg[1]):
+            r.add(f"{path}.range", "expected [lo, hi] with lo <= hi")
+    if ev in ("inferred", "assumed") and has_v and is_num(node["value"]):
+        r.add(f"{path}.value", f"{ev} leaves must use `range` for numbers")
+    if ev == "unknown" and (has_v or has_r):
+        r.add(path, "unknown leaves carry no value")
+
+
+def walk_leaves(node: object, path: str, r: Report) -> None:
+    if isinstance(node, dict):
+        if "confidence" in node or "evidence" in node:
+            check_leaf(node, path, r)
+        for k, v in node.items():
+            walk_leaves(v, f"{path}.{k}", r)
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            walk_leaves(v, f"{path}[{i}]", r)
+
+
+def check_refspec(doc: dict, r: Report) -> None:
+    refs = doc.get("refs")
+    if not isinstance(refs, list) or not refs:
+        r.add("$.refs", "must be a non-empty array")
+    else:
+        seen: set[str] = set()
+        for i, ref in enumerate(refs):
+            p = f"$.refs[{i}]"
+            if not isinstance(ref, dict):
+                r.add(p, "must be an object")
+                continue
+            rid = ref.get("id")
+            if not isinstance(rid, str) or not rid:
+                r.add(f"{p}.id", "required string")
+            elif rid in seen:
+                r.add(f"{p}.id", f"duplicate id {rid!r}")
+            else:
+                seen.add(rid)
+            if ref.get("kind") not in ("image", "video"):
+                r.add(f"{p}.kind", "must be image or video")
+            if not isinstance(ref.get("path"), str) or not ref.get("path"):
+                r.add(f"{p}.path", "required string")
+            if "weight" in ref and not (is_num(ref["weight"]) and 0 <= ref["weight"] <= 1):
+                r.add(f"{p}.weight", "must be a number 0..1")
+    anchors = doc.get("anchors")
+    if not isinstance(anchors, list) or not 3 <= len(anchors) <= 5 or not all(isinstance(a, str) and a for a in anchors):
+        r.add("$.anchors", "must be 3-5 non-empty strings")
+    hidden = doc.get("hidden_or_unknown")
+    if not isinstance(hidden, list) or not hidden:
+        r.add("$.hidden_or_unknown", "must be a non-empty array")
+    for key in ("type", "medium"):
+        if key not in doc:
+            r.add(f"$.{key}", "required")
+    medium = doc.get("medium")
+    if isinstance(medium, dict) and isinstance(medium.get("value"), str) and medium["value"] not in MEDIUMS:
+        r.add("$.medium.value", f"must be one of {sorted(MEDIUMS)}")
+    if "style_tokens" in doc and not (isinstance(doc["style_tokens"], list) and 1 <= len(doc["style_tokens"]) <= 3):
+        r.add("$.style_tokens", "must be an array of 1-3 tokens")
+    colour = doc.get("colour")
+    if isinstance(colour, dict):
+        for i, c in enumerate(colour.get("palette") or []):
+            if not isinstance(c, dict) or not re.fullmatch(r"#[0-9a-fA-F]{6}", str(c.get("hex", ""))):
+                r.add(f"$.colour.palette[{i}].hex", "must be #rrggbb")
+        luma = colour.get("luma")
+        if isinstance(luma, dict):
+            for k in ("p5", "p50", "p95"):
+                if k in luma and not (is_num(luma[k]) and 0 <= luma[k] <= 1):
+                    r.add(f"$.colour.luma.{k}", "must be a number 0..1")
+    walk_leaves(doc, "$", r)
+
+
+# --- shots.v1 ---------------------------------------------------------------------------------
+
+def check_lens(obj: dict, path: str, r: Report, exactly_one: bool) -> None:
+    present = [k for k in LENS_KEYS if k in obj]
+    if exactly_one and len(present) != 1:
+        r.add(path, f"needs exactly one of {'/'.join(LENS_KEYS)} (found {len(present)})")
+    if not exactly_one and len(present) > 1:
+        r.add(path, f"at most one of {'/'.join(LENS_KEYS)}")
+    for k in present:
+        v = obj[k]
+        if not (is_num(v) and v > 0):
+            r.add(f"{path}.{k}", "must be a positive number")
+        elif k == "fov" and not v < 180:
+            r.add(f"{path}.{k}", "vertical degrees must be < 180")
+
+
+def check_pose(obj: dict, path: str, r: Report) -> None:
+    for k in ("position", "target"):
+        if k in obj and not vec(obj[k]):
+            r.add(f"{path}.{k}", "expected 3 finite numbers [x, y, z]")
+    if "roll_deg" in obj and not is_num(obj["roll_deg"]):
+        r.add(f"{path}.roll_deg", "must be a number")
+
+
+def check_shots(doc: dict, r: Report) -> None:
+    if not isinstance(doc.get("aspect"), str) or not ASPECT_RE.match(doc["aspect"]):
+        r.add("$.aspect", 'must be a "W:H" string such as "16:9"')
+    if "fps" in doc and not (isinstance(doc["fps"], int) and not isinstance(doc["fps"], bool) and doc["fps"] > 0):
+        r.add("$.fps", "must be a positive integer")
+    shots = doc.get("shots")
+    if not isinstance(shots, list) or not shots:
+        r.add("$.shots", "must be a non-empty array")
+        return
+    seen: set[str] = set()
+    ranges: list[tuple[float, float, str]] = []
+    for i, s in enumerate(shots):
+        p = f"$.shots[{i}]"
+        if not isinstance(s, dict):
+            r.add(p, "must be an object")
+            continue
+        sid = s.get("id")
+        if not isinstance(sid, str) or not ID_RE.match(sid):
+            r.add(f"{p}.id", "required, must match ^[A-Za-z0-9_-]+$")
+        elif sid in seen:
+            r.add(f"{p}.id", f"duplicate id {sid!r}")
+        else:
+            seen.add(sid)
+        check_lens(s, p, r, True)
+        for k in ("position", "target"):
+            if k not in s:
+                r.add(f"{p}.{k}", "required")
+        check_pose(s, p, r)
+        if "duration_s" in s and not (is_num(s["duration_s"]) and s["duration_s"] > 0):
+            r.add(f"{p}.duration_s", "must be a positive number")
+        if "ease" in s and s["ease"] not in EASES:
+            r.add(f"{p}.ease", f"must be one of {sorted(EASES)}")
+        sc = s.get("scroll")
+        if sc is not None:
+            if not (isinstance(sc, list) and len(sc) == 2 and all(is_num(v) and 0 <= v <= 1 for v in sc) and sc[0] < sc[1]):
+                r.add(f"{p}.scroll", "expected [start, end] within 0..1 with start < end")
+            else:
+                ranges.append((sc[0], sc[1], p))
+        to = s.get("to")
+        if to is not None:
+            if not isinstance(to, dict):
+                r.add(f"{p}.to", "must be an object")
+            else:
+                for k in to:
+                    if k not in ("position", "target", "focal_mm", "fov", "ortho_height", "roll_deg"):
+                        r.add(f"{p}.to.{k}", "not allowed in an end pose")
+                check_lens(to, f"{p}.to", r, False)
+                check_pose(to, f"{p}.to", r)
+    ranges.sort()
+    for (a0, a1, ap), (b0, b1, bp) in zip(ranges, ranges[1:]):
+        if b0 < a1 - 1e-9:
+            r.add(f"{bp}.scroll", f"overlaps {ap}.scroll")
+
+
+# --- look.v1 ----------------------------------------------------------------------------------
+
+LOOK_KEYS = {"schema", "toneMapping", "exposure", "environment", "background"}
+
+
+def check_look(doc: dict, r: Report) -> None:
+    if doc.get("toneMapping") not in TONEMAPS:
+        r.add("$.toneMapping", f"must be one of {sorted(TONEMAPS)}")
+    if "exposure" in doc and not (is_num(doc["exposure"]) and doc["exposure"] > 0):
+        r.add("$.exposure", "must be a number > 0 (three.js exposure multiplier)")
+    if "environment" in doc:
+        env = doc["environment"]
+        ok = isinstance(env, str) and (env == "room" or env.split("?", 1)[0].split("#", 1)[0].lower().endswith((".hdr", ".exr")))
+        if not ok:
+            r.add("$.environment", 'must be "room" or a path/URL ending .hdr or .exr')
+    if "background" in doc:
+        bg = doc["background"]
+        if not (isinstance(bg, str) and (bg == "environment" or re.fullmatch(r"#[0-9a-fA-F]{6}", bg))):
+            r.add("$.background", 'must be "#rrggbb" or "environment"')
+    for k in doc:
+        if k not in LOOK_KEYS:
+            r.warn(f"$.{k}", "unknown key (ignored by the viewer)")
+
+
+CHECKS = {"refspec.v1": check_refspec, "shots.v1": check_shots, "look.v1": check_look}
+
+
+def check_file(path: Path) -> tuple[str, list[str], list[str]]:
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise SystemExit(f"spec-check: cannot read {path}: {exc}") from None
+    except ValueError as exc:
+        return "unknown", [f"$: invalid JSON ({exc})"], []
+    if not isinstance(doc, dict):
+        return "unknown", ["$: root must be an object"], []
+    schema = doc.get("schema")
+    check = CHECKS.get(schema) if isinstance(schema, str) else None
+    if check is None:
+        return "unknown", [f"$.schema: must be one of {sorted(CHECKS)} (got {schema!r})"], []
+    r = Report()
+    check(doc, r)
+    return schema, r.problems, r.warnings
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Validate refspec.v1 / shots.v1 / look.v1 JSON files (schema auto-detected); prints bad JSON paths. "
+                    "Run by path with your project root as the working directory. Exit 0 valid, 1 problems, 2 usage.")
+    ap.add_argument("files", nargs="+", metavar="FILE")
+    args = ap.parse_args()
+    bad = False
+    for name in args.files:
+        p = Path(name)
+        if not p.is_file():
+            print(f"spec-check: not a file: {name}", file=sys.stderr)
+            return 2
+        try:
+            schema, problems, warnings = check_file(p)
+        except SystemExit as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        if problems:
+            bad = True
+            print(f"{name} ({schema}): {len(problems)} problem(s)")
+            for line in problems:
+                print(f"  {line}")
+        else:
+            print(f"{name} ({schema}): OK")
+        for line in warnings:
+            print(f"  WARN {line}")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

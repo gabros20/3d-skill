@@ -3,7 +3,7 @@
 
 Per image or video, writes <out>/<name>/: meta.json (ffprobe), frames/ (video: scene-cut keyframes
 plus evenly spaced fill; image: a copy), contact.jpg (tiled frames), palette.json (k-means k=6, hex +
-weight), luma.json (16-bin histogram, mean, key, contrast). Video also: cuts.json (cut timestamps in
+weight), luma.json (16-bin histogram, mean, key, contrast, p5/p50/p95 on 0..1). Video also: cuts.json (cut timestamps in
 seconds) and motion.json (8 samples/s; per sample: t seconds, energy 0..1 = mean abs frame diff,
 dx/dy = global content shift in pixels of a 32x18 grey frame, positive = content moves right/down,
 found by brute-force SAD over +-3 px, so camera pan/tilt is the opposite sign; speed_w_pct_s and
@@ -190,7 +190,8 @@ def luma_stats(points: list[tuple[int, int, int]]) -> dict:
     p5, p95 = ys[int(n * 0.05)], ys[min(int(n * 0.95), n - 1)]
     key = "low" if mean < 0.35 else "mid" if mean < 0.65 else "high"
     return {"bins": 16, "histogram": [round(h / n, 4) for h in hist], "mean": round(mean, 4),
-            "key": key, "contrast": round((p95 - p5) / 255, 4)}
+            "key": key, "contrast": round((p95 - p5) / 255, 4),
+            "p5": round(p5 / 255, 4), "p50": round(ys[n // 2] / 255, 4), "p95": round(p95 / 255, 4)}
 
 
 def global_shift(prev: bytes, cur: bytes, w: int, h: int, reach: int = 3) -> tuple[int, int]:
@@ -282,7 +283,7 @@ def process(src: Path, dest: Path, frames_n: int, scene: float) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Decompose reference images/videos: frames, contact sheet, palette, luma, cuts, motion. Run by path with your project root as the working directory; relative paths and defaults resolve against it.")
+    ap = argparse.ArgumentParser(description="Decompose reference images/videos: frames, contact sheet, palette, luma, cuts, motion. Run `<skill>/scripts/ref-extract` by path with your project root as the working directory; relative paths and defaults resolve against it.")
     ap.add_argument("inputs", nargs="+")
     ap.add_argument("--out", default=".3d/refs", help="output dir, relative to the current directory (your project root)")
     ap.add_argument("--frames", type=int, default=12, help="max keyframes per video (default 12)")

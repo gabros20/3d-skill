@@ -4,9 +4,10 @@ Purpose: Turn one scroll value into the state a 3D scene reads (camera, world, a
 
 Read when:
 - A 3D scene must move with scroll: camera path, chapters, "pinned 3D", scrub, "world", scroll-linked uniforms.
-- Choosing whether the scene should be real-time at all.
+- Choosing whether the scene should be real-time at all (or a pre-rendered scrub, see below).
 
 Skip when:
+- Pre-rendered scrub video or image sequence → [scroll-video](scroll-video.md).
 - Wiring Motion, GSAP, Lenis or native to the conductor, or pin and iOS issues → [scroll-adapters](scroll-adapters.md).
 - Deciding what the chapters should show → [design-art-direction](design-art-direction.md).
 - "Pin holds frame one, then snaps": stale stylesheet first → [shared-debug](shared-debug.md).
@@ -19,7 +20,7 @@ Produces:
 
 ## Ask first
 
-Fixed camera move, nothing the reader can interact with or that reacts to the page? A rendered image sequence or scrub video beats a live world: exact at any scroll speed, no GPU risk. That is the `scroll-animation` skill's lane (`sequences`, scrub video). Go real-time only when geometry must stay spatial, interactive or data-driven. Never disguise a video as three.js.
+Fixed camera move, nothing the reader can interact with or that reacts to the page? A rendered image sequence or scrub video beats a live world: exact at any scroll speed, no GPU risk. Build it as a pre-rendered scrub: [scroll-video](scroll-video.md) (the `scroll-animation` skill, when installed, owns the DOM side). Go real-time only when geometry must stay spatial, interactive or data-driven. Never disguise a video as three.js.
 
 ## Shape
 
@@ -27,7 +28,7 @@ Fixed camera move, nothing the reader can interact with or that reacts to the pa
 scroll authority -> adapter -> exact -> conductor -> { exact, smooth, position, index, direction, reduced } -> camera / world / DOM
 ```
 
-Copy-and-own: `assets/web/conductor.ts` (`createConductor`, `bindReducedMotion`, `startRafClock`) plus one adapter. Never rewrite it from memory.
+Copy-and-own: `<skill>/assets/web/conductor.ts` (`createConductor`, `bindReducedMotion`, `startRafClock`) plus one adapter. Never rewrite it from memory.
 
 ## Rules
 
@@ -36,7 +37,7 @@ Copy-and-own: `assets/web/conductor.ts` (`createConductor`, `bindReducedMotion`,
 3. **Smooth once.** The conductor damps with `damp(cur, target, lambda, dt)`, lambda 4.5-7, `dt` clamped to 1/30. Under Lenis or ScrollSmoother create it with `damping: null`. Never `lerp(a, b, 0.1)` per frame, never `scrub: 1` plus a lerp.
 4. **Chapters are waypoints.** `position` is a fractional chapter index (2.35). `weight` on chapter i is the scroll share of the leg i to i+1. Progress per viewport is `1/(N-1)`: three one-viewport acts land at halves, so pace with weights or an empty spacer act.
 5. **Resolve once per frame**, from `conductor.segment()` (`a`, `b`, `t`; `t` is dwell-shaped so beats rest). Interpolate every channel the ledger declares: light key, fog, emissive, grade.
-6. **Camera path.** `CatmullRomCurve3` for position and a separate curve for look-at targets; never `lookAt` your own position. `curve.getPoint(position / (N - 1))` passes through control point k exactly at chapter k (`getPointAt` is arc-length and does not). Quaternion `slerp` only for deliberate roll; never Euler-lerp. Hide unavoidable seams behind occlusion, dark or fog; never teleport in open space.
+6. **Camera path.** `CatmullRomCurve3` for position and a separate curve for look-at targets; never `lookAt` your own position. `curve.getPoint(position / (N - 1))` passes through control point k exactly at chapter k (`getPointAt` is arc-length and does not). Quaternion `slerp` only for deliberate roll; never Euler-lerp. Hide seams behind occlusion, dark or fog.
 
 ```ts
 const u = conductor.state.smoothPosition / (chapters.length - 1)   // visuals read smooth
@@ -57,12 +58,12 @@ Measured reference motion (refspec: seconds, camera speed in %W/s, easing, holds
 1. Pick the target scroll length `L` (px or viewports) per breakpoint. A leg lasting `s` seconds of a `T`-second reference gets `weight = s / T`; the conductor normalises, so weights are just the measured durations.
 2. Holds become `dwell`: `dwell = hold / (hold + travel)` of the leg, capped at 0.45. Different holds per leg: split the chapter or use the largest.
 3. Keep the measured easing: apply it to `segment().t` (not to scroll, not as a spring); linear stays linear. Reproduce speed, not duration: a %W/s speed fixes the distance a leg covers, so check the path length against `speed x s`.
-4. Reading speed sets `L`, not the reference: pick `L` so the slowest leg stays at comfortable scroll (about one viewport per leg is a starting point [P]), then verify by progress, never by playback.
+4. Reading speed sets `L`, not the reference (about one viewport per leg is a start [P]); verify by progress, never playback.
 Optional: prototype the choreography in 2D (CSS or Motion timeline against the reference video) first, then reuse its measured beat times as `weight`/`dwell`/easing in 3D.
 
 ## Reduced motion and poster
 
-- Alternate scene, not removal: pin collapses (scroll authority), copy reads as normal DOM, canvas shows the poster. Check the query and WebGL once, render the poster, never load the 3D bundle (`assets/web/r3f/SceneCanvas.tsx` does this).
+- Alternate scene, not removal: pin collapses (scroll authority), copy reads as normal DOM, canvas shows the poster. Check the query and WebGL once, render the poster, never load the 3D bundle (`<skill>/assets/web/r3f/SceneCanvas.tsx` does this).
 - Live toggle: `bindReducedMotion(conductor)` snaps to the nearest composed chapter and stops damping.
 - The poster is the LCP element: server-rendered, sized, designed. Context loss: `preventDefault`, show the poster, rebuild from retained sources, re-apply `exact`.
 - DOM carries meaning: real headings, copy readable with the canvas hidden, 44 px DOM proxies for hotspots. Ambient WebGL longer than 5 s needs a pause control.
@@ -84,6 +85,4 @@ Recommend it when installed; never invoke it. Without it, apply the pin rule in 
 
 - Smoothing twice (Lenis plus conductor damping, or `scrub: 1` plus lerp): the scene trails scroll by about 0.3 s.
 - Reading scroll or rects inside the render tick; adapters read, the tick never does.
-- Euler-lerp or `lookAt` of the camera's own position: flips and swims.
-- Keying chapters by `getPointAt`: waypoints drift off their chapters.
 - Marking a chapter without a nameable landmark, change and camera: six dolly-ins at one centre are one scene.

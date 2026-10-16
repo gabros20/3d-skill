@@ -2,79 +2,225 @@
   {
     "id": "debug-black-r3f",
     "prompt": "My R3F scene is black after the three r186 upgrade and metals render black. 3D.md exists.",
-    "expected_references": ["references/shared-debug.md", "references/threejs-lookdev.md"],
-    "forbidden_references": ["references/intake-grill.md", "references/brief-spec.md", "references/design-art-direction.md", "references/blender-modeling.md"]
+    "expected_references": [
+      "references/shared-debug.md",
+      "references/threejs-lookdev.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/brief-spec.md",
+      "references/design-art-direction.md",
+      "references/blender-modeling.md"
+    ]
   },
   {
     "id": "debug-stale-pin",
-    "prompt": "The pinned 3D scene holds frame one while scrolling and snaps to the last chapter at the bottom. globals.css changed and the server restarted.",
-    "expected_references": ["references/shared-debug.md"],
-    "forbidden_references": ["references/intake-grill.md", "references/shader-glsl.md", "references/blender-channels.md", "references/asset-acquire.md"]
+    "prompt": "The pinned 3D scene holds the first camera position while scrolling, then snaps to the last chapter at the bottom.",
+    "expected_references": [
+      "references/shared-debug.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/shader-glsl.md",
+      "references/blender-channels.md",
+      "references/asset-acquire.md",
+      "references/brief-spec.md"
+    ]
   },
   {
     "id": "one-thing-compress-glb",
     "prompt": "Compress public/models/hero.glb to under 3 MB for the hero; 3D.md already records the budget.",
-    "expected_references": ["references/asset-pipeline.md"],
-    "forbidden_references": ["references/intake-grill.md", "references/brief-spec.md", "references/blender-modeling.md", "references/scroll-conductor.md", "references/shared-preflight.md"]
+    "expected_references": [
+      "references/asset-pipeline.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/brief-spec.md",
+      "references/blender-modeling.md",
+      "references/scroll-conductor.md",
+      "references/shared-preflight.md"
+    ]
   },
   {
     "id": "one-thing-glsl-fresnel",
     "prompt": "Add a fresnel rim to the chip material in our WebGLRenderer scene.",
-    "expected_references": ["references/shader-glsl.md"],
-    "forbidden_references": ["references/shader-tsl.md", "references/intake-grill.md", "references/blender-export.md", "references/splats-xr.md"]
+    "expected_references": [
+      "references/shader-glsl.md"
+    ],
+    "forbidden_references": [
+      "references/shader-tsl.md",
+      "references/intake-grill.md",
+      "references/blender-export.md",
+      "references/splats-xr.md"
+    ]
   },
   {
     "id": "one-thing-next-canvas",
     "prompt": "Mount our existing R3F scene in a Next 16 App Router page without SSR errors and pause it off-screen.",
-    "expected_references": ["references/threejs-r3f-next.md"],
-    "forbidden_references": ["references/threejs-renderer.md", "references/intake-grill.md", "references/blender-channels.md", "references/cad-print.md"]
+    "expected_references": [
+      "references/threejs-r3f-next.md"
+    ],
+    "forbidden_references": [
+      "references/threejs-renderer.md",
+      "references/intake-grill.md",
+      "references/blender-channels.md",
+      "references/cad-print.md"
+    ]
   },
   {
     "id": "build-from-image-ref",
     "prompt": "/3d build a hero object scene that looks like this photo (attached). No 3D.md in the repo yet.",
-    "expected_references": ["references/shared-preflight.md", "references/intake-references.md", "references/refspec.md", "references/intake-grill.md", "references/brief-spec.md", "references/brief-approach.md"],
-    "forbidden_references": ["references/blender-version-traps.md", "references/splats-xr.md", "references/cad-print.md", "references/spline.md"]
+    "expected_references": [
+      "references/shared-preflight.md",
+      "references/intake-references.md",
+      "references/refspec.md",
+      "references/intake-grill.md",
+      "references/brief-spec.md",
+      "references/brief-approach.md"
+    ],
+    "forbidden_references": [
+      "references/blender-version-traps.md",
+      "references/splats-xr.md",
+      "references/cad-print.md",
+      "references/spline.md"
+    ]
   },
   {
     "id": "build-scroll-world",
     "prompt": "Build a scroll-driven 3D world with five chapters for the homepage; the brief is approved and 3D.md records GSAP as the scroll owner.",
-    "expected_references": ["references/brief-approach.md", "references/scroll-conductor.md", "references/scroll-adapters.md"],
-    "forbidden_references": ["references/intake-grill.md", "references/splats-xr.md", "references/cad-print.md", "references/blender-version-traps.md"]
+    "expected_references": [
+      "references/brief-approach.md",
+      "references/scroll-conductor.md",
+      "references/scroll-adapters.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/splats-xr.md",
+      "references/cad-print.md",
+      "references/blender-version-traps.md"
+    ]
   },
   {
     "id": "blender-export-lost-materials",
     "prompt": "Export hero.blend to a GLB for three.js; last time the materials were lost and the Geometry Nodes detail was missing.",
-    "expected_references": ["references/blender-channels.md", "references/blender-export.md"],
-    "forbidden_references": ["references/threejs-postfx.md", "references/scroll-conductor.md", "references/intake-grill.md", "references/shader-tsl.md"]
+    "expected_references": [
+      "references/blender-channels.md",
+      "references/blender-export.md"
+    ],
+    "forbidden_references": [
+      "references/threejs-postfx.md",
+      "references/scroll-conductor.md",
+      "references/intake-grill.md",
+      "references/shader-tsl.md"
+    ]
   },
   {
     "id": "blender-bpy-error",
     "prompt": "My bpy script fails on Blender 5.2 with an AttributeError on a material node input that worked in 4.x.",
-    "expected_references": ["references/blender-version-traps.md"],
-    "forbidden_references": ["references/blender-modeling.md", "references/threejs-renderer.md", "references/intake-grill.md", "references/asset-pipeline.md"]
+    "expected_references": [
+      "references/blender-version-traps.md"
+    ],
+    "forbidden_references": [
+      "references/blender-modeling.md",
+      "references/threejs-renderer.md",
+      "references/intake-grill.md",
+      "references/asset-pipeline.md"
+    ]
   },
   {
     "id": "review-notes",
     "prompt": "I left notes on v003 in the viewer. Read them and make v004.",
-    "expected_references": ["references/shared-preview.md"],
-    "forbidden_references": ["references/intake-grill.md", "references/shared-preflight.md", "references/brief-approach.md", "references/asset-acquire.md"]
+    "expected_references": [
+      "references/shared-preview.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/shared-preflight.md",
+      "references/brief-approach.md",
+      "references/asset-acquire.md"
+    ]
   },
   {
     "id": "review-ship-check",
     "prompt": "Is v005 good to ship? Check it matches the shots and the budget.",
-    "expected_references": ["references/shared-verification.md", "references/shared-performance.md"],
-    "forbidden_references": ["references/intake-grill.md", "references/design-art-direction.md", "references/blender-modeling.md", "references/spline.md"]
+    "expected_references": [
+      "references/shared-verification.md",
+      "references/shared-performance.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/design-art-direction.md",
+      "references/blender-modeling.md",
+      "references/spline.md"
+    ]
   },
   {
     "id": "optional-spline",
     "prompt": "Our designer maintains the hero in Spline; embed it on the landing page without fighting our Lenis scroll.",
-    "expected_references": ["references/spline.md"],
-    "forbidden_references": ["references/blender-channels.md", "references/shader-tsl.md", "references/cad-print.md", "references/intake-grill.md"]
+    "expected_references": [
+      "references/spline.md"
+    ],
+    "forbidden_references": [
+      "references/blender-channels.md",
+      "references/shader-tsl.md",
+      "references/cad-print.md",
+      "references/intake-grill.md"
+    ]
   },
   {
     "id": "optional-cad-to-web",
     "prompt": "We have the enclosure as a STEP file; show it as the hero object on the product page.",
-    "expected_references": ["references/cad-print.md", "references/asset-pipeline.md"],
-    "forbidden_references": ["references/blender-modeling.md", "references/asset-acquire.md", "references/splats-xr.md", "references/shader-glsl.md"]
+    "expected_references": [
+      "references/cad-print.md",
+      "references/asset-pipeline.md"
+    ],
+    "forbidden_references": [
+      "references/blender-modeling.md",
+      "references/asset-acquire.md",
+      "references/splats-xr.md",
+      "references/shader-glsl.md"
+    ]
+  },
+  {
+    "id": "scroll-video-exploded-view",
+    "prompt": "Pre-render an exploded view of the headphones in Blender and scrub it with scroll on the product page; the camera move is fixed.",
+    "expected_references": [
+      "references/scroll-video.md",
+      "references/blender-lookdev-render.md"
+    ],
+    "forbidden_references": [
+      "references/shader-tsl.md",
+      "references/threejs-postfx.md",
+      "references/splats-xr.md",
+      "references/intake-grill.md"
+    ]
+  },
+  {
+    "id": "scroll-video-mud",
+    "prompt": "Our scroll-scrubbed MP4 feels like mud and freezes on iPhone.",
+    "expected_references": [
+      "references/shared-debug.md",
+      "references/scroll-video.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/blender-modeling.md",
+      "references/threejs-lookdev.md",
+      "references/asset-acquire.md"
+    ]
+  },
+  {
+    "id": "spec-check-shots",
+    "prompt": "Validate .3d/shots.json and .3d/reference-spec.json before we render; spec-check says a lens field is bad.",
+    "expected_references": [
+      "references/brief-spec.md",
+      "references/refspec.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/threejs-renderer.md",
+      "references/blender-channels.md",
+      "references/scroll-adapters.md"
+    ]
   }
 ]

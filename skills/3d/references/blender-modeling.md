@@ -18,7 +18,7 @@ Produces:
 ## Loop
 
 1. Brief in numbers: purpose, target use, tri and texture budgets ([shared-performance](shared-performance.md)), real size (1 unit = 1 m).
-2. Read state first with `assets/blender/inspect_scene.py` (or `bpy.data` in an MCP call). Unit counts, scale, modifiers, materials.
+2. Read state first with `<skill>/assets/blender/inspect_scene.py` (or `bpy.data` in an MCP call). Unit counts, scale, modifiers, materials.
 3. One change per call or script step. Plan big to small: block-out → primary forms → secondary forms → detail.
 4. Verify: frame the subject, then capture (two opposite angles, plus front/side/top for proportion). An unframed viewport shows a prop as a few pixels.
 5. Gate numbers and image: tri count, scale applied, proportions within 5% of the reference (2% for the final pass), silhouette match before form, form before detail, topology before texture.
@@ -30,6 +30,8 @@ Produces:
 Prefer repairing an imported or generated model over modelling a common asset from scratch ([asset-acquire](asset-acquire.md)): fix scale and origin, normals, doubles, n-gons and UVs, then decimate or retopo to budget. Model from scratch only for the hero, custom or branded shape.
 
 ## Rules
+
+- Axes: Blender is Z-up; glTF, three.js and `shots.v1` are Y-up. Model up along +Z, front facing -Y; the exporter converts ([blender-export](blender-export.md)). A chip lying flat in Blender lies flat in three.js.
 
 - Apply rotation and scale before bevel, solidify, array, bake and export.
 - Use the data API and `bmesh` over operators (hundreds of `bpy.ops.mesh.primitive_*` calls are orders of magnitude slower than `bpy.data.objects.new`); keep the object returned by `new()`.

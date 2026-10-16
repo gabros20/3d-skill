@@ -20,18 +20,18 @@ around it: 2D scroll and DOM motion, layout scaling, image or video generation a
 orchestration belong to adjacent skills. Works alone; project rules (CLAUDE.md, a motion doc,
 decisions already in `3D.md`) win over every default here.
 
-Invoke as `/3d` or `$3d` with a request, a reference file or URL, or a GLB/`.blend` path. Paths
-below are relative to this skill's root; run scripts from there as `scripts/<name>`. Every script
-writes into the project's `.3d/`; when the working directory is not the project, pass its path
-(`--root`, `--out`).
+Invoke as `/3d` or `$3d` with a request, a reference file or URL, or a GLB/`.blend` path.
+`<skill>` is this installed skill's directory. Run every script by path, `<skill>/scripts/<x>`,
+with the user's project root as the working directory, so defaults such as `.3d` land in the
+project. Never run them from the skill directory.
 
 ## Route before acting
 
 1. Pick the lane, then read only the files it names. Never preload the reference library.
 2. Detect before routing: `3D.md`, `.3d/`, `package.json`, `.3d/capabilities.md`. An existing
    decision stands; changing one goes through [shared-preflight](references/shared-preflight.md).
-3. A symptom goes to [shared-debug](references/shared-debug.md) before any area file. "Pin holds
-   frame one, then snaps" is a stale stylesheet until proven otherwise.
+3. A symptom goes to [shared-debug](references/shared-debug.md) before any area file; a scrub that
+   holds frame one, then snaps has several causes there, cheapest check first.
 
 | Lane | Read | Skip |
 |---|---|---|
@@ -46,12 +46,12 @@ writes into the project's `.3d/`; when the working directory is not the project,
 | Condition | Read | Contribution |
 |---|---|---|
 | New request without an approved `.3d/brief.md`; vague prompt | [intake-grill](references/intake-grill.md) | frontier rounds of ≤ 6 questions with recommended answers; restate and explicit yes |
-| An image, video, screenshot, site capture, "make it look like this" | [intake-references](references/intake-references.md) | `scripts/ref-extract` plus vision passes → `.3d/reference-spec.json` |
+| An image, video, screenshot, site capture, "make it look like this" | [intake-references](references/intake-references.md) | `<skill>/scripts/ref-extract` plus vision passes → `.3d/reference-spec.json` |
 | Writing or validating `.3d/reference-spec.json`; a refspec becomes a generation prompt | [refspec](references/refspec.md) | the `refspec.v1` schema |
 | Refspec or brief must become camera, lights, tone, materials, post | [refspec-mapping](references/refspec-mapping.md) | starting values and the parameter to move first |
-| Brief, storyboard, shot list, scroll map, camera path | [brief-spec](references/brief-spec.md) | `.3d/brief.md`, `.3d/shots.json` (`shots.v1`) |
+| Brief, storyboard, shot list, scroll map, camera path, sign-off gates | [brief-spec](references/brief-spec.md) | `.3d/brief.md`, `.3d/shots.json` (`shots.v1`), lens defaults, the five gates |
 | A vague term ("dramatic", "glossy") must become checkable | [brief-lexicon](references/brief-lexicon.md) | production wording |
-| Choosing how to build it: real-time or pre-render, fallback ladder | [brief-approach](references/brief-approach.md) | Pipeline section and the area files to read next |
+| Choosing how to build it: real-time or pre-render (scrub video), fallback ladder | [brief-approach](references/brief-approach.md) | Pipeline section and the area files to read next |
 
 ### Shared
 
@@ -80,7 +80,8 @@ writes into the project's `.3d/`; when the working directory is not the project,
 
 | Condition | Read | Contribution |
 |---|---|---|
-| The scene moves with scroll: camera path, chapters, pinned 3D, scrub | [scroll-conductor](references/scroll-conductor.md) | one conductor, ownership split with `scroll-animation` |
+| A live scene moves with scroll: camera path, chapters, pinned 3D | [scroll-conductor](references/scroll-conductor.md) | one conductor, ownership split with `scroll-animation` |
+| A fixed move pre-rendered and scrubbed: "scrub video", frames on scroll, exploded view; a scrub that feels like mud or freezes on iPhone | [scroll-video](references/scroll-video.md) | frames, short-GOP encodes, poster, `currentTime` from the conductor, image-sequence fallback |
 | Feeding the conductor from native, Motion, GSAP, Lenis or `ScrollControls`; pin jumps on iPhone | [scroll-adapters](references/scroll-adapters.md) | one adapter, the pin rule, device checks |
 | What the 3D should be: world, chapters, composition; "looks flat or CG" | [design-art-direction](references/design-art-direction.md) | world sentence, scene ledger, shot plan, critique |
 | Pick a look; brand colour renders wrong; Blender and three disagree | [design-lookdev-presets](references/design-lookdev-presets.md) | one preset, one view transform, recorded |
@@ -110,23 +111,25 @@ writes into the project's `.3d/`; when the working directory is not the project,
 
 | Tool | Usage | Gives |
 |---|---|---|
-| `scripts/capabilities` | `[--root DIR] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender, MCP hints, proposals; never installs |
-| `scripts/ref-extract` | `INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3]` | per ref `meta.json`, `frames/`, `contact.jpg`, `palette.json`, `luma.json`; video `cuts.json`, `motion.json`; needs ffmpeg |
-| `scripts/glb-report` | `FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | tris, draw calls, textures, extensions, size; PASS/WARN/FAIL, exit 1 on FAIL |
-| `scripts/preview` | `serve` · `new-version --note` · `capture [--version] [--url]` · `diff A B` · `feedback` | viewer, versions, shot captures, SSIM/PSNR, notes ([shared-preview](references/shared-preview.md)) |
-| `assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir` |
-| `assets/web/` | copy and own; read each file's header first | `conductor.ts`, `adapters/{native,motion,gsap}.ts`, `r3f/SceneCanvas.tsx`, `bridge.ts` (dev-only `?3d-preview`; ask before adding) |
-| `assets/templates/` | copy into the project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` |
+| `<skill>/scripts/capabilities` | `[--root PROJECT] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender, MCP hints, proposals; never installs |
+| `<skill>/scripts/ref-extract` | `INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3]` | per ref `meta.json`, `frames/`, `contact.jpg`, `palette.json`, `luma.json`; video `cuts.json`, `motion.json`; needs ffmpeg |
+| `<skill>/scripts/glb-report` | `FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | tris, draw calls, textures, extensions, size; PASS/WARN/FAIL, exit 1 on FAIL |
+| `<skill>/scripts/spec-check` | `FILE...` | validates `refspec.v1`, `shots.v1`, `look.v1`; exit 1 names the bad fields |
+| `<skill>/scripts/preview` | `serve` · `new-version --note` · `capture [--version] [--url]` · `diff A B` · `board` · `feedback` · `stop`; all take `--dir` (default `.3d`) | viewer, versions, shot captures, SSIM/PSNR, contact sheet, notes ([shared-preview](references/shared-preview.md)) |
+| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir` |
+| `<skill>/assets/web/` | copy and own; read each file's header first | `conductor.ts`, `adapters/{native,motion,gsap}.ts`, `r3f/SceneCanvas.tsx`, `bridge.ts` (dev-only `?3d-preview`; ask before adding) |
+| `<skill>/assets/templates/` | copy into the project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` |
 
 ## Universal rules
 
 1. **Read only the routed files.** A file outside the lane needs a reason you can state.
 2. **Detect before asking.** Facts come from the repo, `3D.md` and `.3d/capabilities.md`; ask only
    the user's decisions, each with a recommended answer.
-3. **Propose installs, never run them**, with cost (free, free account, PAID). Paid generative
-   jobs need approval per job and are never resubmitted on timeout.
+3. **Never install without explicit approval.** Propose with cost (free, free account, PAID); run
+   only after the user's yes. Paid generative jobs need approval per job and are never resubmitted
+   on timeout.
 4. **The dev server is the user's.** Never start, kill or restart it; ask for the URL. `preview
-   serve` serves `.3d/` only, on its own port; stop it when the session ends.
+   serve` serves `.3d/` only, on its own port; `preview stop` ends it with the session.
 5. **Evidence before claims.** Every "done", "matches" or "fast" cites a capture, a
    `glb-report` or a measurement of that exact claim; say what could not be measured.
 6. **One canonical home.** Decisions, budgets, colour policy and scroll owner live in `3D.md`;
@@ -137,36 +140,42 @@ writes into the project's `.3d/`; when the working directory is not the project,
 ## Core workflow
 
 1. **Prepare.** No `3D.md`: [shared-preflight](references/shared-preflight.md) runs
-   `scripts/capabilities` and fills `3D.md` from `assets/templates/3D.md`.
+   `<skill>/scripts/capabilities` and fills `3D.md` from `<skill>/assets/templates/3D.md`.
 2. **Intake.** Decompose intent and every reference into the most detailed spec: references
-   through `scripts/ref-extract` and [intake-references](references/intake-references.md) into
-   `.3d/reference-spec.json`; missing detail grilled per [intake-grill](references/intake-grill.md).
-   End the turn on the restated brief and an explicit yes; headless runs record assumptions and
-   do not build.
+   through `<skill>/scripts/ref-extract` and [intake-references](references/intake-references.md)
+   into `.3d/reference-spec.json`; missing detail grilled per [intake-grill](references/intake-grill.md).
+   End the turn on the restated brief and an explicit yes. No live user: write `.3d/questions.md`
+   and stop, unless the user explicitly said to assume defaults; then proceed on the recommended
+   answers tagged `[assumed]` and record them in the brief.
 3. **Brief and shots.** [brief-spec](references/brief-spec.md) writes `.3d/brief.md` and
-   `.3d/shots.json`; the look comes from the design files.
+   `.3d/shots.json`; the look comes from the design files and is written to `.3d/look.json`.
+   Validate with `<skill>/scripts/spec-check`. Work then passes the
+   [sign-off gates](references/brief-spec.md) in order, each on the user's yes: brief → style
+   frames → blockout → lookdev → final; a change that crosses an approved gate re-opens it.
 4. **Approach.** [brief-approach](references/brief-approach.md) maps target use to a pipeline and
    fallback ladder, records it in `3D.md`, and names the area files.
-5. **Build.** Read only those files. One change-set per version (`scripts/preview new-version`).
+5. **Build.** Read only those files. One change-set per version (`<skill>/scripts/preview new-version`).
 6. **Preview and iterate.** Capture every shot and diff it against the reference and the previous
    version. A fresh critic (a new context, not told what was fixed) judges that evidence before
-   the user sees it ([fresh-critic gate](references/shared-verification.md)). Then show the user the URL, version and change, read their
-   notes and map each one to the next version ([shared-preview](references/shared-preview.md)).
-   Stop on approval.
+   the user sees it ([fresh-critic gate](references/shared-verification.md)). Then show the user
+   the URL, version, change and `preview board`, read their notes and map each one to the next
+   version ([shared-preview](references/shared-preview.md)). Stop on the gate's approval.
 7. **Record.** Verdicts per [shared-verification](references/shared-verification.md),
-   `scripts/glb-report` against the recorded budget, a version-log line in `3D.md`.
+   `<skill>/scripts/glb-report` against the recorded budget, a version-log line in `3D.md`.
 
 ## Artifact contract
 
 | Path in the project | Holds | Written by |
 |---|---|---|
 | `3D.md` (root) | project, decisions, budgets, colour policy, scroll ownership, tooling, scene ledger with a licence per asset, version log | preflight; every version |
-| `.3d/capabilities.md` | tools, stack, proposals | `scripts/capabilities` |
+| `.3d/capabilities.md` | tools, stack, proposals | `capabilities` |
+| `.3d/questions.md` | open questions with recommended answers when no user is live | intake-grill |
 | `.3d/brief.md` | the approved brief and its Pipeline section | intake → brief-spec, brief-approach |
-| `.3d/refs/<name>/`, `.3d/reference-spec.json` | mechanical extraction; `refspec.v1` | `scripts/ref-extract`; intake-references |
+| `.3d/refs/<name>/`, `.3d/reference-spec.json` | mechanical extraction; `refspec.v1` | `ref-extract`; intake-references |
 | `.3d/shots.json` | `shots.v1` cameras read by preview and `render_shots.py` | brief-spec; viewer `POST /shots` |
+| `.3d/look.json` | `look.v1` tone mapping, exposure, environment, background the viewer reads | build, from the chosen preset |
 | `.3d/versions/vNNN/` | `manifest.json` and that version's outputs; never edited once shown | `preview new-version` |
-| `.3d/evidence/vNNN/`, `.3d/diffs/` | shot PNGs, diff images and JSON | `preview capture`, `preview diff` |
+| `.3d/evidence/vNNN/`, `.3d/diffs/`, `.3d/boards/` | shot PNGs, diff images and JSON, contact sheets | `preview capture`, `diff`, `board` |
 | `.3d/feedback.jsonl` | append-only notes; corrections are new lines | viewer, `preview feedback` reads |
 
 Suggest gitignoring `.3d/versions` and `.3d/refs`.
@@ -175,7 +184,7 @@ Suggest gitignoring `.3d/versions` and `.3d/refs`.
 
 Done when the user approved a version (or the single change is verified), the final version has
 a capture for every shot, `glb-report` is within budget or the overrun is recorded, `3D.md`
-matches what shipped, the preview server is stopped and the bridge removed if asked. Hand off a
+matches what shipped, `preview stop` has run and the bridge is removed if asked. Hand off a
 receipt of at most 400 tokens: what was built (project files changed), versions with status,
 evidence paths, measured budgets, checks not run (real devices, Safari), open notes and
 proposals, and any adjacent skill worth recommending.

@@ -275,6 +275,83 @@ class CapabilitiesRobustnessTest(unittest.TestCase):
         self.assertFalse(json.loads(res.stdout)["stack"]["package_json"])
 
 
+TEMPLATES = ROOT / "skills" / "3d" / "assets" / "templates"
+
+
+class SpecCheckTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def variant(self, template: str, mutate) -> Path:
+        doc = json.loads((TEMPLATES / template).read_text())
+        mutate(doc)
+        out = self.tmp / template
+        out.write_text(json.dumps(doc))
+        return out
+
+    def fails(self, path: Path, needle: str) -> None:
+        res = run("spec-check", str(path))
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(needle, res.stdout)
+
+    def test_templates_pass(self) -> None:
+        for t in ("refspec.example.json", "shots.json"):
+            res = run("spec-check", str(TEMPLATES / t))
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+
+    def test_look_valid_and_broken(self) -> None:
+        look = self.tmp / "look.json"
+        base = {"schema": "look.v1", "toneMapping": "agx", "exposure": 1.1,
+                "environment": "https://cdn.example.com/x/venice.hdr?v=1", "background": "environment"}
+        look.write_text(json.dumps(base))
+        self.assertEqual(run("spec-check", str(look)).returncode, 0)
+        look.write_text(json.dumps({**base, "environment": "room", "background": "#0b0d12"}))
+        self.assertEqual(run("spec-check", str(look)).returncode, 0)
+        look.write_text(json.dumps({**base, "environment": "maps/studio.exr"}))
+        self.assertEqual(run("spec-check", str(look)).returncode, 0)
+        look.write_text(json.dumps({**base, "mood": "x"}))
+        res = run("spec-check", str(look))
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("WARN $.mood", res.stdout)
+        look.write_text(json.dumps({"schema": "look.v1", "toneMapping": "filmic", "exposure": 0,
+                                    "environment": "pic.png", "background": "red"}))
+        res = run("spec-check", str(look))
+        self.assertEqual(res.returncode, 1)
+        for path in ("$.toneMapping", "$.exposure", "$.environment", "$.background"):
+            self.assertIn(path, res.stdout)
+
+    def test_shots_broken(self) -> None:
+        self.fails(self.variant("shots.json", lambda d: d["shots"][1].update(position=[1, 2])), "$.shots[1].position")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(fov=40)), "$.shots[0]: needs exactly one")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][1].update(id="S01")), "duplicate id")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][1].update(scroll=[0.2, 0.5])), "overlaps")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(ease="bounce")), "$.shots[0].ease")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][0].update(id="a b")), "$.shots[0].id")
+        self.fails(self.variant("shots.json", lambda d: d.update(aspect="wide")), "$.aspect")
+        self.fails(self.variant("shots.json", lambda d: d["shots"][0]["to"].update(colour="x")), "$.shots[0].to.colour")
+
+    def test_refspec_broken(self) -> None:
+        self.fails(self.variant("refspec.example.json", lambda d: d.update(anchors=["a"])), "$.anchors")
+        self.fails(self.variant("refspec.example.json", lambda d: d.update(hidden_or_unknown=[])), "$.hidden_or_unknown")
+        self.fails(self.variant("refspec.example.json", lambda d: d["refs"].append(dict(d["refs"][0]))), "duplicate id")
+        self.fails(self.variant("refspec.example.json",
+                                lambda d: d["camera"]["angle"].update(evidence="inferred", value=5)),
+                   "$.camera.angle.value")
+        self.fails(self.variant("refspec.example.json", lambda d: d["camera"]["angle"].update(confidence="sure")),
+                   "$.camera.angle.confidence")
+        self.fails(self.variant("refspec.example.json", lambda d: d["colour"]["palette"][0].update(hex="red")),
+                   "$.colour.palette[0].hex")
+
+    def test_bad_inputs(self) -> None:
+        junk = self.tmp / "junk.json"
+        junk.write_text("{nope")
+        self.assertEqual(run("spec-check", str(junk)).returncode, 1)
+        junk.write_text('{"schema": "mystery.v9"}')
+        self.fails(junk, "$.schema")
+        self.assertEqual(run("spec-check", str(self.tmp / "missing.json")).returncode, 2)
+
+
 @unittest.skipUnless(FFMPEG, "ffmpeg/ffprobe not installed")
 class RefExtractTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -302,6 +379,7 @@ class RefExtractTest(unittest.TestCase):
         luma = json.loads((out / "ref" / "luma.json").read_text())
         self.assertEqual(len(luma["histogram"]), 16)
         self.assertIn(luma["key"], ("low", "mid", "high"))
+        self.assertTrue(0 <= luma["p5"] <= luma["p50"] <= luma["p95"] <= 1, luma)
         motion = json.loads((out / "clip" / "motion.json").read_text())["samples"]
         self.assertGreater(len(motion), 10)
 

@@ -31,7 +31,7 @@ Treat every value as a starting range; verify by rendering the shot and comparin
 - **Distance from shot size**: `d ≈ subject_height / (2·tan(fov_v/2)·fill)`. Fill (subject height / frame height): EWS <0.05, WS 0.15-0.3, MWS 0.4-0.55, MS 0.6-0.75, MCU 0.8-0.9, CU ≥1.
 - **Angle and height** place the camera on a sphere around the target: elevation low -10…-25°, eye 0…10°, high 25-45°, top-down 80-90°. Subject left of centre means the camera yaws toward the empty side.
 - **Moves to keyframes**: push-in = dolly on the view axis (FOV change only when background scale changes uniformly and no parallax shows); orbit = azimuth over eased `t` around the target; truck/pedestal = translation perpendicular to view; crane = elevation plus translation with the target locked; handheld = noise on position (about 0.5% of frame) and roll (about 0.3°). Easing: the sampled curve first, a named ease second. For scroll, pose is a pure function of progress ([scroll-conductor](scroll-conductor.md)).
-- Orthographic (isometric, true iso: elevation 35.26°, azimuth 45°): size the frustum, not FOV.
+- Lens defaults by shot type live in [brief-spec](brief-spec.md); this file only converts. Orthographic (isometric, true iso: elevation 35.26°, azimuth 45°): size the frustum, not FOV.
 
 ## Light
 
@@ -53,7 +53,7 @@ Treat every value as a starting range; verify by rendering the shot and comparin
 
 - Intent lives in [design-lookdev-presets](design-lookdev-presets.md) (D8). `grade.lut_family` none/product/brand-exact: Khronos PBR Neutral. Filmic/cinematic: AgX. Stylised/flat: no tone mapping plus a custom grade.
 - **three.js**: `renderer.toneMapping` constants include `AgXToneMapping` and `NeutralToneMapping`; `outputColorSpace = SRGBColorSpace`; `toneMappingExposure` sets key brightness. R3F `<Canvas>` turns on ACES Filmic unless `flat` is set, so set it deliberately. Through an `EffectComposer`, tone mapping applies only via `OutputPass`/the tone-mapping effect.
-- **Blender**: View Transform Standard (brand-exact, stylised), AgX, or Khronos PBR Neutral (product); list the available names at runtime instead of trusting memory ([blender-version-traps](blender-version-traps.md)). Exposure so the p50 of the scene sits near the reference's `luma_p1_p50_p99`.
+- **Blender**: View Transform Standard (brand-exact, stylised), AgX, or Khronos PBR Neutral (product); list the available names at runtime instead of trusting memory ([blender-version-traps](blender-version-traps.md)). Exposure so the p50 of the scene sits near the reference's `luma p5/p50/p95`.
 - **Albedo is de-lit**: material base colour is the sRGB hex of an unshaded region, converted to linear by the engine. Never paste the hex of a shaded pixel.
 
 ## Materials

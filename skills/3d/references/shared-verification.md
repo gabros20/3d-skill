@@ -4,7 +4,7 @@ Purpose: Evidence-first checks so every "done", "matches" or "fast" claim is bac
 
 Read when:
 - About to say a shot matches the brief, a scene performs, or an asset passes.
-- Interpreting `preview diff`, `<skill>/scripts/glb-report` or a headless capture.
+- Interpreting `<skill>/scripts/preview diff`, `<skill>/scripts/glb-report` or a headless capture.
 
 Skip when:
 - Deciding the numbers themselves (→ [shared-performance](shared-performance.md)).
@@ -29,6 +29,10 @@ Produces:
 - Also capture a no-post baseline and a far and near view for hero objects, so post effects cannot hide geometry or material faults.
 - Reject a capture that is all black, a constant colour, or from a context whose renderer string is missing.
 - Scroll scenes: judge at progress values, not pixel offsets; test slow and fast scrub, reverse, and reload mid-scene.
+
+## Spec gate
+
+Before building or presenting, run `<skill>/scripts/spec-check` over `.3d/` (validates `refspec.v1`, `shots.v1`, `look.v1`; exit 1 lists bad field paths). Fix every listed path first; a malformed shot or look file makes captures meaningless.
 
 ## Visual diff
 

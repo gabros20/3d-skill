@@ -12,7 +12,7 @@ Skip when:
 - Authoring the clip in Blender → [blender-export](blender-export.md).
 
 Inputs:
-- Interactive objects list, clip names from `scripts/glb-report` or `useAnimations`, touch targets.
+- Interactive objects list, clip names from `<skill>/scripts/glb-report` or `useAnimations`, touch targets.
 
 Produces:
 - Event wiring, one active control per camera, a mixer owned by one component.
