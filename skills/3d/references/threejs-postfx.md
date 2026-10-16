@@ -34,6 +34,7 @@ Never mix the pmndrs composer with `WebGPURenderer`.
 
 ## Bloom
 
+0. Bloom only on deliberately emissive sources: selective/MRT, or a threshold above the brightest non-emissive surface. Bloom on metal edges reads as self-lit halos.
 1. Start with HDR threshold: `luminanceThreshold` near 1, make glow sources emissive above 1 (`emissiveIntensity` > 1). If nothing glows the threshold is working; raise emission, not bloom intensity.
 2. When bright non-emissive surfaces (specular, white UI) bleed: switch to MRT emissive channel read by bloom (WebGPU `mrt`), or selective layers. Dual-pass material-swap selective bloom costs several full renders; restore materials in `finally`.
 3. Bloom resolution scale ≤ 0.5 on mobile.

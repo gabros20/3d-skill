@@ -18,10 +18,11 @@ Produces:
 
 ## Procedure
 
-1. Fix the colour pipeline first ([threejs-renderer](threejs-renderer.md) Colour): output colour space, tone mapping, exposure. Judge materials only after.
+1. Fix the colour pipeline first ([threejs-renderer](threejs-renderer.md) Colour): output colour space, tone mapping, exposure. Settle exposure and tone curve against the reference's luma percentiles (see [intake-references](intake-references.md)) BEFORE tuning materials; never patch the tone curve later with offsets. Judge materials only after.
 2. Environment: PBR needs `scene.environment`; metals without it render black and more ambient light does not fix that.
    - Prototype: `new PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture` (`three/addons/environments/RoomEnvironment.js`).
    - Production: `HDRLoader` (`three/addons/loaders/HDRLoader.js`) → `texture.mapping = EquirectangularReflectionMapping`; or drei `Environment`. Dispose the PMREM generator after use.
+   - Metals need a contrasty environment (dark surround, bright strip lights) to read as polished; a flat bright HDRI gives matte metal.
    - Intensity: `scene.environmentIntensity` (not `envMapIntensity`, which affects only a material's own `envMap`). Rotation: `scene.environmentRotation` / `backgroundRotation`; semantics changed r184.
 3. Direct lights: one key (directional or spot) for direction and shadow, optional rim. Units are physical: Point/Spot intensity in candela, so values are about π × pre-r155 numbers. Tune by exposure, not by stacking lights.
 4. Materials by role: `MeshStandardMaterial` default; `MeshPhysicalMaterial` only for clearcoat, transmission, sheen, iridescence. Share materials per role; `clone()` before per-instance edits (glTF materials are cached and shared).
@@ -32,7 +33,7 @@ Produces:
    - Add `light.target` to the scene or its matrix never updates. Inspect with `CameraHelper`.
    - Static scene: `renderer.shadowMap.autoUpdate = false`, set `needsUpdate = true` on change. Largest cheap win.
    - Never point-light shadows on mobile (six renders each).
-7. Keep a no-post baseline that still reads: lock silhouette, material separation, key/fill/rim before adding fog, bloom or grade ([threejs-postfx](threejs-postfx.md)).
+7. Keep a no-post baseline that still reads: lock silhouette, material separation, key/fill/rim before adding fog, bloom or grade. No fog or glow volumes that hide geometry to fake depth ([threejs-postfx](threejs-postfx.md)).
 
 ## Cost notes
 

@@ -79,5 +79,6 @@ Stuck probes: "Which three sites, films or products look like it?" · "What must
 
 ## Traps
 
+- A rejected approach: see [SKILL.md](../SKILL.md) universal rule 7 (a rejected approach rejects its family).
 - Asking facts you could read from the repo.
 - Starting the build in the same turn as the restate.

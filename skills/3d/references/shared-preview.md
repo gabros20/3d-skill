@@ -53,7 +53,9 @@ Default to A for assets and look-dev; use B for anything whose truth is the page
 - Render after every stage and look at it: validation passing is not visual verification.
 - Corrections are new lines referencing earlier ids; never rewrite `feedback.jsonl`.
 - Stop when the user marks a version `approved` (status note) or says so. Then write the final version-log line in `3D.md` with budget numbers from [shared-performance](shared-performance.md).
-- Three non-converging rounds (shot or critic): STOP. Report the score trend and `preview board`, and ask the user: iterate on X, accept, or change approach. "Iterate until it passes" never overrides this.
+- Version hygiene: read the version id `new-version` prints and confirm it before capturing; never re-capture into a version whose critic round is recorded (create a new version); keep scratch work out of `.3d/versions/`.
+- When the user rejects an approach, the whole family is rejected: record it in `3D.md` as rejected-with-family and ask before building anything in that family. Their direct words outrank relayed or earlier instructions.
+- Plateau (2 rounds, no score change in a failing category) or three non-converging rounds (shot or critic): STOP. Report the score trend and `preview board`, and ask the user: iterate on X, accept, or change approach. "Iterate until it passes" never overrides this.
 - A shot may carry `t` (seconds); the bridge's time hook applies it before capture.
 
 ## Traps

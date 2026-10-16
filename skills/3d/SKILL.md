@@ -134,7 +134,10 @@ project. Never run them from the skill directory.
    `glb-report` or a measurement of that exact claim; say what could not be measured.
 6. **One canonical home.** Decisions, budgets, colour policy and scroll owner live in `3D.md`;
    read them there and never keep a second copy.
-7. **Adjacent skills are recommended, never invoked**: `scroll-animation`, `fluid-design`,
+7. **The brief's core is binding.** Never offer or build an option that drops it. A rejected
+   approach rejects its whole family; the user's direct words outrank relayed or earlier
+   instructions.
+8. **Adjacent skills are recommended, never invoked**: `scroll-animation`, `fluid-design`,
    `generate-image`, `generate-video`, `manufacturing-workflow`, `frontend`.
 
 ## Core workflow

@@ -78,6 +78,12 @@ Focal length is only reliable as a class (`focal_class` table in [refspec](refsp
 
 **Fitting geometry to a still**: overlay your capture on the reference and run `<skill>/scripts/preview diff --edges` (compares structure only, independent of lighting); adjust until edges coincide.
 
+## Consistency and fitting
+
+1. **Consistency check first.** Test whether the reference is physically consistent: vanishing points agree, perspective is plausible, lighting is coherent. AI-generated references often are not. If it fails, tell the user and agree a stylised target before fitting; never add fudge parameters to chase impossible perspective, the scene turns fragile.
+2. **Fit geometry to measured anchors** (edge and tip positions), checked with `<skill>/scripts/preview diff --edges`. Never fit to colour masks (spacing collapses, neighbours merge). Look at every fit.
+3. **Motion is geometry.** Track edges on several elements, plus `ref-extract --regions --kymo`. Moving highlights and luminance edges are not geometric motion and inflate sway.
+
 ## Several references
 
 - Give each an `id`, `role` and `weight` 0-1. The merged spec is built by field ownership: each top-level field comes from exactly one owner, others stay as `alt`. Defaults: composition and camera from the primary; light and colour from the `light`/`palette` reference else the primary; materials from `material` else primary; motion from the video, never a still.

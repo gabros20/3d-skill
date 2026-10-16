@@ -6,11 +6,11 @@ the viewer is found relative to this script):
   preview serve [--dir .3d] [--port 4173] [--app DIR] [--allow-origin http://localhost:3000]
   preview new-version [--dir .3d] [--note "what changes"] [--snapshot PATH...]
   preview capture [--dir .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
-                  [--size WxH] [--end] [--clip SECONDS [--fps N]] [--headed] [--settle 120]
+                  [--size WxH] [--end] [--clip SECONDS [--fps N]] [--force] [--headed] [--settle 120]
   preview diff A B [--dir .3d] [--out DIR] [--edges]       A, B: image files or version ids
   preview feedback [--dir .3d] [--version vNNN] [--json]
   preview board [--dir .3d] [--version vNNN]
-  preview stop [--dir .3d]
+  preview stop [--dir .3d] [--port N]
   preview --selftest
 
 serve   Loopback-only static server. Viewer comes from the skill's assets/preview/,
@@ -58,7 +58,10 @@ board   Contact sheet of a version's evidence PNGs -> <dir>/boards/vNNN.png (+ v
         with shot order and the open notes). Labels via ffmpeg drawtext when this ffmpeg has
         it; otherwise shots are laid out in legend order, left-to-right, top-to-bottom.
 stop    Stops the server named in <dir>/preview.pid (written by `serve`: pid + port) and
-        removes the file. `serve` prints the pid and URL.
+        removes the file. `serve` prints the pid and URL. If the file is missing or stale it
+        finds the server by port (--port; else the last port in ./3D.md; else 4173): probes
+        /api/state, lists the listener with `lsof`, and stops it only if its command line is
+        `preview serve`; any other process is never touched.
 --selftest
         Quick in-process check of routes, MIME types, Host guard and POST rules. Exit 0/1.
 
@@ -495,22 +498,18 @@ def pid_alive(pid: int) -> bool:
     return bool(r.stdout.strip()) and not r.stdout.strip().startswith("Z")  # a zombie has exited
 
 
-def cmd_stop(a: argparse.Namespace) -> int:
-    pf = pid_path(Path(a.dir))
-    info = read_json(pf, None)
-    if not isinstance(info, dict) or not isinstance(info.get("pid"), int):
-        print(f"preview: no running server recorded in {pf}")
-        pf.unlink(missing_ok=True)
-        return 0
-    pid = info["pid"]
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        print(f"preview: pid {pid} was not running; removed stale {pf}")
-        pf.unlink(missing_ok=True)
-        return 0
-    except PermissionError:
-        die(f"cannot signal pid {pid} (not ours); left {pf} in place")
+def pid_command(pid: int) -> str:
+    r = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def is_preview_serve(pid: int) -> bool:
+    """True only for a `.../preview serve ...` process (guards against pid reuse and unrelated listeners)."""
+    parts = pid_command(pid).split()
+    return any(Path(x).name == "preview" for x in parts[:3]) and "serve" in parts
+
+
+def terminate(pid: int) -> bool:
     def wait_exit(seconds: float) -> bool:
         end = time.time() + seconds
         while time.time() < end:
@@ -519,16 +518,72 @@ def cmd_stop(a: argparse.Namespace) -> int:
             time.sleep(0.1)
         return not pid_alive(pid)
 
-    if not wait_exit(5.0):
-        print(f"preview: pid {pid} ignored SIGTERM for 5 s; sending SIGKILL", file=sys.stderr)
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        if not wait_exit(5.0):
-            die(f"pid {pid} did not exit after SIGKILL; left {pf} in place")
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True
+    if wait_exit(5.0):
+        return True
+    print(f"preview: pid {pid} ignored SIGTERM for 5 s; sending SIGKILL", file=sys.stderr)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True
+    return wait_exit(5.0)
+
+
+def guess_port(a: argparse.Namespace) -> int:
+    if a.port:
+        return a.port
+    md = Path("3D.md")
+    if md.is_file():
+        hits = re.findall(r"(?:127\.0\.0\.1|localhost):(\d{2,5})|preview serve[^\n]*--port[ =](\d{2,5})", md.read_text(encoding="utf-8", errors="replace"))
+        ports = [int(x or y) for x, y in hits]
+        if ports:
+            return ports[-1]
+    return 4173
+
+
+def probe_preview(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=2) as r:
+            data = json.loads(r.read())
+        return isinstance(data, dict) and {"versions", "shots", "feedback"} <= set(data)
+    except (OSError, ValueError):
+        return False
+
+
+def cmd_stop(a: argparse.Namespace) -> int:
+    pf = pid_path(Path(a.dir))
+    info = read_json(pf, None)
+    if isinstance(info, dict) and isinstance(info.get("pid"), int):
+        pid = info["pid"]
+        if pid_alive(pid) and is_preview_serve(pid):
+            if not terminate(pid):
+                die(f"pid {pid} did not exit after SIGKILL; left {pf} in place")
+            pf.unlink(missing_ok=True)
+            print(f"preview: stopped pid {pid} (port {info.get('port')})")
+            return 0
+        print(f"preview: {pf} is stale (pid {pid} is not a running `preview serve`); removing it and looking by port")
     pf.unlink(missing_ok=True)
-    print(f"preview: stopped pid {pid} (port {info.get('port')})")
+    # Recovery: pid file missing or stale. Find the server by port, confirm it is ours, then stop it.
+    port = guess_port(a)
+    if not probe_preview(port):
+        print(f"preview: no preview server answering on 127.0.0.1:{port} (use --port if it runs elsewhere)")
+        return 0
+    if not shutil.which("lsof"):
+        die(f"a preview server answers on port {port} but `lsof` is not available to find its pid; "
+            f"find it with `ps aux | grep 'preview serve'` and kill it yourself")
+    r = subprocess.run(["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"], capture_output=True, text=True)
+    pids = sorted({int(x) for x in r.stdout.split() if x.isdigit()})
+    mine = [p for p in pids if is_preview_serve(p)]
+    if not mine:
+        die(f"port {port} answers like a preview server but its listener ({pids or 'unknown pid'}) is not a "
+            f"`preview serve` process; not touching it")
+    for pid in mine:
+        if not terminate(pid):
+            die(f"pid {pid} did not exit after SIGKILL")
+        print(f"preview: stopped pid {pid} found by port {port} (no usable pid file)")
     return 0
 
 
@@ -726,6 +781,12 @@ def cmd_capture(a: argparse.Namespace) -> int:
         shots = [{"id": "default", "_default": True}]
         print(f"preview: no shots in {shots_path}; capturing one 'default' view", file=sys.stderr)
     out_dir = root / "evidence" / (version or "live")
+    if not a.force and out_dir.is_dir():
+        existing = sorted(p.name for p in out_dir.iterdir() if (("_clip" in p.name) if a.clip else (p.suffix == ".png")))
+        if existing:
+            die(f"{out_dir} already has {'clips' if a.clip else 'captures'} ({', '.join(existing[:3])}"
+                f"{'...' if len(existing) > 3 else ''}): create a new version (`preview new-version`) or pass --force "
+                f"to overwrite", 1)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     srv = None
@@ -1050,6 +1111,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for __3d.ready")
     s.add_argument("--clip", type=float, metavar="SECONDS", help="record a deterministic clip per shot: <id>_clip/frame_NNNN.png + <id>_clip.mp4")
     s.add_argument("--fps", type=int, help="clip frame rate (default: shots.json fps, else 30)")
+    s.add_argument("--force", action="store_true", help="overwrite existing captures (default: refuse; evidence belongs to one version)")
     s.add_argument("--end", action="store_true", help="also capture each shot's end pose (`to`) as <id>_end.png")
     s.add_argument("--headed", action="store_true", help="visible window instead of headless")
     s.set_defaults(fn=cmd_capture)
@@ -1067,8 +1129,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--version")
     s.set_defaults(fn=cmd_board)
 
-    s = sub.add_parser("stop", help="stop the server recorded in <dir>/preview.pid")
+    s = sub.add_parser("stop", help="stop the server in <dir>/preview.pid (falls back to a port lookup)")
     common(s)
+    s.add_argument("--port", type=int, help="fallback when the pid file is missing/stale (default: last port in ./3D.md, else 4173)")
     s.set_defaults(fn=cmd_stop)
 
     s = sub.add_parser("feedback", help="print notes grouped by version and shot")

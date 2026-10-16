@@ -42,6 +42,8 @@ Use `<skill>/assets/templates/brief.md`. Prose is the source of truth; every sec
 13. Acceptance tests (below)
 14. Assumptions, risks, Out of scope, decision log
 
+The brief's core (section 1 thesis and section 2 use) is binding: options, fallbacks and ladders never drop it. Changing it is a brief change the user must approve.
+
 ## Storyboard ladder
 
 Use the lowest fidelity that answers the open question: beat board (6-12 panels) → shot board → animatic (timed) → greybox previs with the real camera → techvis (lens, rig, path diagrams). For web, greybox previs is usually the right rung: build `shots.json` first and capture it ([shared-preview](shared-preview.md)).

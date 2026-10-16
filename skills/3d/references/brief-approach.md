@@ -55,16 +55,15 @@ Poster, reduced-motion frame and live first frame must match; the poster carries
 
 ## Recreating a reference
 
-At intake, ask whether the user has a **clean plate** (the reference without baked-in UI or animation) or source stills; an unused plate wastes rounds. Then try the cheapest faithful route first and change approach when lookdev plateaus (trigger: the plateau rule in [shared-verification](shared-verification.md)):
+The brief's core is binding: no option or fallback may drop it. A live-3D brief ("recreate in three.js") requires live geometry and its motion; plates, stills and videos are not deliverables for it. Ask at intake for source stills or a clean plate (the reference without baked-in UI or animation) to measure from.
 
-1. **Light-only animation over the untouched plate**: exact look; fits a static subject.
-2. **2D displacement warp of the plate** for small-amplitude motion: no separate geometry, nothing doubles; edges stretch slightly.
-3. **Camera-projection mapping** onto matching geometry, only with a clean plate (moving elements absent) or motion smaller than the geometry-fit error. A plate with the moving elements baked in fails: the baked copy stays and the moving geometry doubles. Paint out animated elements and render them live.
-4. **Rebuild geometry from the plate** (thickness, filleted edges, surface texture) with a contrasty studio environment for metals.
-5. **Baked lighting or lightmaps** for static looks that live light cannot reach.
-6. **Pre-rendered video**: [scroll-video](scroll-video.md) when interaction is not needed.
+Live-3D ladder, in order; change step when lookdev plateaus (rule in [shared-verification](shared-verification.md)):
+1. **Rebuild geometry from the reference** (thickness, filleted edges, surface texture) with a contrasty studio environment for metals.
+2. **Baked lighting or lightmaps** for static looks live light cannot reach.
 
-Record the switch and the reason in the `3D.md` decision log.
+Light-only animation over a plate, 2D displacement warps, projection mapping and pre-rendered video ([scroll-video](scroll-video.md)) drop the live-3D core. Offer them only as a **brief change**, worded as one ("this changes the deliverable from live 3D to a plate"), and only after the user agrees. Projection mapping, where the brief allows it, goes only onto geometry that stays locked or moves less than the plate-to-geometry fit error; never project baked moving elements (the baked copy stays and the moving geometry doubles).
+
+Rejected approaches: [SKILL.md](../SKILL.md) universal rule 7. Record each switch and its reason in the `3D.md` decision log.
 
 ## Stages
 

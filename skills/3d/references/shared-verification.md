@@ -73,11 +73,11 @@ Ship when every category ≥ 2 and the average ≥ 2.3. Automatic fail: placehol
 Validation passing is not visual verification: render after every stage and look at it.
 
 0. Measure first. Record the render like the reference: `<skill>/scripts/preview capture --clip SECONDS`, then `<skill>/scripts/ref-extract --regions N --kymo` on the clip, and compare with the reference's regions and motion numbers. Those numbers go to the critic as evidence; the critic does not re-estimate them.
-1. Every round the critic gets the SAME anchored rubric and the same reference frames, with per-category pass criteria derived from refspec measurements (e.g. motion period ±10 %, pulse speed ±15 %, sway amplitude ±15 %, luma p5/p50/p95 ±0.05), so verdicts do not contradict across rounds. After each iteration, hand the evidence PNGs, the measured numbers, the brief and the refspec to a FRESH reviewer context (a new subagent or a clean pass) that is NEVER told what was just fixed or which notes were addressed.
+1. From round 1, every round the critic gets the SAME anchored rubric and the same reference frames, with per-category pass criteria derived from refspec measurements (e.g. motion period ±10 %, pulse speed ±15 %, sway amplitude ±15 %, luma p5/p50/p95 ±0.05), so verdicts do not contradict across rounds. After each iteration, hand the evidence PNGs, the measured numbers, the brief and the refspec to a FRESH reviewer context (a new subagent or a clean pass) that is NEVER told what was just fixed or which notes were addressed.
 2. It lists defects and a scorecard; you fix only what it confirms against evidence.
 3. Record each round in the `3D.md` version log (round, critic verdict, defects found, fixed).
 4. A failing critic round is fixed as a NEW version and re-captured; only a version whose critic round passes is shown to the user.
-5. The loop is bounded: after 3 non-converging critic rounds stop, report the score trend and the board (`<skill>/scripts/preview board`), and ask the user (iterate on X / accept / change approach). Never loop silently past 3. A category stuck at score 1 for 3 rounds (a plateau) is an approach problem, not tuning: stop tuning and offer the change-of-approach options in [brief-approach](brief-approach.md).
+5. The loop is bounded. Hard cap: after 3 non-converging critic rounds stop, report the score trend and the board (`<skill>/scripts/preview board`), and ask the user (iterate on X / accept / change approach). Plateau: 2 rounds with no score change in a failing category is an approach problem, not tuning; stop and ask, offering the options in [brief-approach](brief-approach.md). Never loop silently.
 6. Iterate at low resolution (`--size 854x480`); judge the approval candidate at full resolution.
 
 ## Sign-off

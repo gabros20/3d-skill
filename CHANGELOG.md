@@ -12,6 +12,31 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-16
+
+Rules from the live test's post-mortem, so the skill blocks the mistakes that test made.
+
+### Changed
+- The brief's core is binding (SKILL.md universal rule 7): no option, fallback or ladder step may drop
+  it. For a live-3D "recreate a reference" brief the ladder is rebuild geometry + contrasty studio
+  environment → baked lighting; plate, light-only, warp and pre-rendered routes appear only as an
+  explicit brief change the user approves.
+- A rejected approach rejects its whole family, and the user's direct words outrank relayed or earlier
+  instructions; rejections are recorded in `3D.md`.
+- Projection mapping only onto locked geometry or motion smaller than the plate-to-geometry fit error.
+- Intake checks whether a reference is physically consistent (AI-generated references often are not)
+  and agrees a stylised target when it isn't; geometry is fitted to measured anchors plus
+  `preview diff --edges`, never to colour masks; motion is measured as geometry, not highlights.
+- Plateau = 2 rounds with no score change in a failing category → stop and ask; the anchored rubric
+  applies from round 1.
+- Look-dev: bloom only on emissive sources; tone curve settled against reference luma before material
+  work; contrasty environments for polished metals; no fog that hides geometry.
+
+### Fixed
+- `preview capture` (and `--clip`) refuses to overwrite an evaluated version's evidence unless `--force`.
+- `preview stop` recovers a server whose pid file is missing or stale (by port, verified as
+  `preview serve`), and never kills an unrelated process.
+
 ## [0.3.1] — 2026-10-16
 
 ### Fixed

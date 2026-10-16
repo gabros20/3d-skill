@@ -362,13 +362,99 @@ class ServeStopTests(unittest.TestCase):
             proc.stderr.close()
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def _start_serve(self, tmp: Path):
+        import time
+        with socket.socket() as sk:
+            sk.bind(("127.0.0.1", 0))
+            port = sk.getsockname()[1]
+        proc = subprocess.Popen([sys.executable, str(PREVIEW), "serve", "--port", str(port)], cwd=tmp,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        for _ in range(300):
+            try:
+                if http(f"http://127.0.0.1:{port}/api/state").status == 200:
+                    break
+            except OSError:
+                time.sleep(0.1)
+        return proc, port
+
+    def _reap(self, *procs):
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+            p.wait()
+            for f in (p.stdout, p.stderr):
+                if f:
+                    f.close()
+
+    @unittest.skipUnless(shutil.which("lsof"), "lsof not installed")
+    def test_stop_recovers_without_pid_file(self):
+        tmp = Path(tempfile.mkdtemp())
+        proc, port = self._start_serve(tmp)
+        try:
+            (tmp / ".3d" / "preview.pid").unlink()
+            r = cli("stop", "--port", str(port), cwd=tmp, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("found by port", r.stdout)
+            proc.wait(timeout=30)
+            # same via a stale pid file and a port named in 3D.md instead of --port
+            proc2, port2 = self._start_serve(tmp)
+            (tmp / ".3d" / "preview.pid").write_text(json.dumps({"pid": 999999, "port": port2}))
+            (tmp / "3D.md").write_text(f"preview at http://127.0.0.1:{port2}/\n")
+            r = cli("stop", cwd=tmp, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("stale", r.stdout)
+            proc2.wait(timeout=30)
+            self._reap(proc2)
+        finally:
+            self._reap(proc)
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    @unittest.skipUnless(shutil.which("lsof"), "lsof not installed")
+    def test_stop_never_kills_unrelated_processes(self):
+        tmp = Path(tempfile.mkdtemp())
+        with socket.socket() as sk:
+            sk.bind(("127.0.0.1", 0))
+            port = sk.getsockname()[1]
+        impostor_src = (
+            "import http.server, json, sys\n"
+            "class H(http.server.BaseHTTPRequestHandler):\n"
+            "    def do_GET(self):\n"
+            "        b = json.dumps({'versions': [], 'shots': [], 'feedback': []}).encode()\n"
+            "        self.send_response(200); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)\n"
+            "    def log_message(self, *a): pass\n"
+            f"http.server.HTTPServer(('127.0.0.1', {port}), H).serve_forever()\n")
+        impostor = subprocess.Popen([sys.executable, "-c", impostor_src])
+        sleeper = subprocess.Popen(["sleep", "60"])
+        try:
+            import time
+            for _ in range(100):
+                try:
+                    urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=1)
+                    break
+                except OSError:
+                    time.sleep(0.1)
+            r = cli("stop", "--port", str(port), cwd=tmp, timeout=60)  # looks like a preview server, is not
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("not touching it", r.stderr)
+            self.assertIsNone(impostor.poll())
+            # stale pid file pointing at a live unrelated process (pid reuse): left alone, file removed
+            (tmp / ".3d").mkdir(exist_ok=True)
+            (tmp / ".3d" / "preview.pid").write_text(json.dumps({"pid": sleeper.pid, "port": 1}))
+            r = cli("stop", "--port", "1", cwd=tmp, timeout=60)
+            self.assertEqual(r.returncode, 0)
+            self.assertIsNone(sleeper.poll())
+            self.assertFalse((tmp / ".3d" / "preview.pid").exists())
+        finally:
+            self._reap(impostor, sleeper)
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_stop_without_server_and_stale_pid(self):
         tmp = Path(tempfile.mkdtemp())
         try:
-            self.assertEqual(cli("stop", cwd=tmp).returncode, 0)
+            self.assertEqual(cli("stop", "--port", "1", cwd=tmp).returncode, 0)
             (tmp / ".3d").mkdir()
             (tmp / ".3d" / "preview.pid").write_text(json.dumps({"pid": 999999, "port": 1}))
-            r = cli("stop", cwd=tmp)
+            r = cli("stop", "--port", "1", cwd=tmp)
             self.assertEqual(r.returncode, 0)
             self.assertFalse((tmp / ".3d" / "preview.pid").exists())
         finally:
@@ -736,7 +822,7 @@ class CaptureTests(unittest.TestCase):
         frames = self.tmp / ".3d" / "evidence" / "v001" / "S01_clip"
         runs = []
         for _ in range(2):
-            r = cli("capture", "--clip", "1", "--size", "320x180", cwd=self.tmp, timeout=240)
+            r = cli("capture", "--clip", "1", "--size", "320x180", "--force", cwd=self.tmp, timeout=240)
             self.assertEqual(r.returncode, 0, r.stdout[-1200:] + r.stderr)
             entry = json.loads(r.stdout)["shots"][0]
             self.assertEqual((entry["id"], entry["frames"], entry["fps"]), ("S01_clip", 8, 8))
@@ -751,6 +837,28 @@ class CaptureTests(unittest.TestCase):
                                   "stream=nb_read_frames,r_frame_rate", "-of", "json", str(mp4)], capture_output=True, text=True).stdout
             st = json.loads(out)["streams"][0]
             self.assertEqual((st["nb_read_frames"], st["r_frame_rate"]), ("8", "8/1"))
+
+    def test_capture_refuses_to_overwrite_evidence(self):
+        cli("new-version", cwd=self.tmp)
+        (self.tmp / ".3d" / "versions" / "v001" / "cube.glb").write_bytes(cube_glb())
+        (self.tmp / ".3d" / "shots.json").write_text(json.dumps({"shots": [{"id": "S01", "position": [2, 1, 3], "target": [0, 0, 0], "fov": 35}]}))
+        args = ("capture", "--size", "320x180", "--settle", "3")
+        self.assertEqual(cli(*args, cwd=self.tmp, timeout=180).returncode, 0)
+        shot = self.tmp / ".3d" / "evidence" / "v001" / "S01.png"
+        before = shot.stat().st_mtime_ns
+        r = cli(*args, cwd=self.tmp, timeout=180)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--force", r.stderr)
+        self.assertIn("new version", r.stderr)
+        self.assertEqual(shot.stat().st_mtime_ns, before)
+        self.assertEqual(cli(*args, "--force", cwd=self.tmp, timeout=180).returncode, 0)
+        self.assertGreater(shot.stat().st_mtime_ns, before)
+        # clips are guarded separately: stills do not block the first clip, the second clip is refused
+        clip = ("capture", "--clip", "0.25", "--fps", "4", "--size", "320x180")
+        self.assertEqual(cli(*clip, cwd=self.tmp, timeout=180).returncode, 0)
+        r = cli(*clip, cwd=self.tmp, timeout=180)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--force", r.stderr)
 
     def test_capture_clip_bad_seconds(self):
         cli("new-version", cwd=self.tmp)
