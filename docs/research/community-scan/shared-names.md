@@ -1,0 +1,31 @@
+- skills-sh: CloudAI-X/threejs-skills — 10 three.js skills, 3.6K stars, 11-18K installs each (top by installs)
+- skills-sh: dgreenheck/webgpu-claude-skill@webgpu-threejs-tsl — WebGPU+TSL, 1.2K stars (mirrored by JetBrains/skills)
+- skills-sh: linegel/threejs-complete-set-of-skill — WebGPU/TSL skill set, router + visual-validation, 10 stars
+- skills-sh: EnzeD/r3f-skills — R3F Fiber 9/React 19 aware, ~1.8K installs/skill
+- skills-sh: MengTo/Skills@build-threejs-scroll-worlds — scroll-driven 3D worlds, 6.8K stars
+- skills-sh: czlonkowski/blender-web-3d-skill@blender-web-3d — Blender-to-Next.js/Three pipeline, 4 installs, very new
+- skills-sh: vladmdgolam/agent-skills@blender-mcp — blender-mcp usage + glTF export gotchas, 2.2K installs
+- skills-sh: RobLe3/cc-blender-skill — Blender MCP orchestrator + domain skills, ~1K installs each
+- skills-sh: millionco/react-doctor@improve-threejs — R3F audit/perf skill, 15K-star repo
+- skills-sh: skinnye/3d-web-pack@optimize-3d-assets — gltf-transform/gltfjsx pipeline (tiny repo)
+- skills-sh: earthtojake/text-to-cad@cad — parametric CAD + GLB export, 20.8K stars
+- skills-sh: scenario-labs/skills@scenario-blender-expert — Blender router, 5.2.1-tested scripts
+- x: CloudAI-X/threejs-skills (X: cloudxdev thread, Jan 2026; tom_doerr repost)
+- x: majidmanzarpour/threejs-game-skills — 9 game skills, 2.5K stars, active to Sep 2026
+- x: MengTo/Skills (web-design/build-threejs-scroll-worlds, threejs, optimize-threejs-games) — 6.8K stars
+- x: img2threejs/img2threejs — 18K stars, SKILL.md image->procedural three.js
+- x: scenario-labs/skills (dcc/blender/*) + scenario-labs/blender-plugin (MCP, GPL) — 352 stars, Oct 2026
+- x: SkylarKitchen/skills@3d-assembly-manual — 3D build guides
+- x: ahujasid/blender-mcp (MCP, 31K stars) — referenced in Mnilax list
+- github: scottstts/Threejs-Awesome-Graphics-Agent-Skills — 24 three.js graphics skills (bloom, procedural materials, image pipeline), MIT, 913 stars, created Jun 2026
+- github: OpenAEC-Foundation/Three.js-Claude-Skill-Package — 24 deterministic three.js r160+ skills incl R3F/drei/WebGPU, MIT, 21 stars
+- github: freshtechbro/claudedesignskills — 24 web-3D skills (r3f, threejs-webgl, blender-web-pipeline, spline), MIT, 1K stars, stale since Nov 2025, GSAP-heavy
+- github: vercel-labs/json-render@react-three-fiber — R3F catalog skill for json-render (vendor)
+- github: openai/plugins@react-three-fiber-game — game-studio R3F skill (OpenAI)
+- github: AThevon/genjutsu@threejs-r3f — creative-coding pack with R3F skill, 495 stars
+- github: sickn33/agentic-awesome-skills@3d-web-experience,premium-3d-website — web 3D/Spline/R3F + premium site skills in 47K-star mega-registry
+- github: EL4CTEO/blender-skills — 20 Blender 5.x skills (core, export pipelines, asset-qa), MIT, 43 stars, 2 days old
+- github: arjun988/blender-skills — 94 Blender skills + director router, 315 stars
+- github: jangtrinh/design-os-3d-blender — Blender 5.2 bpy KB + img2threejs, 96 stars
+- github: NousResearch/hermes-agent@optional-skills/creative/blender-mcp — blender-mcp companion skill, Tessl 78%
+- github: QwenLM/Qwen-MM-Plugins@blender — Blender skill+MCP, Apache-2.0, 3.1K stars

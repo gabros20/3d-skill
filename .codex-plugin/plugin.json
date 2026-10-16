@@ -1,7 +1,7 @@
 {
   "name": "3d-skill",
-  "version": "1.0.0",
-  "description": "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents.",
+  "version": "0.1.0",
+  "description": "Plan, build, preview and iterate production 3D for the web and Blender: references to spec to brief to build, with versioned previews.",
   "author": {
     "name": "gabros20",
     "url": "https://github.com/gabros20"
@@ -9,18 +9,21 @@
   "homepage": "https://3d-skill.vercel.app",
   "repository": "https://github.com/gabros20/3d-skill",
   "license": "MIT",
-  "keywords": ["agent-skill", "3d"],
+  "keywords": ["agent-skill", "3d", "threejs", "react-three-fiber", "blender", "glb", "scroll-3d", "shaders"],
   "skills": "./skills/",
   "interface": {
     "displayName": "3D",
-    "shortDescription": "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents.",
-    "longDescription": "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents.",
+    "shortDescription": "Plan, build, preview and iterate web 3D and Blender",
+    "longDescription": "Turn a request and reference images or video into a measured spec, brief and shot list, then build three.js/R3F scenes, shaders, scroll-driven 3D, GLB pipelines and Blender assets, with versioned previews you review and iterate on.",
     "developerName": "gabros20",
     "category": "Productivity",
     "capabilities": [],
+    "websiteURL": "https://3d-skill.vercel.app",
     "defaultPrompt": [
-      "Use $3d to TODO: provide one short starter request."
+      "Use $3d to plan and build a scroll-driven 3D hero for my homepage from these references.",
+      "Use $3d to optimize this GLB for the web and report the budget.",
+      "Use $3d to build a Blender product turntable and export a web-ready GLB."
     ],
-    "brandColor": "#0e7c86"
+    "brandColor": "#4d7c0f"
   }
 }

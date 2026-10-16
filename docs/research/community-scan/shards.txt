@@ -1,0 +1,9 @@
+threejs skill SKILL.md
+topic:claude-skills threejs
+topic:agent-skills three.js
+react-three-fiber skill claude
+blender mcp
+topic:blender topic:mcp
+bpy claude skill
+webgpu tsl skill
+3d agent skill SKILL.md
