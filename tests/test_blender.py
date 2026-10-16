@@ -127,6 +127,45 @@ bpy.ops.wm.save_as_mainfile(filepath=%r)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertNotEqual((out / "A.png").read_bytes(), (out / "B.png").read_bytes())
 
+    def test_render_shots_cycles_twin(self):
+        """--import GLB + --world HDR renders under Cycles; the GLB light survives the round trip."""
+        mk = self.tmp / "mk_twin.py"
+        glb, hdr = self.tmp / "twin.glb", self.tmp / "env.hdr"
+        mk.write_text("""
+import bpy
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 1))
+d = bpy.data.lights.new("Pt", "POINT"); d.energy = 1000
+o = bpy.data.objects.new("Pt", d); o.location = (3, -3, 4)
+bpy.context.scene.collection.objects.link(o)
+bpy.ops.export_scene.gltf(filepath=%r, export_lights=True)
+img = bpy.data.images.new("e", 64, 32, float_buffer=True)
+img.pixels = [0.6] * (64 * 32 * 4)
+img.filepath_raw = %r
+img.file_format = "HDR"
+img.save()
+""" % (str(glb), str(hdr)))
+        self.bl(None, "--python", str(mk))
+        self.assertTrue(glb.exists() and hdr.exists())
+        shots = self.tmp / "twin_shots.json"
+        shots.write_text(json.dumps({"schema": "shots.v1", "aspect": "16:9", "fps": 30, "shots": [
+            {"id": "T1", "fov": 35, "position": [5, 3, 7], "target": [0, 1, 0]}]}))
+        out = self.tmp / "twin"
+        r = self.bl(None, "--python", str(BPY / "render_shots.py"), "--", "--shots", str(shots), "--out",
+                    str(out), "--engine", "cycles", "--samples", "4", "--res", "128", "--import", str(glb),
+                    "--world", str(hdr), "--world-strength", "0.5")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        res = last_json(r.stdout)
+        self.assertEqual(res["engine"], "CYCLES")
+        png = (out / "T1.png").read_bytes()
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertGreater(len(png), 1500)  # not a blank frame
+
+    def test_render_shots_missing_import_exit_2(self):
+        r = self.bl(None, "--python", str(BPY / "render_shots.py"), "--", "--shots", str(SHOTS), "--out",
+                    str(self.tmp / "x"), "--import", str(self.tmp / "nope.glb"))
+        self.assertEqual(r.returncode, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

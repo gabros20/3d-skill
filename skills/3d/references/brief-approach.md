@@ -18,7 +18,7 @@ Produces:
 
 ## Contents
 
-- Decision rule · Matrix · Fallback ladder · Recreating a reference · Stages · Adjacent skills · Traps
+- Decision rule · Matrix · Fallback ladder · Feasibility gate · Recreating a reference · Stages · Adjacent skills · Traps
 
 ## Decision rule
 
@@ -32,7 +32,7 @@ Pre-render when the viewer does not drive the camera or state AND device or weig
 | HERO simple, VIDEO loop | Pre-rendered WebM/MP4 (or frame sequence) from Blender, poster image | no interaction, photoreal wanted, zero GPU risk | [blender-lookdev-render](blender-lookdev-render.md), [blender-channels](blender-channels.md), [shared-performance](shared-performance.md) (weight) |
 | SCROLL world | Real-time scene driven by normalised scroll progress; camera path from `shots.json` | camera freedom, interactivity, copy synced to state | [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md), [threejs-r3f-next](threejs-r3f-next.md) or [threejs-renderer](threejs-renderer.md) |
 | SCROLL scrub | Pre-rendered frames or keyframe-dense video scrubbed by progress | photoreal, no interaction, mobile risk | [blender-lookdev-render](blender-lookdev-render.md), [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md) |
-| PROD stills, turntable | Offline Blender render, comp tweaks | highest fidelity, no runtime budget | [blender-lookdev-render](blender-lookdev-render.md), [blender-modeling](blender-modeling.md) |
+| PROD stills, turntable | Offline Blender render, comp tweaks | highest fidelity, no runtime budget | [blender-lookdev-render](blender-lookdev-render.md), [blender-modeling](blender-modeling.md); in-browser path-traced stills (T18, refine-when-idle only inside a live-3D brief) in [realism-toolbox](realism-toolbox.md) |
 | Spline | Spline scene or `@splinetool/react-spline` embed | designer-owned, non-engineer editable, fast prototype | [spline](spline.md) |
 | SPLAT | Gaussian-splat viewer (capture, clean, compress) | a real place or object captured from photos or video | [splats-xr](splats-xr.md) |
 | AR | GLB plus USDZ (Quick Look) or WebXR | try-in-space on phones | [splats-xr](splats-xr.md), [asset-pipeline](asset-pipeline.md) (AR budget in [shared-performance](shared-performance.md)) |
@@ -53,13 +53,15 @@ State it in the brief, top to bottom, and give the trigger for each step:
 
 Poster, reduced-motion frame and live first frame must match; the poster carries first paint.
 
+## Feasibility gate
+
+When the brief matches a reference or asks for realism, run the gate in [realism-gate](realism-gate.md) before building: it sets the achievable ceiling per category, the ship bar and the planned techniques, states them to the user, and writes `.3d/feasibility.json`. Re-run it when pipeline, target tier, dynamics or the reference changes. A stylised brief with no reference skips it.
+
 ## Recreating a reference
 
 The brief's core is binding: no option or fallback may drop it. A live-3D brief ("recreate in three.js") requires live geometry and its motion; plates, stills and videos are not deliverables for it. Ask at intake for source stills or a clean plate (the reference without baked-in UI or animation) to measure from.
 
-Live-3D ladder, in order; change step when lookdev plateaus (rule in [shared-verification](shared-verification.md)):
-1. **Rebuild geometry from the reference** (thickness, filleted edges, surface texture) with a contrasty studio environment for metals.
-2. **Baked lighting or lightmaps** for static looks live light cannot reach.
+Live-3D directions (rebuild geometry, studio environment, lighting, texture, shadow, bloom, grain, GLSL, baked lighting) come from the direction menu in [realism-toolbox](realism-toolbox.md), chosen by the feasibility gate; change direction when lookdev plateaus (rule in [shared-verification](shared-verification.md)).
 
 Light-only animation over a plate, 2D displacement warps, projection mapping and pre-rendered video ([scroll-video](scroll-video.md)) drop the live-3D core. Offer them only as a **brief change**, worded as one ("this changes the deliverable from live 3D to a plate"), and only after the user agrees. Projection mapping, where the brief allows it, goes only onto geometry that stays locked or moves less than the plate-to-geometry fit error; never project baked moving elements (the baked copy stays and the moving geometry doubles).
 

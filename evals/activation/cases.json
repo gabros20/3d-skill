@@ -1,25 +1,122 @@
 [
-  {"id": "explicit-scroll-hero", "prompt": "/3d build a scroll-driven 3D hero for the homepage: the chip assembles as you scroll through four chapters.", "should_trigger": true},
-  {"id": "codex-explicit-reference", "prompt": "$3d make the product viewer look like this screenshot (attached) and keep it under budget on mobile.", "should_trigger": true},
-  {"id": "implicit-make-it-look-like", "prompt": "Here's a 12-second reference clip from a product launch. Make our landing page 3D scene feel like this: same camera move, same lighting mood.", "should_trigger": true},
-  {"id": "r3f-black-scene", "prompt": "My React Three Fiber scene renders completely black after upgrading three to r186. Metals are black too. What's wrong?", "should_trigger": true},
-  {"id": "optimize-glb", "prompt": "This GLB is 24 MB and takes forever to load. Optimize it for the web without wrecking the geometry.", "should_trigger": true},
-  {"id": "blender-export-flat", "prompt": "I exported my model from Blender as glTF and in three.js it looks flat and the materials are gone.", "should_trigger": true},
-  {"id": "blender-turntable", "prompt": "Render a seamless 6-second turntable of hero.blend for the pricing page, with a matching poster frame.", "should_trigger": true},
-  {"id": "tsl-particles", "prompt": "I want 200k GPU particles that swirl around the logo using TSL compute on WebGPU, with a WebGL fallback.", "should_trigger": true},
-  {"id": "next-canvas-ssr", "prompt": "Adding <Canvas> to my Next.js App Router page throws 'ssr: false is not allowed with next/dynamic in Server Components'.", "should_trigger": true},
-  {"id": "spline-vs-r3f", "prompt": "Our designer built the hero in Spline. Should we embed the Spline scene or rebuild it in R3F so it can follow page scroll?", "should_trigger": true},
-  {"id": "gaussian-splat", "prompt": "We captured the showroom as a Gaussian splat (.spz, 80 MB). Put it on the site as a walk-through and add 'view in AR' for the chair.", "should_trigger": true},
-  {"id": "generative-mesh", "prompt": "We need a stylised ceramic vase as a hero object and nobody can model. Can we use Meshy or Tripo and clean it up?", "should_trigger": true},
-  {"id": "pin-snaps", "prompt": "The pinned 3D scene holds the first camera position the whole way down, then snaps to the last chapter at the bottom.", "should_trigger": true},
-  {"id": "near-miss-2d-reveal", "prompt": "Fade the feature cards in with a stagger as they scroll into view, and pin the testimonial section for one screen.", "should_trigger": false},
-  {"id": "near-miss-image-gen", "prompt": "Generate a photoreal hero image of a glowing chip on a dark background for the blog header.", "should_trigger": false},
-  {"id": "near-miss-video-gen", "prompt": "Generate a 5-second cinematic video clip of a city at night for our social post.", "should_trigger": false},
-  {"id": "near-miss-css-card-flip", "prompt": "Make the pricing cards flip in 3D on hover with CSS transform: rotateY and perspective.", "should_trigger": false},
-  {"id": "near-miss-cad-print", "prompt": "Design a wall bracket for a 30 mm pipe, check tolerances and send it to my Bambu printer.", "should_trigger": false},
-  {"id": "near-miss-unity", "prompt": "In Unity, my character controller falls through the terrain collider when jumping. How do I fix it?", "should_trigger": false},
-  {"id": "near-miss-fluid-layout", "prompt": "Make the homepage sections scale with the viewport so desktop stays a proportional copy of the Figma frame.", "should_trigger": false},
-  {"id": "near-miss-d3-chart", "prompt": "Build a 3D-looking bar chart of quarterly revenue for the investor dashboard.", "should_trigger": false},
-  {"id": "near-miss-lottie", "prompt": "Add the Lottie animation from the designer to the onboarding screen and loop it.", "should_trigger": false},
-  {"id": "near-miss-ui-hover", "prompt": "Give the nav buttons a springy press animation and a subtle shadow on hover.", "should_trigger": false}
+  {
+    "id": "explicit-scroll-hero",
+    "prompt": "/3d build a scroll-driven 3D hero for the homepage: the chip assembles as you scroll through four chapters.",
+    "should_trigger": true
+  },
+  {
+    "id": "codex-explicit-reference",
+    "prompt": "$3d make the product viewer look like this screenshot (attached) and keep it under budget on mobile.",
+    "should_trigger": true
+  },
+  {
+    "id": "implicit-make-it-look-like",
+    "prompt": "Here's a 12-second reference clip from a product launch. Make our landing page 3D scene feel like this: same camera move, same lighting mood.",
+    "should_trigger": true
+  },
+  {
+    "id": "r3f-black-scene",
+    "prompt": "My React Three Fiber scene renders completely black after upgrading three to r186. Metals are black too. What's wrong?",
+    "should_trigger": true
+  },
+  {
+    "id": "optimize-glb",
+    "prompt": "This GLB is 24 MB and takes forever to load. Optimize it for the web without wrecking the geometry.",
+    "should_trigger": true
+  },
+  {
+    "id": "blender-export-flat",
+    "prompt": "I exported my model from Blender as glTF and in three.js it looks flat and the materials are gone.",
+    "should_trigger": true
+  },
+  {
+    "id": "blender-turntable",
+    "prompt": "Render a seamless 6-second turntable of hero.blend for the pricing page, with a matching poster frame.",
+    "should_trigger": true
+  },
+  {
+    "id": "tsl-particles",
+    "prompt": "I want 200k GPU particles that swirl around the logo using TSL compute on WebGPU, with a WebGL fallback.",
+    "should_trigger": true
+  },
+  {
+    "id": "next-canvas-ssr",
+    "prompt": "Adding <Canvas> to my Next.js App Router page throws 'ssr: false is not allowed with next/dynamic in Server Components'.",
+    "should_trigger": true
+  },
+  {
+    "id": "spline-vs-r3f",
+    "prompt": "Our designer built the hero in Spline. Should we embed the Spline scene or rebuild it in R3F so it can follow page scroll?",
+    "should_trigger": true
+  },
+  {
+    "id": "gaussian-splat",
+    "prompt": "We captured the showroom as a Gaussian splat (.spz, 80 MB). Put it on the site as a walk-through and add 'view in AR' for the chair.",
+    "should_trigger": true
+  },
+  {
+    "id": "generative-mesh",
+    "prompt": "We need a stylised ceramic vase as a hero object and nobody can model. Can we use Meshy or Tripo and clean it up?",
+    "should_trigger": true
+  },
+  {
+    "id": "pin-snaps",
+    "prompt": "The pinned 3D scene holds the first camera position the whole way down, then snaps to the last chapter at the bottom.",
+    "should_trigger": true
+  },
+  {
+    "id": "near-miss-2d-reveal",
+    "prompt": "Fade the feature cards in with a stagger as they scroll into view, and pin the testimonial section for one screen.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-image-gen",
+    "prompt": "Generate a photoreal hero image of a glowing chip on a dark background for the blog header.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-video-gen",
+    "prompt": "Generate a 5-second cinematic video clip of a city at night for our social post.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-css-card-flip",
+    "prompt": "Make the pricing cards flip in 3D on hover with CSS transform: rotateY and perspective.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-cad-print",
+    "prompt": "Design a wall bracket for a 30 mm pipe, check tolerances and send it to my Bambu printer.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-unity",
+    "prompt": "In Unity, my character controller falls through the terrain collider when jumping. How do I fix it?",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-fluid-layout",
+    "prompt": "Make the homepage sections scale with the viewport so desktop stays a proportional copy of the Figma frame.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-d3-chart",
+    "prompt": "Build a 3D-looking bar chart of quarterly revenue for the investor dashboard.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-lottie",
+    "prompt": "Add the Lottie animation from the designer to the onboarding screen and loop it.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-ui-hover",
+    "prompt": "Give the nav buttons a springy press animation and a subtle shadow on hover.",
+    "should_trigger": false
+  },
+  {
+    "id": "three-limit-question",
+    "prompt": "What can three.js not do that Cycles can, for this render?",
+    "should_trigger": true
+  }
 ]

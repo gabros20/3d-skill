@@ -4,11 +4,15 @@
 Usage (invoke by path with the project root as cwd; defaults like .3d resolve against cwd,
 the viewer is found relative to this script):
   preview serve [--dir .3d] [--port 4173] [--app DIR] [--allow-origin http://localhost:3000]
-  preview new-version [--dir .3d] [--note "what changes"] [--snapshot PATH...]
+  preview new-version [--dir .3d] [--note "what changes"] [--technique T1,T8] [--snapshot PATH...]
   preview capture [--dir .3d] [--version vNNN] [--url URL] [--shots .3d/shots.json]
-                  [--size WxH] [--end] [--clip SECONDS [--fps N]] [--force] [--headed] [--settle 120]
+                  [--size WxH] [--end] [--clip SECONDS [--fps N]] [--pathtrace [--samples N]] [--shot ID] [--force] [--headed] [--settle 120]
   preview diff A B [--dir .3d] [--out DIR] [--edges]       A, B: image files or version ids
   preview feedback [--dir .3d] [--version vNNN] [--json]
+  preview match [--dir .3d] [--version vNNN] --ref IMAGE|DIR [--json]
+  preview sweep --param name=a,b,c [--param ...] [--shot ID] [--ref IMAGE|DIR] [--url URL] [--force]
+  preview compare A B [--stack v|h] [--loops N] [--shot ID] [--out FILE]
+  preview rounds [--dir .3d] [--json]
   preview board [--dir .3d] [--version vNNN]
   preview stop [--dir .3d] [--port N]
   preview --selftest
@@ -38,6 +42,12 @@ capture Drives the user's installed Chrome through Playwright (python, channel="
           (via __3d.setTime, camera moving along `to` over the clip) with fixed-dt stepping, never the
           wall clock; writes <dir>/evidence/vNNN/<shot>_clip/frame_NNNN.png and <shot>_clip.mp4
           (ffmpeg, H.264) so `ref-extract --regions/--kymo` measures it like a reference video.
+          --pathtrace [--samples 256] [--shot ID] renders a path-traced "twin" of each shot (WebGPU, the
+          three-gpu-pathtracer pinned on jsDelivr, same GLB/camera/tone/env as the live view; default
+          size 854x480) to <shot>_pt.png and reports samples, seconds and the GPU adapter. Headless
+          Chrome on macOS arm64 exposes WebGPU (Metal) with default flags. Without WebGPU it exits 1
+          and names the Cycles fallback (render_shots --import). KTX2/Draco-only materials and
+          non-Standard/Physical materials are not supported by the tracer.
           Chrome GL flag sets tried in order until a non-software renderer appears
           (verified on macOS arm64, Chrome 155 + Playwright 1.60: headless "default"
           already gets the Metal GPU; the software set also works there):
@@ -54,6 +64,31 @@ diff    ffmpeg ssim + psnr as JSON on stdout; writes side-by-side, 50% blend and
 feedback
         Prints notes grouped by version and shot, with status.
 
+match   Per shot of a version's captures vs a reference (--ref IMAGE for all shots, or a DIR holding
+        <shot>.png, else frames paired with shots in order). Both images are scaled to 160x90.
+        Metrics: ssim, edge_ssim (edgedetect, as diff --edges), mask_iou (Otsu luma masks), luma_p5/p50/p95_err
+        (mean abs difference of the per-cell percentiles on a 4x4 grid, 0..1) and delta_e (CIE76 of the
+        per-cell mean Lab). Each is PASS/WARN/FAIL against tolerances: built-in defaults, overridden by
+        `match_tolerances` {metric:{pass,warn}} in feasibility.json, then `tolerances` in reference-spec.json.
+        One JSON on --json (also `score`, 0..1, for ranking). Exit 0, 1 when nothing could be scored.
+sweep   Renders every combination of --param name=a,b,c (values parsed as JSON else string; max 24) through
+        window.__3d.setParams for one shot (--shot, default the first), into <dir>/sweeps/vNNN/varNN.png,
+        plus sheet.png (labelled when this ffmpeg has drawtext) and rank.json. With --ref the variants
+        are ordered by match score. The viewer reacts to exposure, toneMapping, environment, envBackground,
+        turntable, roll_deg; a live app needs the bridge (readParams + installBridge({params, onParams})).
+compare Stacks two clips (files, or version ids with --shot) into <dir>/compare/A__B.mp4: B is scaled to
+        A's width (--stack v) or height (h); the shorter clip loops so both run for the longer duration;
+        --loops N repeats the pair.
+rounds  Reads <dir>/feasibility.json (ship_bar, budget), <dir>/rounds.jsonl (rounds.v1: round, version,
+        scores{category}, avg, defects[{id, category, label FIXABLE|CEILING|ARTEFACT, technique|feature|ref,
+        gain, pipeline_change?}], tokens_est?) and each version's manifest `techniques`. Prints the
+        verdict first: PASS S0 / STOP S1 nothing fixable, S2 plateau (last round: no failing category
+        rose and avg gain < 0.15; from round 3), S3 diminishing returns (open fixable gain < 0.5 or
+        needs a pipeline change), S4 budget (non-converging rounds >= budget.rounds, default 3, or
+        tokens_est sum >= budget.tokens) / CONTINUE. Also best version so far (flagged when the latest
+        avg is 0.15 below it), per-technique cap (a technique in 2 scored versions without its
+        category rising is tried out), open fixable items ranked by gain. --json for the full record.
+        Exit 0 for any verdict, 1 for malformed or missing input, 2 for usage.
 board   Contact sheet of a version's evidence PNGs -> <dir>/boards/vNNN.png (+ vNNN.json legend
         with shot order and the open notes). Labels via ffmpeg drawtext when this ffmpeg has
         it; otherwise shots are laid out in legend order, left-to-right, top-to-bottom.
@@ -98,6 +133,7 @@ from typing import Any
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 VIEWER_DIR = SKILL_ROOT / "assets" / "preview"
+TECH_RE = re.compile(r"^T\d{1,3}$")
 SHOT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 VERSION_RE = re.compile(r"^v(\d{3,})$")
 MAX_BODY = 20 * 1024 * 1024
@@ -624,6 +660,17 @@ def cmd_selftest(_: argparse.Namespace | None = None) -> int:
         srv.shutdown()
         srv.server_close()
         shutil.rmtree(tmp, ignore_errors=True)
+    feas, rows, techs = gold_rounds_fixture()
+    first_stop = next((n for n in range(1, len(rows) + 1) if rounds_verdict(feas, rows[:n], techs)["verdict"] != "continue"), None)
+    v4 = rounds_verdict(feas, rows[:4], techs)
+    check("rounds: gold case stops at R4 by S2", first_stop == 4 and v4["rule"] == "S2" and v4["best"]["version"] == "v008")
+    check("rounds: tried-out technique", [t["technique"] for t in v4["tried_out"]] == ["T17"])
+    ok_rows = [{**rows[3], "scores": {c: 2 for c in feas["ship_bar"] if c != "avg"}, "avg": 2.0}]
+    check("rounds: pass fixture", rounds_verdict(feas, ok_rows, {})["rule"] == "S0")
+    s1_rows = [{**rows[0], "defects": [{"id": "X", "category": "lighting", "label": "CEILING", "feature": "G1"},
+                                       {"id": "Y", "category": "materials", "label": "ARTEFACT", "ref": "R2"},
+                                       {"id": "Z", "category": "motion", "label": "CEILING", "feature": "G2"}]}]
+    check("rounds: S1 fixture", rounds_verdict(feas, s1_rows, {})["rule"] == "S1")
     if fails:
         print("preview selftest FAILED: " + ", ".join(fails), file=sys.stderr)
         return 1
@@ -642,6 +689,15 @@ def cmd_new_version(a: argparse.Namespace) -> int:
             die(f"--snapshot path not found: {sp}")
         if sp.name == "manifest.json":
             die("--snapshot cannot include a file named manifest.json")
+    techniques: list[str] = []
+    for t in ",".join(a.technique or []).split(","):
+        t = t.strip()
+        if not t:
+            continue
+        if not TECH_RE.match(t):
+            die(f"--technique wants ids like T1,T8 (got {t!r})", 2)
+        if t not in techniques:
+            techniques.append(t)
     vroot = root / "versions"
     complete = [v for v in version_ids(root) if (vroot / v / "manifest.json").is_file()]
     nxt = (int(complete[-1][1:]) + 1) if complete else 1
@@ -665,6 +721,8 @@ def cmd_new_version(a: argparse.Namespace) -> int:
                 shutil.copy2(sp, tmp / sp.name)
                 files.append(sp.name)
         manifest = {"version": vid, "created": now(), "note": a.note or "", "files": sorted(set(files))}
+        if techniques:
+            manifest["techniques"] = techniques
         (tmp / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         os.rename(tmp, vdir)
     except BaseException as e:
@@ -718,6 +776,55 @@ def default_size(shots_path: Path) -> str:
     return "1600x900"
 
 
+def launch_best(p: Any, w: int, h: int, headed: bool) -> tuple[tuple | None, list[str]]:
+    """Launch the user's Chrome; first non-software GL flag set wins, else the first software one.
+    Returns ((label, browser, ctx, page, probe) | None, notes)."""
+    tried: list[str] = []
+    best = None
+    sets = [("headed", GL_FLAG_SETS[0][1])] if headed else GL_FLAG_SETS
+    for label, flags in sets:
+        try:
+            br = p.chromium.launch(channel="chrome", headless=not headed, args=flags)
+        except Exception as e:  # missing Chrome etc.
+            msg = str(e).splitlines()[0] if str(e) else repr(e)
+            if "Executable doesn't exist" in str(e) or "distribution 'chrome' is not found" in str(e):
+                die("Google Chrome not found for Playwright (channel=chrome). Install Chrome; no browser download is performed.")
+            tried.append(f"{label}: launch failed: {msg}")
+            continue
+        cx = br.new_context(viewport={"width": w, "height": h}, device_scale_factor=1)
+        pg = cx.new_page()
+        pg.goto("about:blank")
+        probe = pg.evaluate(PROBE_JS)
+        soft = bool(probe.get("renderer")) and bool(SOFTWARE_RE.search(probe["renderer"]))
+        if not probe.get("renderer"):
+            tried.append(f"{label}: no WebGL context")
+        elif soft:
+            tried.append(f"{label}: software renderer ({probe['renderer']})")
+        if probe.get("renderer") and (not soft or best is None):
+            if best:
+                best[1].close()
+            best = (label, br, cx, pg, probe)
+            if not soft:
+                break
+        else:
+            br.close()
+    return best, tried
+
+
+def b64url_json(obj: Any) -> str:
+    return base64.urlsafe_b64encode(json.dumps(obj, separators=(",", ":")).encode()).decode().rstrip("=")
+
+
+def parse_params_json(text: str) -> dict:
+    try:
+        v = json.loads(text, parse_constant=_no_constants)
+    except ValueError as e:
+        die(f"--params must be a JSON object: {e}", 2)
+    if not isinstance(v, dict):
+        die("--params must be a JSON object", 2)
+    return v
+
+
 def capture_clip(page: Any, s: dict, a: argparse.Namespace, out_dir: Path, fps: int) -> dict:
     """Deterministic clip: frame i is at time (shot t or 0) + i/fps, camera at progress i/(n-1) along `to`.
     Nothing reads the wall clock; the app is stepped through __3d.setTime/setShot/frame/capture."""
@@ -754,6 +861,34 @@ def capture_clip(page: Any, s: dict, a: argparse.Namespace, out_dir: Path, fps: 
     return entry
 
 
+def capture_pathtrace(page: Any, s: dict, a: argparse.Namespace, out_dir: Path) -> dict:
+    """Path-traced twin of one shot: <id>_pt.png via window.__3d.pathtrace (WebGPU + three-gpu-pathtracer)."""
+    sid = s["id"]
+    entry: dict[str, Any] = {"id": f"{sid}_pt"}
+    try:
+        if not s.get("_default"):
+            page.evaluate("id => window.__3d.setShot(id, 0)", sid)
+        page.evaluate("n => window.__3d.frame(n)", 1)
+        res = page.evaluate("o => window.__3d.pathtrace(o)", {"samples": a.samples, "maxSeconds": a.pt_timeout})
+        dest = out_dir / f"{sid}_pt.png"
+        dest.write_bytes(base64.b64decode(res["dataUrl"].split(",", 1)[1]))
+        std = page.evaluate(BLANK_JS, res["dataUrl"])
+        entry.update(file=str(dest), samples=res["samples"], requested=res["requested"], seconds=res["seconds"],
+                     size=res["size"], renderer=res["adapter"], luma_stddev=round(float(std), 2))
+        if res.get("timedOut"):
+            entry["warning"] = f"stopped at {res['samples']} samples after {a.pt_timeout:.0f}s (requested {res['requested']})"
+        if std < 1.0:
+            entry["error"] = "blank or constant frame: not evidence"
+    except Exception as e:
+        entry["error"] = str(e).splitlines()[0] if str(e) else repr(e)
+    return entry
+
+
+PT_FALLBACK = ("Fallback: a Cycles twin of the same GLB and cameras: blender -b --factory-startup --python-exit-code 1 "
+               "--python <skill>/assets/blender/render_shots.py -- --import <version GLB> --world <hdr> --engine cycles "
+               "--shots .3d/shots.json --out .3d/evidence/vNNN/twin (see render_shots --import).")
+
+
 def cmd_capture(a: argparse.Namespace) -> int:
     try:
         from playwright.sync_api import sync_playwright  # type: ignore
@@ -761,7 +896,7 @@ def cmd_capture(a: argparse.Namespace) -> int:
         die("python playwright is not installed. Install: pip install playwright "
             "(do NOT run `playwright install`; this tool drives your installed Google Chrome).")
     root = Path(a.dir)
-    size = a.size or default_size(Path(a.shots) if a.shots else root / "shots.json")
+    size = a.size or ("854x480" if a.pathtrace else default_size(Path(a.shots) if a.shots else root / "shots.json"))
     try:
         w, h = (int(x) for x in size.lower().split("x"))
     except ValueError:
@@ -780,57 +915,38 @@ def cmd_capture(a: argparse.Namespace) -> int:
     if not shots:
         shots = [{"id": "default", "_default": True}]
         print(f"preview: no shots in {shots_path}; capturing one 'default' view", file=sys.stderr)
+    if a.pathtrace and a.url:
+        die("--pathtrace works on a version's GLB in the preview viewer (Mode A), not with --url", 2)
+    if a.pathtrace and a.clip is not None:
+        die("--pathtrace and --clip cannot be combined (path-traced clips are a brief change)", 2)
+    if a.shot:
+        shots = [x for x in shots if x["id"] == a.shot]
+        if not shots:
+            die(f"--shot {a.shot}: no such shot in {shots_path}", 2)
     out_dir = root / "evidence" / (version or "live")
     if not a.force and out_dir.is_dir():
-        existing = sorted(p.name for p in out_dir.iterdir() if (("_clip" in p.name) if a.clip else (p.suffix == ".png")))
+        existing = sorted(p.name for p in out_dir.iterdir() if (("_clip" in p.name) if a.clip else p.name.endswith("_pt.png") if a.pathtrace else (p.suffix == ".png" and not p.name.endswith("_pt.png"))))
         if existing:
-            die(f"{out_dir} already has {'clips' if a.clip else 'captures'} ({', '.join(existing[:3])}"
+            die(f"{out_dir} already has {'clips' if a.clip else 'path-traced twins' if a.pathtrace else 'captures'} ({', '.join(existing[:3])}"
                 f"{'...' if len(existing) > 3 else ''}): create a new version (`preview new-version`) or pass --force "
                 f"to overwrite", 1)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    pq = f"&p={b64url_json(parse_params_json(a.params))}" if a.params else ""
     srv = None
     if a.url:
         sep = "&" if "?" in a.url else "?"
-        target = a.url + sep + "3d-preview"
+        target = a.url + sep + "3d-preview" + pq
     else:
         srv = make_server(root.resolve(), 0, shots_path.resolve())
         threading.Thread(target=srv.serve_forever, daemon=True).start()
-        target = f"http://127.0.0.1:{srv.server_address[1]}/?3d-preview&bare&version={version}"
+        target = f"http://127.0.0.1:{srv.server_address[1]}/?3d-preview&bare&version={version}" + pq
 
     report: dict[str, Any] = {"version": version, "url": target, "size": [w, h], "shots": [], "renderer": None, "flags": None, "software": None}
     rc = 0
     try:
         with sync_playwright() as p:
-            tried: list[str] = []
-            best = None  # (label, browser, ctx, page, probe); first non-software wins
-            sets = [("headed", GL_FLAG_SETS[0][1])] if a.headed else GL_FLAG_SETS
-            for label, flags in sets:
-                try:
-                    br = p.chromium.launch(channel="chrome", headless=not a.headed, args=flags)
-                except Exception as e:  # missing Chrome etc.
-                    msg = str(e).splitlines()[0] if str(e) else repr(e)
-                    if "Executable doesn't exist" in str(e) or "distribution 'chrome' is not found" in str(e):
-                        die("Google Chrome not found for Playwright (channel=chrome). Install Chrome; no browser download is performed.")
-                    tried.append(f"{label}: launch failed: {msg}")
-                    continue
-                cx = br.new_context(viewport={"width": w, "height": h}, device_scale_factor=1)
-                pg = cx.new_page()
-                pg.goto("about:blank")
-                probe = pg.evaluate(PROBE_JS)
-                soft = bool(probe.get("renderer")) and bool(SOFTWARE_RE.search(probe["renderer"]))
-                if not probe.get("renderer"):
-                    tried.append(f"{label}: no WebGL context")
-                elif soft:
-                    tried.append(f"{label}: software renderer ({probe['renderer']})")
-                if probe.get("renderer") and (not soft or best is None):
-                    if best:
-                        best[1].close()
-                    best = (label, br, cx, pg, probe)
-                    if not soft:
-                        break
-                else:
-                    br.close()
+            best, tried = launch_best(p, w, h, a.headed)
             if best is None:
                 report["error"] = "no WebGL context in any flag set: " + "; ".join(tried)
                 print(json.dumps(report, indent=2))
@@ -853,12 +969,28 @@ def cmd_capture(a: argparse.Namespace) -> int:
             try:
                 page.wait_for_function("window.__3d && window.__3d.ready", timeout=int(a.timeout * 1000))
             except Exception:
-                report["error"] = "window.__3d.ready never became true (viewer failed to load the asset, or the app lacks the ?3d-preview bridge)"
+                offline = any("ERR_NAME_NOT_RESOLVED" in c or "ERR_INTERNET_DISCONNECTED" in c or "ERR_CONNECTION" in c for c in console)
+                report["error"] = ("CDN unreachable: the viewer loads three.js from jsDelivr and the network failed (retry when online)"
+                                   if offline and not a.url else
+                                   "window.__3d.ready never became true (viewer failed to load the asset, or the app lacks the ?3d-preview bridge)")
                 report["console"] = console[-10:]
                 print(json.dumps(report, indent=2))
                 return 1
             if a.url:  # live app: hand it the shot list from the project
                 page.evaluate("s => window.__3d.loadShots && window.__3d.loadShots(s)", [x for x in shots if not x.get("_default")])
+            if a.pathtrace:
+                has_gpu = not os.environ.get("PREVIEW_TEST_NO_WEBGPU") and page.evaluate("async () => !!(navigator.gpu && await navigator.gpu.requestAdapter())")
+                if not has_gpu:
+                    report["error"] = "WebGPU is unavailable in headless Chrome here"
+                    print(json.dumps(report, indent=2))
+                    print("preview: --pathtrace needs WebGPU and this Chrome exposes none (try --headed, or a machine with a GPU). "
+                          + PT_FALLBACK, file=sys.stderr)
+                    return 1
+                for s in shots:
+                    report["shots"].append(capture_pathtrace(page, s, a, out_dir))
+                    if report["shots"][-1].get("error"):
+                        rc = 1
+                shots = []
             if a.clip:
                 if not shutil.which("ffmpeg"):
                     die("ffmpeg not found; --clip needs it to encode the mp4 (e.g. `brew install ffmpeg`).")
@@ -987,6 +1119,645 @@ def cmd_diff(a: argparse.Namespace) -> int:
     return 0 if all(r.get("ssim") is not None for r in results) else 1
 
 
+# --------------------------------------------------------------------- rounds
+
+CATEGORIES = ("composition", "lighting", "materials", "colour", "motion", "fidelity")
+TECH_CAP = 2          # versions that may apply one technique without its category rising
+PLATEAU_AVG = 0.15    # S2: average gain below this ...
+NON_CONVERGING = 0.15  # ... also defines a non-converging round (S4)
+GAIN_FLOOR = 0.5      # S3: open fixable items below this gain are not worth a round
+MIN_ROUNDS_S2 = 3     # a plateau needs a history: S2 cannot fire before round 3
+
+
+class RoundsError(ValueError):
+    pass
+
+
+def load_rounds(root: Path) -> tuple[dict, list[dict], dict[str, list[str]]]:
+    feas = read_json(root / "feasibility.json", None)
+    if not isinstance(feas, dict) or not isinstance(feas.get("ship_bar"), dict):
+        raise RoundsError(f"{root / 'feasibility.json'} missing or has no ship_bar object (feasibility.v1)")
+    rpath = root / "rounds.jsonl"
+    rows: list[dict] = []
+    if rpath.is_file():
+        for n, line in enumerate(rpath.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except ValueError as e:
+                raise RoundsError(f"{rpath}:{n} is not JSON: {e}")
+    techs: dict[str, list[str]] = {}
+    for v in version_ids(root):
+        m = read_json(root / "versions" / v / "manifest.json", {})
+        if isinstance(m, dict) and isinstance(m.get("techniques"), list):
+            techs[v] = [str(t) for t in m["techniques"]]
+    return feas, rows, techs
+
+
+def _num(v: Any, what: str) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        raise RoundsError(f"{what} must be a finite number")
+    return float(v)
+
+
+def rounds_verdict(feas: dict, rows: list[dict], techs: dict[str, list[str]]) -> dict:
+    """Deterministic stop verdict (realism-gate stop rules S0-S4). Pure function: same input, same output.
+
+    Order: S0 pass, S1 nothing fixable, S2 plateau (from round 3), S3 diminishing returns, S4 budget.
+    Per-technique cap: a technique applied in 2 versions without its category rising is tried out.
+    """
+    bar = {k: _num(v, f"ship_bar.{k}") for k, v in feas["ship_bar"].items() if k != "avg"}
+    avg_bar = _num(feas["ship_bar"]["avg"], "ship_bar.avg") if "avg" in feas["ship_bar"] else (sum(bar.values()) / len(bar) if bar else 0.0)
+    budget = feas.get("budget") if isinstance(feas.get("budget"), dict) else {}
+    max_rounds = int(budget.get("rounds", 3))
+    if not rows:
+        return {"verdict": "continue", "rule": None, "reason": "no critic rounds recorded yet", "rounds_used": 0, "rounds_left": max_rounds,
+                "best": None, "failing": sorted(bar), "open_fixable": [], "ceiling": [], "artefact": [], "tried_out": [], "non_converging": 0}
+    rounds = []
+    for i, r in enumerate(rows, 1):
+        if not isinstance(r, dict) or not isinstance(r.get("scores"), dict):
+            raise RoundsError(f"rounds.jsonl line {i}: needs a scores object")
+        sc = {k: _num(v, f"round {i} scores.{k}") for k, v in r["scores"].items()}
+        missing = [k for k in bar if k not in sc]
+        if missing:
+            raise RoundsError(f"round {i} lacks scores for: {', '.join(missing)}")
+        avg = _num(r["avg"], f"round {i} avg") if r.get("avg") is not None else sum(sc[k] for k in bar) / len(bar)
+        defects = r.get("defects") or []
+        if not isinstance(defects, list):
+            raise RoundsError(f"round {i} defects must be a list")
+        rounds.append({"n": int(r.get("round", i)), "version": str(r.get("version", "")), "scores": sc, "avg": avg,
+                       "defects": [d for d in defects if isinstance(d, dict)], "tokens": float(r.get("tokens_est", 0) or 0)})
+    last = rounds[-1]
+
+    def failing_of(rd: dict) -> list[str]:
+        return sorted(k for k in bar if rd["scores"][k] < bar[k] - 1e-9)
+
+    failing = failing_of(last)
+    # best so far: highest avg, latest wins ties
+    best = max(rounds, key=lambda rd: (round(rd["avg"], 6), rd["n"]))
+    non_conv = sum(1 for prev, cur in zip(rounds, rounds[1:]) if cur["avg"] - prev["avg"] < NON_CONVERGING)
+
+    # per-technique cap
+    by_round_version = {rd["version"]: i for i, rd in enumerate(rounds) if rd["version"]}
+    tech_cat: dict[str, str] = {}
+    for rd in rounds:
+        for d in rd["defects"]:
+            if isinstance(d.get("technique"), str) and d.get("category") in bar:
+                tech_cat.setdefault(d["technique"], d["category"])
+    applied: dict[str, list[str]] = {}
+    for v, ts in techs.items():
+        for t in ts:
+            applied.setdefault(t, []).append(v)
+    tried_out = []
+    for t, vs in sorted(applied.items()):
+        vs = [v for v in sorted(vs, key=lambda x: int(x[1:])) if v in by_round_version]  # only versions that were scored
+        if len(vs) < TECH_CAP:
+            continue
+        cat = tech_cat.get(t)
+        if cat is None:
+            tried_out.append({"technique": t, "versions": vs, "category": None, "reason": "applied in 2 versions (category unknown)"})
+            continue
+        first, lastv = by_round_version[vs[0]], by_round_version[vs[TECH_CAP - 1]]
+        base = rounds[first - 1]["scores"][cat] if first > 0 else rounds[first]["scores"][cat]
+        if rounds[lastv]["scores"][cat] <= base + 1e-9:
+            tried_out.append({"technique": t, "versions": vs, "category": cat, "reason": f"{cat} did not rise across {TECH_CAP} versions"})
+    tried_ids = {x["technique"] for x in tried_out}
+
+    open_defects = [d for d in last["defects"] if d.get("category") in failing]
+    ceiling = [d for d in open_defects if d.get("label") == "CEILING"]
+    artefact = [d for d in open_defects if d.get("label") == "ARTEFACT"]
+
+    def is_fixable(d: dict) -> bool:
+        return d.get("label") == "FIXABLE" and d.get("technique") not in tried_ids
+
+    open_fixable = sorted((d for d in open_defects if is_fixable(d)), key=lambda d: (-float(d.get("gain") or 0), str(d.get("id", ""))))
+
+    out: dict[str, Any] = {
+        "round": last["n"], "version": last["version"], "avg": round(last["avg"], 3),
+        "best": {"version": best["version"], "round": best["n"], "avg": round(best["avg"], 3)},
+        "present_best_not_last": last["avg"] < best["avg"] - 0.15,
+        "failing": failing, "open_fixable": open_fixable,
+        "ceiling": ceiling, "artefact": artefact, "tried_out": tried_out,
+        "rounds_used": len(rounds), "non_converging": non_conv,
+        "rounds_left": max(0, max_rounds - non_conv),
+    }
+
+    def done(verdict: str, rule: str | None, reason: str) -> dict:
+        return {"verdict": verdict, "rule": rule, "reason": reason, **out}
+
+    if not failing and last["avg"] >= avg_bar - 1e-9:
+        return done("pass", "S0", f"every category meets its ship bar and avg {last['avg']:.2f} >= {avg_bar:.2f}")
+    if failing and open_defects and not open_fixable:
+        return done("stop", "S1", "every open defect in a failing category is CEILING, ARTEFACT or tried out")
+    if len(rounds) >= MIN_ROUNDS_S2:
+        prev = rounds[-2]
+        risen = [k for k in failing_of(prev) if last["scores"][k] > prev["scores"][k] + 1e-9]
+        if not risen and last["avg"] - prev["avg"] < PLATEAU_AVG:
+            return done("stop", "S2", f"plateau: no failing category rose and avg moved {last['avg'] - prev['avg']:+.2f} (< {PLATEAU_AVG})")
+    if open_fixable and all(float(d.get("gain") or 0) < GAIN_FLOOR or d.get("pipeline_change") for d in open_fixable):
+        return done("stop", "S3", "diminishing returns: remaining fixable items are small or need a pipeline change (user decision)")
+    cap = budget.get("tokens")
+    if non_conv >= max_rounds:
+        return done("stop", "S4", f"budget: {non_conv} non-converging rounds (limit {max_rounds})")
+    if isinstance(cap, (int, float)) and sum(rd["tokens"] for rd in rounds) >= cap > 0:
+        return done("stop", "S4", f"budget: estimated tokens reached {int(cap)}")
+    return done("continue", None, "open fixable items remain and progress is still being made")
+
+
+def gold_rounds_fixture() -> tuple[dict, list[dict], dict[str, list[str]]]:
+    """The gold-blade case: R1-R4 avg 1.29/1.17/1.50/1.50; the plateau rule must stop at R4 (v008), not R7."""
+    cats = ("composition", "lighting", "materials", "colour", "motion", "fidelity")
+    feas = {"schema": "feasibility.v1", "ship_bar": {**{c: 2 for c in cats}, "avg": 2.0}, "budget": {"rounds": 3}}
+    score_rows = [
+        (1, "v002", (2, 1, 1, 1.5, 1, 1.25)), (2, "v004", (2, 1, 1, 1, 1, 1)), (3, "v006", (2, 1, 1, 2, 1, 2)),
+        (4, "v008", (2, 1, 1, 2, 1, 2)), (5, "v010", (2, 1, 1, 2, 1, 2)), (6, "v012", (2, 1, 1, 2, 1, 2)), (7, "v014", (2, 1, 1, 2, 1, 2)),
+    ]
+    defects = [
+        {"id": "D1", "category": "lighting", "label": "FIXABLE", "technique": "T1", "gain": 1},
+        {"id": "D2", "category": "materials", "label": "FIXABLE", "technique": "T3", "gain": 0.5},
+        {"id": "D3", "category": "motion", "label": "CEILING", "feature": "G2"},
+        {"id": "D4", "category": "lighting", "label": "FIXABLE", "technique": "T17", "gain": 0.5},
+    ]
+    rows = [{"schema": "rounds.v1", "round": n, "version": v, "scores": dict(zip(cats, sc)), "avg": round(sum(sc) / 6, 2), "defects": defects}
+            for n, v, sc in score_rows]
+    techs = {"v002": ["T17"], "v004": ["T17"]}  # the filament glow was applied twice and lighting never rose
+    return feas, rows, techs
+
+
+def cmd_rounds(a: argparse.Namespace) -> int:
+    try:
+        feas, rows, techs = load_rounds(Path(a.dir))
+        res = rounds_verdict(feas, rows, techs)
+    except RoundsError as e:
+        print(f"preview rounds: {e}", file=sys.stderr)
+        return 1
+    if a.json:
+        print(json.dumps(res, indent=2))
+        return 0
+    head = res["verdict"].upper() + (f" {res['rule']}" if res.get("rule") else "")
+    print(f"{head}: {res['reason']}")
+    if res.get("best"):
+        b = res["best"]
+        print(f"best so far: {b['version']} (R{b['round']}, avg {b['avg']})" + ("  <- present this, not the latest" if res.get("present_best_not_last") else ""))
+        print(f"rounds used {res['rounds_used']}, non-converging {res['non_converging']}, left {res['rounds_left']}")
+        print("failing: " + (", ".join(res["failing"]) or "none"))
+        for d in res["open_fixable"]:
+            print(f"  fixable {d.get('id', '?')} [{d.get('category')}] {d.get('technique', '')} gain {d.get('gain', '?')}")
+        for d in res["ceiling"]:
+            print(f"  ceiling {d.get('id', '?')} [{d.get('category')}] {d.get('feature', '')}")
+        for d in res["artefact"]:
+            print(f"  artefact {d.get('id', '?')} [{d.get('category')}] {d.get('ref', '')}")
+        for t in res["tried_out"]:
+            print(f"  tried out {t['technique']} in {', '.join(t['versions'])}: {t['reason']}")
+    return 0
+
+
+# ---------------------------------------------------------------------- match
+
+ANALYSIS_W, ANALYSIS_H, GRID = 160, 90, 4
+# metric -> (direction, pass, warn). "high": value >= pass is PASS, >= warn is WARN; "low": value <= pass / <= warn.
+MATCH_DEFAULTS: dict[str, tuple[str, float, float]] = {
+    "ssim": ("high", 0.75, 0.55),
+    "edge_ssim": ("high", 0.85, 0.70),
+    "mask_iou": ("high", 0.90, 0.75),
+    "luma_p5_err": ("low", 0.06, 0.12),
+    "luma_p50_err": ("low", 0.05, 0.10),
+    "luma_p95_err": ("low", 0.08, 0.15),
+    "delta_e": ("low", 8.0, 15.0),
+}
+
+
+def match_tolerances(root: Path) -> dict[str, tuple[str, float, float]]:
+    """Defaults, overridden by `match_tolerances` in feasibility.json, then in reference-spec.json (refspec) `tolerances`."""
+    tol = dict(MATCH_DEFAULTS)
+    for fname, key in (("feasibility.json", "match_tolerances"), ("reference-spec.json", "tolerances")):
+        data = read_json(root / fname, None)
+        over = data.get(key) if isinstance(data, dict) else None
+        if isinstance(over, dict):
+            for m, v in over.items():
+                if m in tol and isinstance(v, dict) and finite_nums(v.get("pass")) and finite_nums(v.get("warn")):
+                    tol[m] = (tol[m][0], float(v["pass"]), float(v["warn"]))
+    return tol
+
+
+def status_of(name: str, value: float, tol: dict[str, tuple[str, float, float]]) -> str:
+    d, ok, warn = tol[name]
+    if d == "high":
+        return "PASS" if value >= ok else "WARN" if value >= warn else "FAIL"
+    return "PASS" if value <= ok else "WARN" if value <= warn else "FAIL"
+
+
+def closeness(name: str, value: float, tol: dict[str, tuple[str, float, float]]) -> float:
+    """0..1, 1 = perfect; 0.5 at the PASS bound's edge-ish. Used only to rank (sweep)."""
+    d, ok, warn = tol[name]
+    if d == "high":
+        return max(0.0, min(1.0, value))
+    return max(0.0, min(1.0, 1.0 - value / (2.0 * warn)))
+
+
+def decode_rgb(path: Path, w: int = ANALYSIS_W, h: int = ANALYSIS_H) -> bytes:
+    r = subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-i", str(path), "-frames:v", "1",
+                        "-vf", f"scale={w}:{h}:flags=area,format=rgb24", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                       capture_output=True)
+    if r.returncode != 0 or len(r.stdout) != w * h * 3:
+        raise ValueError(f"cannot decode {path}: {r.stderr.decode(errors='replace').strip()[:160]}")
+    return r.stdout
+
+
+def _srgb_to_lin(c: float) -> float:
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def rgb_to_lab(r: float, g: float, b: float) -> tuple[float, float, float]:
+    r, g, b = _srgb_to_lin(r / 255), _srgb_to_lin(g / 255), _srgb_to_lin(b / 255)
+    x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047
+    y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b
+    z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883
+    f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+    fx, fy, fz = f(x), f(y), f(z)
+    return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+
+def luma_of(buf: bytes) -> list[float]:
+    return [(0.2126 * buf[i] + 0.7152 * buf[i + 1] + 0.0722 * buf[i + 2]) / 255 for i in range(0, len(buf), 3)]
+
+
+def otsu(luma: list[float]) -> float:
+    hist = [0] * 256
+    for v in luma:
+        hist[min(255, int(v * 255))] += 1
+    total, sum_all = len(luma), sum(i * c for i, c in enumerate(hist))
+    best_t, best_var, w0, sum0 = 0, -1.0, 0, 0.0
+    for t in range(256):
+        w0 += hist[t]
+        if w0 == 0:
+            continue
+        w1 = total - w0
+        if w1 == 0:
+            break
+        sum0 += t * hist[t]
+        m0, m1 = sum0 / w0, (sum_all - sum0) / w1
+        var = w0 * w1 * (m0 - m1) ** 2
+        if var > best_var:
+            best_var, best_t = var, t
+    return (best_t + 0.5) / 255
+
+
+def pct(sorted_vals: list[float], q: float) -> float:
+    return sorted_vals[min(len(sorted_vals) - 1, int(q * (len(sorted_vals) - 1) + 0.5))]
+
+
+def cell_pixels(w: int, h: int, gx: int, gy: int) -> list[int]:
+    x0, x1, y0, y1 = gx * w // GRID, (gx + 1) * w // GRID, gy * h // GRID, (gy + 1) * h // GRID
+    return [y * w + x for y in range(y0, y1) for x in range(x0, x1)]
+
+
+def pixel_metrics(render: bytes, ref: bytes, w: int = ANALYSIS_W, h: int = ANALYSIS_H) -> dict[str, float]:
+    la, lb = luma_of(render), luma_of(ref)
+    ta, tb = otsu(la), otsu(lb)
+    ma, mb = [v > ta for v in la], [v > tb for v in lb]
+    inter = sum(1 for x, y in zip(ma, mb) if x and y)
+    union = sum(1 for x, y in zip(ma, mb) if x or y)
+    iou = inter / union if union else 1.0
+    e5 = e50 = e95 = de = 0.0
+    for gy in range(GRID):
+        for gx in range(GRID):
+            idx = cell_pixels(w, h, gx, gy)
+            ca, cb = sorted(la[i] for i in idx), sorted(lb[i] for i in idx)
+            e5 += abs(pct(ca, 0.05) - pct(cb, 0.05))
+            e50 += abs(pct(ca, 0.50) - pct(cb, 0.50))
+            e95 += abs(pct(ca, 0.95) - pct(cb, 0.95))
+            def mean_lab(buf: bytes) -> tuple[float, float, float]:
+                n = len(idx)
+                sr = sum(buf[i * 3] for i in idx) / n
+                sg = sum(buf[i * 3 + 1] for i in idx) / n
+                sb = sum(buf[i * 3 + 2] for i in idx) / n
+                return rgb_to_lab(sr, sg, sb)
+            A, B = mean_lab(render), mean_lab(ref)
+            de += math.sqrt(sum((x - y) ** 2 for x, y in zip(A, B)))
+    cells = GRID * GRID
+    return {"mask_iou": iou, "luma_p5_err": e5 / cells, "luma_p50_err": e50 / cells, "luma_p95_err": e95 / cells, "delta_e": de / cells}
+
+
+def ffmpeg_ssim(a: Path, b: Path, edges: bool = False) -> float | None:
+    w, h = ffprobe_size(a)
+    ed = ",format=gray,edgedetect=low=0.08:high=0.2" if edges else ""
+    graph = (f"[0:v]scale={w}:{h}:flags=bicubic{ed},format=rgb24[a];[1:v]scale={w}:{h}:flags=bicubic{ed},format=rgb24[b];[a][b]ssim[o]")
+    r = ffmpeg(["-i", str(a), "-i", str(b), "-filter_complex", graph, "-map", "[o]", "-f", "null", "-"])
+    m = re.search(r"SSIM.*?All:([\d.]+)", r.stderr)
+    return float(m.group(1)) if m else None
+
+
+IMG_EXT = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def ref_for(ref: Path, shot_ids: list[str], sid: str) -> Path | None:
+    """--ref FILE applies to every shot; --ref DIR maps <shot>.<ext>, else frames pair with shots by order."""
+    if ref.is_file():
+        return ref
+    for ext in IMG_EXT:
+        for cand in (ref / f"{sid}{ext}", ref / f"{sid}_ref{ext}"):
+            if cand.is_file():
+                return cand
+    frames = sorted(f for f in ref.iterdir() if f.suffix.lower() in IMG_EXT) if ref.is_dir() else []
+    if frames and sid in shot_ids and shot_ids.index(sid) < len(frames):
+        return frames[shot_ids.index(sid)]
+    return None
+
+
+def match_images(render: Path, ref: Path, tol: dict[str, tuple[str, float, float]]) -> dict:
+    vals: dict[str, float | None] = {"ssim": ffmpeg_ssim(render, ref), "edge_ssim": ffmpeg_ssim(render, ref, edges=True)}
+    vals.update(pixel_metrics(decode_rgb(render), decode_rgb(ref)))
+    metrics, score_parts = {}, []
+    for name, v in vals.items():
+        if v is None:
+            metrics[name] = {"value": None, "status": "FAIL", "pass": tol[name][1], "warn": tol[name][2], "note": "ffmpeg ssim failed"}
+            score_parts.append(0.0)
+            continue
+        metrics[name] = {"value": round(v, 4), "status": status_of(name, v, tol), "pass": tol[name][1], "warn": tol[name][2]}
+        score_parts.append(closeness(name, v, tol))
+    worst = "FAIL" if any(m["status"] == "FAIL" for m in metrics.values()) else "WARN" if any(m["status"] == "WARN" for m in metrics.values()) else "PASS"
+    return {"render": str(render), "ref": str(ref), "metrics": metrics, "status": worst, "score": round(sum(score_parts) / len(score_parts), 4)}
+
+
+def cmd_match(a: argparse.Namespace) -> int:
+    for tool in ("ffmpeg", "ffprobe"):
+        if not shutil.which(tool):
+            die(f"{tool} not found. Install ffmpeg (e.g. `brew install ffmpeg`); match needs it.")
+    root = Path(a.dir)
+    if a.version and not VERSION_RE.match(a.version):
+        die("--version must look like v001", 2)
+    ev = root / "evidence"
+    evidence_ids = sorted((d.name for d in ev.iterdir() if d.is_dir() and VERSION_RE.match(d.name)), key=lambda x: int(x[1:])) if ev.is_dir() else []
+    version = a.version or (evidence_ids[-1] if evidence_ids else latest_version(root))  # newest version that has captures
+    ref = Path(a.ref)
+    if not ref.exists():
+        die(f"--ref not found: {ref}", 2)
+    edir = root / "evidence" / (version or "")
+    renders = sorted(p for p in edir.glob("*.png") if not p.stem.endswith(("_pt", "_end"))) if version and edir.is_dir() else []
+    if not renders:
+        die(f"no captures in {edir}; run `preview capture --version {version}` first")
+    shot_ids = [x["id"] for x in load_shots(root / "shots.json")] or [p.stem for p in renders]
+    renders.sort(key=lambda p: (shot_ids.index(p.stem) if p.stem in shot_ids else 999, p.name))
+    tol = match_tolerances(root)
+    out: dict[str, Any] = {"version": version, "ref": str(ref), "analysis": f"{ANALYSIS_W}x{ANALYSIS_H}, {GRID}x{GRID} grid (both images scaled to one size)",
+                           "tolerances": {k: {"direction": v[0], "pass": v[1], "warn": v[2]} for k, v in tol.items()}, "shots": []}
+    errors = 0
+    for rp in renders:
+        sref = ref_for(ref, shot_ids, rp.stem)
+        if sref is None:
+            out["shots"].append({"id": rp.stem, "error": f"no reference image for this shot in {ref}"})
+            errors += 1
+            continue
+        try:
+            out["shots"].append({"id": rp.stem, **match_images(rp, sref, tol)})
+        except ValueError as e:
+            out["shots"].append({"id": rp.stem, "error": str(e)})
+            errors += 1
+    scored = [x for x in out["shots"] if "score" in x]
+    out["score"] = round(sum(x["score"] for x in scored) / len(scored), 4) if scored else None
+    out["status"] = ("FAIL" if any(x.get("status") == "FAIL" for x in scored) else "WARN" if any(x.get("status") == "WARN" for x in scored) else "PASS") if scored else "FAIL"
+    if a.json:
+        print(json.dumps(out, indent=2))
+    else:
+        print(f"match {version} vs {ref}: {out['status']} (score {out['score']})")
+        for x in out["shots"]:
+            if "error" in x:
+                print(f"  {x['id']}: ERROR {x['error']}")
+                continue
+            bad = ", ".join(f"{k} {m['value']} {m['status']}" for k, m in x["metrics"].items() if m["status"] != "PASS") or "all metrics PASS"
+            print(f"  {x['id']}: {x['status']} score {x['score']}: {bad}")
+    return 1 if errors and not scored else 0
+
+
+# ----------------------------------------------------------------------- sweep
+
+MAX_VARIANTS = 24
+
+
+def parse_sweep_values(text: str) -> list[Any]:
+    out: list[Any] = []
+    for raw in text.split(","):
+        raw = raw.strip()
+        try:
+            v = json.loads(raw, parse_constant=_no_constants)
+        except ValueError:
+            v = raw
+        out.append(v)
+    return out
+
+
+def cmd_sweep(a: argparse.Namespace) -> int:
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+    except ImportError:
+        die("python playwright is not installed. Install: pip install playwright (no `playwright install`).")
+    for tool in ("ffmpeg", "ffprobe"):
+        if not shutil.which(tool):
+            die(f"{tool} not found; sweep needs it for the contact sheet and match scoring.")
+    axes: list[tuple[str, list[Any]]] = []
+    for spec in a.param or []:
+        name, _, vals = spec.partition("=")
+        if not name or not vals:
+            die(f"--param wants name=a,b,c (got {spec!r})", 2)
+        axes.append((name, parse_sweep_values(vals)))
+    if not axes:
+        die("give at least one --param name=a,b,c", 2)
+    combos: list[dict[str, Any]] = [{}]
+    for name, vals in axes:
+        combos = [{**c, name: v} for c in combos for v in vals]
+    if len(combos) > MAX_VARIANTS:
+        die(f"{len(combos)} variants exceed the limit of {MAX_VARIANTS}; sweep fewer values or run two sweeps", 2)
+    root = Path(a.dir)
+    if a.version and not VERSION_RE.match(a.version):
+        die("--version must look like v001", 2)
+    version = a.version or latest_version(root)
+    if not version and not a.url:
+        die("no versions yet: create one or pass --url", 1)
+    shots_path = Path(a.shots) if a.shots else root / "shots.json"
+    shots = load_shots(shots_path)
+    if a.shot:
+        shots = [x for x in shots if x["id"] == a.shot]
+        if not shots:
+            die(f"--shot {a.shot}: no such shot", 2)
+    shot = shots[0] if shots else {"id": "default", "_default": True}
+    try:
+        w, h = (int(x) for x in (a.size or "640x360").lower().split("x"))
+    except ValueError:
+        die("--size must look like 640x360", 2)
+    tol = match_tolerances(root)
+    out_dir = root / "sweeps" / (version or "live")
+    if out_dir.exists() and not a.force and any(out_dir.iterdir()):
+        die(f"{out_dir} already holds a sweep: pass --force to replace it", 1)
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
+    base_q = f"&p={b64url_json(parse_params_json(a.params))}" if a.params else ""
+    srv = None
+    if a.url:
+        target = a.url + ("&" if "?" in a.url else "?") + "3d-preview" + base_q
+    else:
+        srv = make_server(root.resolve(), 0, shots_path.resolve())
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        target = f"http://127.0.0.1:{srv.server_address[1]}/?3d-preview&bare&version={version}" + base_q
+    variants: list[dict[str, Any]] = []
+    try:
+        with sync_playwright() as p:
+            best, tried = launch_best(p, w, h, a.headed)
+            if best is None:
+                die("no WebGL context in any flag set: " + "; ".join(tried))
+            _, browser, ctx, _, probe = best
+            page = ctx.pages[-1]
+            console: list[str] = []
+            page.on("pageerror", lambda e: console.append(f"pageerror: {e}"))
+            page.on("console", lambda m: console.append(m.text) if m.type == "error" else None)
+            page.goto(target, wait_until="load")
+            try:
+                page.wait_for_function("window.__3d && window.__3d.ready", timeout=int(a.timeout * 1000))
+            except Exception:
+                net = any("ERR_NAME_NOT_RESOLVED" in c or "ERR_INTERNET_DISCONNECTED" in c for c in console)
+                die("CDN unreachable (network down)" if net and not a.url else "window.__3d.ready never became true")
+            if a.url:
+                page.evaluate("s => window.__3d.loadShots && window.__3d.loadShots(s)", [x for x in shots if not x.get("_default")])
+            if not page.evaluate("typeof window.__3d.setParams === 'function'"):
+                die("the page has no window.__3d.setParams: add readParams/installBridge({params, onParams}) (assets/web/bridge.ts)")
+            for i, combo in enumerate(combos, 1):
+                vid = f"var{i:02d}"
+                entry: dict[str, Any] = {"id": vid, "params": combo}
+                try:
+                    page.evaluate("o => window.__3d.setParams(o)", combo)
+                    if not shot.get("_default"):
+                        page.evaluate("id => window.__3d.setShot(id, 0)", shot["id"])
+                    page.evaluate("n => window.__3d.frame(n)", a.settle)
+                    data_url = page.evaluate("window.__3d.capture()")
+                    if not data_url:
+                        raise RuntimeError("__3d.capture() returned nothing")
+                    dest = out_dir / f"{vid}.png"
+                    dest.write_bytes(base64.b64decode(data_url.split(",", 1)[1]))
+                    entry["file"] = str(dest)
+                except Exception as e:
+                    entry["error"] = str(e).splitlines()[0] if str(e) else repr(e)
+                variants.append(entry)
+            browser.close()
+    finally:
+        if srv:
+            srv.shutdown()
+            srv.server_close()
+    ok = [v for v in variants if "file" in v]
+    rank_by = "none (no --ref)"
+    if a.ref:
+        ref = Path(a.ref)
+        sref = ref_for(ref, [shot["id"]], shot["id"]) if ref.exists() else None
+        if sref is None:
+            die(f"--ref {ref}: no usable reference image", 2)
+        rank_by = f"match score vs {sref}"
+        for v in ok:
+            try:
+                m = match_images(Path(v["file"]), sref, tol)
+                v.update(score=m["score"], status=m["status"], metrics={k: x["value"] for k, x in m["metrics"].items()})
+            except ValueError as e:
+                v["error"] = str(e)
+        ok = [v for v in ok if "score" in v]
+        ok.sort(key=lambda v: (-v["score"], v["id"]))
+    ranked_ids = [v["id"] for v in ok]
+    sheet = build_sweep_sheet(out_dir, ok if a.ref else [v for v in variants if "file" in v], a.ref is not None)
+    rank = {"version": version, "shot": shot["id"], "rank_by": rank_by, "params": [n for n, _ in axes], "ranked": ranked_ids,
+            "variants": ok if a.ref else [v for v in variants if "file" in v], "failed": [v for v in variants if "error" in v and "file" not in v] +
+            [v for v in variants if "file" in v and "error" in v], "sheet": sheet["file"], "labelled": sheet["labelled"], "renderer": probe.get("renderer")}
+    (out_dir / "rank.json").write_text(json.dumps(rank, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(rank, indent=2))
+    return 0 if ok or not variants else 1
+
+
+def build_sweep_sheet(out_dir: Path, variants: list[dict], ranked: bool) -> dict:
+    sheet = out_dir / "sheet.png"
+    if not variants:
+        return {"file": None, "labelled": False}
+    n = len(variants)
+    cols = min(4, n)
+    cw, ch = 320, 180
+    labelled = has_drawtext()
+    parts, names, cmd = [], [], ["ffmpeg", "-hide_banner", "-nostdin", "-y"]
+    for i, v in enumerate(variants):
+        cmd += ["-i", v["file"]]
+        f = f"[{i}:v]scale={cw}:{ch}:force_original_aspect_ratio=decrease,pad={cw}:{ch}:(ow-iw)/2:(oh-ih)/2:color=0x14161c"
+        if labelled:
+            lab = f"{i + 1 if ranked else v['id']}: " + " ".join(f"{k}={val}" for k, val in v["params"].items())
+            lab = re.sub(r"[^A-Za-z0-9=._ :-]", "", lab)[:40]
+            f += f",drawtext=text='{lab}':x=6:y=6:fontsize=14:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=3"
+        parts.append(f + f"[c{i}]")
+        names.append(f"[c{i}]")
+    layout = "|".join(f"{(i % cols) * cw}_{(i // cols) * ch}" for i in range(n))
+    graph = ";".join(parts) + ";" + ("".join(names) + f"xstack=inputs={n}:layout={layout}:fill=0x14161c[o]" if n > 1 else "[c0]null[o]")
+    r = subprocess.run([*cmd, "-filter_complex", graph, "-map", "[o]", "-frames:v", "1", str(sheet)], capture_output=True, text=True)
+    return {"file": str(sheet) if r.returncode == 0 and sheet.is_file() else None, "labelled": labelled}
+
+
+# --------------------------------------------------------------------- compare
+
+def clip_for(root: Path, arg: str, shot: str | None) -> Path:
+    p = Path(arg)
+    if p.is_file():
+        return p
+    if VERSION_RE.match(arg):
+        d = root / "evidence" / arg
+        clips = sorted(d.glob(f"{shot}_clip.mp4" if shot else "*_clip.mp4")) if d.is_dir() else []
+        if clips:
+            return clips[0]
+        die(f"no {'%s_clip.mp4' % shot if shot else '*_clip.mp4'} in {d}; run `preview capture --version {arg} --clip N` first")
+    die(f"not a file or version id: {arg}")
+    return p
+
+
+def probe_video(path: Path) -> tuple[float, float, int, int]:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate:format=duration",
+                        "-of", "json", str(path)], capture_output=True, text=True)
+    try:
+        d = json.loads(r.stdout)
+        n, _, den = d["streams"][0]["r_frame_rate"].partition("/")
+        fps = float(n) / float(den or 1)
+        return float(d["format"]["duration"]), fps, int(d["streams"][0]["width"]), int(d["streams"][0]["height"])
+    except (ValueError, KeyError, IndexError, ZeroDivisionError):
+        die(f"cannot read video {path}: {r.stderr.strip()[:200]}")
+    return 0.0, 0.0, 0, 0
+
+
+def cmd_compare(a: argparse.Namespace) -> int:
+    for tool in ("ffmpeg", "ffprobe"):
+        if not shutil.which(tool):
+            die(f"{tool} not found; compare needs ffmpeg.")
+    root = Path(a.dir)
+    if a.loops < 1 or a.loops > 20:
+        die("--loops must be 1..20", 2)
+    va, vb = clip_for(root, a.a, a.shot), clip_for(root, a.b, a.shot)
+    da, fa, wa, ha = probe_video(va)
+    db, fb, wb, hb = probe_video(vb)
+    dur = max(da, db)
+    fps = round(fa) or 30
+    vertical = a.stack == "v"
+    # B is scaled to A's width (v) or height (h); the shorter clip loops so both run for the full duration.
+    if vertical:
+        fb_scale = f"scale={wa}:-2"
+        stack = "vstack"
+    else:
+        fb_scale = f"scale=-2:{ha}"
+        stack = "hstack"
+    graph = (f"[0:v]fps={fps},scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[a];[1:v]fps={fps},{fb_scale},scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[b];"
+             f"[a][b]{stack}=inputs=2,scale=trunc(iw/2)*2:trunc(ih/2)*2[o]")
+    out = Path(a.out) if a.out else root / "compare" / f"{va.stem if va.parent != vb.parent else a.a}__{vb.stem if va.parent != vb.parent else a.b}.mp4"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    total = dur * a.loops
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", "-stream_loop", "-1", "-i", str(va), "-stream_loop", "-1", "-i", str(vb),
+                        "-filter_complex", graph, "-map", "[o]", "-t", f"{total:.3f}", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                        "-movflags", "+faststart", str(out)], capture_output=True, text=True)
+    if r.returncode != 0 or not out.is_file():
+        die("ffmpeg failed: " + (r.stderr.strip().splitlines() or ["?"])[-1][:300])
+    res = {"a": str(va), "b": str(vb), "stack": a.stack, "loops": a.loops, "duration_s": round(total, 3), "fps": fps,
+           "a_seconds": round(da, 3), "b_seconds": round(db, 3), "file": str(out)}
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 # ---------------------------------------------------------------------- board
 
 CELL_W, CELL_H, BOARD_COLS = 480, 270, 3
@@ -1098,6 +1869,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("new-version", help="create .3d/versions/vNNN/")
     common(s)
     s.add_argument("--note", default="")
+    s.add_argument("--technique", action="append", metavar="T#[,T#]", help="toolbox technique ids this version applies (recorded in manifest.json; `preview rounds` uses them for the per-technique cap)")
     s.add_argument("--snapshot", nargs="+", metavar="PATH", help="copy these files/dirs into the new version and list them in manifest.json")
     s.set_defaults(fn=cmd_new_version)
 
@@ -1109,6 +1881,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--size", help="WxH (default 1600 wide; height from shots.json aspect, else 900)")
     s.add_argument("--settle", type=int, default=120, help="fixed-dt frames to run per shot (default 120)")
     s.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for __3d.ready")
+    s.add_argument("--params", metavar="JSON", help="initial tunables for the page/viewer, sent as ?p=<base64url JSON> (see bridge.ts readParams)")
+    s.add_argument("--pathtrace", action="store_true", help="path-traced twin per shot (WebGPU + three-gpu-pathtracer, Mode A): <id>_pt.png; default size 854x480; exits 1 with the Cycles fallback if headless WebGPU is missing")
+    s.add_argument("--samples", type=int, default=256, help="--pathtrace samples per pixel (default 256)")
+    s.add_argument("--shot", metavar="ID", help="capture only this shot (any capture mode)")
+    s.add_argument("--pt-timeout", type=float, default=180.0, help="--pathtrace seconds per shot before stopping early (default 180)")
     s.add_argument("--clip", type=float, metavar="SECONDS", help="record a deterministic clip per shot: <id>_clip/frame_NNNN.png + <id>_clip.mp4")
     s.add_argument("--fps", type=int, help="clip frame rate (default: shots.json fps, else 30)")
     s.add_argument("--force", action="store_true", help="overwrite existing captures (default: refuse; evidence belongs to one version)")
@@ -1123,6 +1900,44 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--edges", action="store_true", help="compare edge maps (ffmpeg edgedetect) instead of pixels: fits geometry independent of lighting; images go to <out>/edges/")
     s.add_argument("--out")
     s.set_defaults(fn=cmd_diff)
+
+    s = sub.add_parser("rounds", help="deterministic stop verdict from .3d/rounds.jsonl + feasibility.json + manifests")
+    common(s)
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_rounds)
+
+    s = sub.add_parser("match", help="per-shot match metrics vs a reference image/dir (ssim, edge-ssim, mask IoU, luma grid, deltaE)")
+    common(s)
+    s.add_argument("--version")
+    s.add_argument("--ref", required=True, metavar="IMAGE|DIR")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_match)
+
+    s = sub.add_parser("sweep", help="render parameter variants (via setParams), contact sheet + rank.json")
+    common(s)
+    s.add_argument("--param", action="append", metavar="name=a,b,c")
+    s.add_argument("--shot", metavar="ID")
+    s.add_argument("--version")
+    s.add_argument("--url", help="user's running app (needs the bridge with setParams)")
+    s.add_argument("--shots")
+    s.add_argument("--ref", metavar="IMAGE|DIR", help="rank variants by `match` score against this reference")
+    s.add_argument("--params", metavar="JSON", help="base params applied to every variant")
+    s.add_argument("--size", help="WxH (default 640x360)")
+    s.add_argument("--settle", type=int, default=30)
+    s.add_argument("--timeout", type=float, default=30.0)
+    s.add_argument("--force", action="store_true")
+    s.add_argument("--headed", action="store_true")
+    s.set_defaults(fn=cmd_sweep)
+
+    s = sub.add_parser("compare", help="synced stacked mp4 of two clips or two versions")
+    common(s)
+    s.add_argument("a")
+    s.add_argument("b")
+    s.add_argument("--stack", choices=("v", "h"), default="v", help="v: A above B, h: side by side (default v)")
+    s.add_argument("--loops", type=int, default=1, help="repeat the synced pair N times (default 1)")
+    s.add_argument("--shot", metavar="ID", help="with version ids: which <shot>_clip.mp4")
+    s.add_argument("--out")
+    s.set_defaults(fn=cmd_compare)
 
     s = sub.add_parser("board", help="contact sheet of a version's evidence + open notes")
     common(s)

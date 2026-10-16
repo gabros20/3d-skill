@@ -81,6 +81,7 @@ Focal length is only reliable as a class (`focal_class` table in [refspec](refsp
 ## Consistency and fitting
 
 1. **Consistency check first.** Test whether the reference is physically consistent: vanishing points agree, perspective is plausible, lighting is coherent. AI-generated references often are not. If it fails, tell the user and agree a stylised target before fitting; never add fudge parameters to chase impossible perspective, the scene turns fragile.
+1b. **Provenance.** Record `provenance` ([refspec](refspec.md)): photo, offline render, real-time capture, AI image or video, unknown; evidence from metadata, sibling prompts or the user's words. AI-generated is an **art-direction target, not physical truth**; failed consistency checks become ceilings in [realism-gate](realism-gate.md). A real photo or offline render is physical truth. Tileable roughness or normal detail maps derived from a reference crop are allowed; the reference image as a plate is not.
 2. **Fit geometry to measured anchors** (edge and tip positions), checked with `<skill>/scripts/preview diff --edges`. Never fit to colour masks (spacing collapses, neighbours merge). Look at every fit.
 3. **Motion is geometry.** Track edges on several elements, plus `ref-extract --regions --kymo`. Moving highlights and luminance edges are not geometric motion and inflate sway.
 

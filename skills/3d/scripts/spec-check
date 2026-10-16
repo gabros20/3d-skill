@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""spec-check FILE... — validate refspec.v1, shots.v1 and look.v1 JSON files.
+"""spec-check FILE... — validate refspec.v1, shots.v1, look.v1, feasibility.v1 and rounds.v1 files.
 
 The schema is detected from each file's `schema` field. Every problem is printed with its JSON path
-(for example `$.shots[1].position: expected 3 finite numbers`). Rules mirror references/refspec.md
+(for example `$.shots[1].position: expected 3 finite numbers`). Also validates .3d/feasibility.json (feasibility.v1) and .3d/rounds.jsonl (rounds.v1, one object per line;
+problems read `line N: $.path`). Rules mirror references/refspec.md
 (leaf rule, anchors, unique ref ids), references/brief-spec.md (shots.json) and the look.v1 contract
 (toneMapping, exposure > 0, environment room|.hdr|.exr, background #rrggbb|environment). Unknown extra keys
 are allowed in refspec and shots; in look.json they print a WARN (exit stays 0).
@@ -47,6 +48,40 @@ class Report:
 
     def warn(self, path: str, msg: str) -> None:
         self.warnings.append(f"{path}: {msg}")
+
+
+PROV_KINDS = {"photo", "offline-render", "realtime-capture", "ai-image", "ai-video", "unknown"}
+CONSISTENCY = {"pass", "fail", "unknown"}
+CATS = ("composition", "lighting", "materials", "colour", "motion", "fidelity")
+FEATURE_CATS = set(CATS) | {"fx"}
+TIERS = {"LIVE-NATIVE", "LIVE-WITH-TECHNIQUE", "BAKE-ONLY", "OFFLINE-ONLY", "REFERENCE-ARTEFACT"}
+VISIBILITY = {"S", "O", "D", "S/O", "S-O", "O/D", "D/O", "-", "\u2014", "none"}
+DYNAMICS = {"static", "dynamic", "mixed"}
+TARGETS = {"mobile", "laptop", "desktop-webgpu"}
+LABELS = {"FIXABLE", "CEILING", "ARTEFACT"}
+# ids defined in references/realism-gap.md: features G1-G22, techniques T1-T18, artefacts R1-R5
+G_RE = re.compile(r"^G(?:[1-9]|1\d|2[0-2])$")
+T_RE = re.compile(r"^T(?:[1-9]|1[0-8])$")
+R_RE = re.compile(r"^R[1-5]$")
+V_RE = re.compile(r"^v\d+$")
+
+
+def check_provenance(p: object, path: str, r: Report) -> None:
+    if not isinstance(p, dict):
+        r.add(path, "must be an object {kind, consistency{perspective, lighting, temporal}}")
+        return
+    if p.get("kind") not in PROV_KINDS:
+        r.add(f"{path}.kind", f"must be one of {sorted(PROV_KINDS)}")
+    if "evidence" in p and not (isinstance(p["evidence"], str) and p["evidence"].strip()):
+        r.add(f"{path}.evidence", "must be a non-empty string (metadata, sibling prompt, user's words)")
+    cons = p.get("consistency")
+    if cons is not None:
+        if not isinstance(cons, dict):
+            r.add(f"{path}.consistency", "must be an object")
+        else:
+            for k in ("perspective", "lighting", "temporal"):
+                if cons.get(k) not in CONSISTENCY:
+                    r.add(f"{path}.consistency.{k}", f"must be one of {sorted(CONSISTENCY)}")
 
 
 # --- refspec.v1 -------------------------------------------------------------------------------
@@ -130,7 +165,9 @@ def check_refspec(doc: dict, r: Report) -> None:
             for k in ("p5", "p50", "p95"):
                 if k in luma and not (is_num(luma[k]) and 0 <= luma[k] <= 1):
                     r.add(f"$.colour.luma.{k}", "must be a number 0..1")
-    walk_leaves(doc, "$", r)
+    if "provenance" in doc:
+        check_provenance(doc["provenance"], "$.provenance", r)
+    walk_leaves({k: v for k, v in doc.items() if k != "provenance"}, "$", r)  # provenance.evidence is free text
 
 
 # --- shots.v1 ---------------------------------------------------------------------------------
@@ -215,6 +252,126 @@ def check_shots(doc: dict, r: Report) -> None:
 
 # --- look.v1 ----------------------------------------------------------------------------------
 
+def score(x: object) -> bool:
+    return is_num(x) and 0 <= x <= 3
+
+
+def cat_map(doc: dict, key: str, path: str, r: Report, extra: tuple[str, ...] = ()) -> dict:
+    m = doc.get(key)
+    if not isinstance(m, dict):
+        r.add(path, f"required object with one 0..3 number per category {list(CATS)}")
+        return {}
+    for c in (*CATS, *extra):
+        if not score(m.get(c)):
+            r.add(f"{path}.{c}", "required number 0..3")
+    for k in m:
+        if k not in (*CATS, *extra):
+            r.warn(f"{path}.{k}", "unknown category")
+    return m
+
+
+def tech_ok(v: object) -> bool:
+    items = v if isinstance(v, list) else [v]
+    return bool(items) and all(isinstance(t, str) and (T_RE.match(t) or t.startswith("fit:") and len(t) > 4) for t in items)
+
+
+def check_feasibility(doc: dict, r: Report) -> None:
+    if not isinstance(doc.get("pipeline"), str) or not doc["pipeline"].strip():
+        r.add("$.pipeline", "required non-empty string")
+    if doc.get("dynamics") not in DYNAMICS:
+        r.add("$.dynamics", f"must be one of {sorted(DYNAMICS)}")
+    if doc.get("target") not in TARGETS:
+        r.add("$.target", f"must be one of {sorted(TARGETS)}")
+    if "provenance" in doc:
+        check_provenance(doc["provenance"], "$.provenance", r)
+    feats = doc.get("features")
+    if not isinstance(feats, list):
+        r.add("$.features", "must be an array of {g, category, visibility, tier, technique}")
+    else:
+        for i, f in enumerate(feats):
+            p = f"$.features[{i}]"
+            if not isinstance(f, dict):
+                r.add(p, "must be an object")
+                continue
+            if not (isinstance(f.get("g"), str) and G_RE.match(f["g"])):
+                r.add(f"{p}.g", "must be G1..G22")
+            if f.get("category") not in FEATURE_CATS:
+                r.add(f"{p}.category", f"must be one of {sorted(FEATURE_CATS)}")
+            if "visibility" in f and f["visibility"] not in VISIBILITY:
+                r.add(f"{p}.visibility", f"must be one of {sorted(VISIBILITY)}")
+            if f.get("tier") not in TIERS:
+                r.add(f"{p}.tier", f"must be one of {sorted(TIERS)}")
+            if f.get("technique") not in (None, "", []) and not tech_ok(f["technique"]):
+                r.add(f"{p}.technique", "must be T1..T18 (or a list)")
+            elif f.get("tier") in ("LIVE-WITH-TECHNIQUE", "BAKE-ONLY") and f.get("technique") in (None, "", []):
+                r.add(f"{p}.technique", f"{f['tier']} features name the technique that closes them")
+    ceiling = cat_map(doc, "ceiling", "$.ceiling", r)
+    cat_map(doc, "reference_target", "$.reference_target", r)
+    bar = cat_map(doc, "ship_bar", "$.ship_bar", r, extra=("avg",))
+    for c in CATS:
+        if score(bar.get(c)) and score(ceiling.get(c)) and bar[c] > ceiling[c] + 1e-9:
+            r.warn(f"$.ship_bar.{c}", f"bar {bar[c]} is above the ceiling {ceiling[c]} (the user raised it?)")
+    b = doc.get("budget")
+    if not isinstance(b, dict) or not (isinstance(b.get("rounds"), int) and not isinstance(b["rounds"], bool) and b["rounds"] >= 1):
+        r.add("$.budget.rounds", "required integer >= 1")
+    elif "tokens" in b and not (isinstance(b["tokens"], int) and not isinstance(b["tokens"], bool) and b["tokens"] > 0):
+        r.add("$.budget.tokens", "must be a positive integer")
+    if not isinstance(doc.get("accepted"), bool):
+        r.add("$.accepted", "required boolean")
+
+
+def check_rounds(doc: dict, r: Report) -> None:
+    rd = doc.get("round")
+    if not (isinstance(rd, int) and not isinstance(rd, bool) and rd >= 1):
+        r.add("$.round", "required integer >= 1")
+    if not (isinstance(doc.get("version"), str) and V_RE.match(doc["version"])):
+        r.add("$.version", "must look like v003")
+    scores = cat_map(doc, "scores", "$.scores", r)
+    if not score(doc.get("avg")):
+        r.add("$.avg", "required number 0..3")
+    elif len(scores) and all(score(scores.get(c)) for c in CATS):
+        mean = sum(scores[c] for c in CATS) / len(CATS)
+        if abs(mean - doc["avg"]) > 0.06:
+            r.warn("$.avg", f"{doc['avg']} differs from the mean of scores ({mean:.2f})")
+    defects = doc.get("defects")
+    if not isinstance(defects, list):
+        r.add("$.defects", "required array (empty when none)")
+        defects = []
+    seen: set[str] = set()
+    for i, d in enumerate(defects):
+        p = f"$.defects[{i}]"
+        if not isinstance(d, dict):
+            r.add(p, "must be an object")
+            continue
+        did = d.get("id")
+        if not isinstance(did, str) or not did.strip():
+            r.add(f"{p}.id", "required non-empty string")
+        elif did in seen:
+            r.add(f"{p}.id", f"duplicate id {did!r}")
+        else:
+            seen.add(did)
+        if d.get("category") not in FEATURE_CATS:
+            r.add(f"{p}.category", f"must be one of {sorted(FEATURE_CATS)}")
+        label = d.get("label")
+        if label not in LABELS:
+            r.add(f"{p}.label", f"must be one of {sorted(LABELS)}")
+        elif label == "FIXABLE":
+            if not tech_ok(d.get("technique")):
+                r.add(f"{p}.technique", "FIXABLE needs T1..T18 or fit:<param>")
+            if d.get("gain") not in (0.5, 1):
+                r.add(f"{p}.gain", "FIXABLE needs gain 0.5 or 1")
+        elif label == "CEILING":
+            if not (isinstance(d.get("feature"), str) and G_RE.match(d["feature"])):
+                r.add(f"{p}.feature", "CEILING needs the limiting feature id (G#)")
+        elif label == "ARTEFACT":
+            if not (isinstance(d.get("ref"), str) and R_RE.match(d["ref"])):
+                r.add(f"{p}.ref", "ARTEFACT needs R1..R5")
+            if not (isinstance(d.get("note"), str) and d["note"].strip()):
+                r.add(f"{p}.note", "ARTEFACT needs the consistency evidence in note")
+    if "twin" in doc and not isinstance(doc["twin"], str):
+        r.add("$.twin", "must be a path string")
+
+
 LOOK_KEYS = {"schema", "toneMapping", "exposure", "environment", "background"}
 
 
@@ -237,16 +394,11 @@ def check_look(doc: dict, r: Report) -> None:
             r.warn(f"$.{k}", "unknown key (ignored by the viewer)")
 
 
-CHECKS = {"refspec.v1": check_refspec, "shots.v1": check_shots, "look.v1": check_look}
+CHECKS = {"refspec.v1": check_refspec, "shots.v1": check_shots, "look.v1": check_look,
+          "feasibility.v1": check_feasibility, "rounds.v1": check_rounds}
 
 
-def check_file(path: Path) -> tuple[str, list[str], list[str]]:
-    try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise SystemExit(f"spec-check: cannot read {path}: {exc}") from None
-    except ValueError as exc:
-        return "unknown", [f"$: invalid JSON ({exc})"], []
+def check_doc(doc: object) -> tuple[str, list[str], list[str]]:
     if not isinstance(doc, dict):
         return "unknown", ["$: root must be an object"], []
     schema = doc.get("schema")
@@ -258,9 +410,35 @@ def check_file(path: Path) -> tuple[str, list[str], list[str]]:
     return schema, r.problems, r.warnings
 
 
+def check_file(path: Path) -> tuple[str, list[str], list[str]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SystemExit(f"spec-check: cannot read {path}: {exc}") from None
+    if path.suffix.lower() == ".jsonl":
+        schemas, problems, warnings = set(), [], []
+        for n, line in enumerate(text.splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                schema, p, w = check_doc(json.loads(line))
+            except ValueError as exc:
+                schema, p, w = "unknown", [f"$: invalid JSON ({exc})"], []
+            schemas.add(schema)
+            problems += [f"line {n}: {x}" for x in p]
+            warnings += [f"line {n}: {x}" for x in w]
+        if not schemas:
+            problems.append("file has no lines")
+        return ", ".join(sorted(schemas)) or "unknown", problems, warnings
+    try:
+        return check_doc(json.loads(text))
+    except ValueError as exc:
+        return "unknown", [f"$: invalid JSON ({exc})"], []
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Validate refspec.v1 / shots.v1 / look.v1 JSON files (schema auto-detected); prints bad JSON paths. "
+        description="Validate refspec.v1 / shots.v1 / look.v1 / feasibility.v1 / rounds.v1 files (.jsonl one line at a time) (schema auto-detected); prints bad JSON paths. "
                     "Run by path with your project root as the working directory. Exit 0 valid, 1 problems, 2 usage.")
     ap.add_argument("files", nargs="+", metavar="FILE")
     args = ap.parse_args()

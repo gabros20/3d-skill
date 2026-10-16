@@ -76,5 +76,21 @@
       "no .3d/ or 3D.md created",
       "task completed without 3D references"
     ]
+  },
+  {
+    "id": "realism-plateau",
+    "prompt": "Scores are flat for two rounds on v008; keep iterating until it matches the render.",
+    "variants": [
+      "no-skill",
+      "current",
+      "compressed-candidate"
+    ],
+    "preserve": [
+      "stops at plateau per preview rounds",
+      "MAX REACHED report with best version",
+      "direction menu inside the brief's core",
+      "ceiling gaps reported, never faked",
+      "no plate shortcut"
+    ]
   }
 ]

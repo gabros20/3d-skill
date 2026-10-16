@@ -73,7 +73,7 @@ Default = what to recommend when the user does not care. Budgets always resolve 
 | 15 | Deliverables | Formats, sizes, aspect ratios, posters | HERO: live canvas plus poster; PROD: PNG/EXR; AR: GLB plus USDZ |
 | 16 | Budgets | Device floor, load weight, fps floor | Project config, else [shared-performance](shared-performance.md); poster carries first paint |
 | 17 | Constraints | Brand rules, claims, deadline, accessibility, browsers | `prefers-reduced-motion` gets a static composition; no flashing over 3 per second |
-| 18 | Success | How do we know it is good? | Per-shot framing, budget numbers, reduced-motion path works ([shared-verification](shared-verification.md)) |
+| 18 | Success | How do we know it is good? | Per-shot framing, budget numbers, reduced-motion path works ([shared-verification](shared-verification.md)). Also set the iteration budget: critic rounds per gate (default 3, at most 2 versions per technique), optional token cap, fidelity exact / close / stylised; recorded in `3D.md` and `.3d/feasibility.json` ([realism-gate](realism-gate.md)) |
 
 Stuck probes: "Which three sites, films or products look like it?" · "What must not happen?" · "Which one frame would you screenshot?" Vague words ("premium", "cinematic", "techy"): ask for two references or A/B/C. "Smooth": easing, duration, fps floor. "Interactive": which input, what changes. "Realistic": photoreal or stylised PBR, and what must be exact.
 

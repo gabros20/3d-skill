@@ -55,6 +55,7 @@ Tag every guess `[assumed]`. Delete guidance in parentheses when filling.
 - Strategy:
 - Stages and owners:
 - Fallback ladder (live → live reduced → poster plus video → static) with triggers:
+- Feasibility (reference-matching or realism briefs; see the realism gate): reference target per category vs achievable target; provenance of the reference; ceiling-bound features (offline-only, reported not faked); ship bar; iteration budget; planned techniques:
 
 ## 13. Acceptance tests
 - Binary (size, fps on named device, reduced-motion renders, poster = first frame, per-shot framing):

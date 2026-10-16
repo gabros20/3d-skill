@@ -222,5 +222,73 @@
       "references/blender-channels.md",
       "references/scroll-adapters.md"
     ]
+  },
+  {
+    "id": "cycles-exact-match",
+    "prompt": "Make this in three.js and make it look exactly like this Cycles render (render.png).",
+    "expected_references": [
+      "references/intake-references.md",
+      "references/realism-gap.md",
+      "references/realism-gate.md",
+      "references/brief-approach.md"
+    ],
+    "forbidden_references": [
+      "references/scroll-conductor.md",
+      "references/scroll-adapters.md",
+      "references/asset-acquire.md",
+      "references/blender-modeling.md"
+    ]
+  },
+  {
+    "id": "critic-plateau",
+    "prompt": "The critic failed lighting and materials again on v009, same scores as v008. Keep going?",
+    "expected_references": [
+      "references/realism-gate.md",
+      "references/realism-toolbox.md",
+      "references/shared-verification.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/intake-references.md",
+      "references/refspec.md"
+    ]
+  },
+  {
+    "id": "blender-bake-room",
+    "prompt": "Bake the Cycles lighting of our room scene for three.js.",
+    "expected_references": [
+      "references/blender-lookdev-render.md",
+      "references/threejs-lookdev.md"
+    ],
+    "forbidden_references": [
+      "references/realism-gate.md",
+      "references/intake-grill.md",
+      "references/scroll-video.md"
+    ]
+  },
+  {
+    "id": "flat-gold-vs-blender",
+    "prompt": "Our gold looks flat and plasticky in three.js compared with Blender.",
+    "expected_references": [
+      "references/shared-debug.md",
+      "references/threejs-lookdev.md"
+    ],
+    "forbidden_references": [
+      "references/realism-gate.md",
+      "references/intake-grill.md"
+    ]
+  },
+  {
+    "id": "realism-stack-gap",
+    "prompt": "Which effect would close the gap on these edge highlights? What's the realism stack for a gold product shot in r186?",
+    "expected_references": [
+      "references/realism-toolbox.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/scroll-conductor.md",
+      "references/blender-modeling.md",
+      "references/splats-xr.md"
+    ]
   }
 ]

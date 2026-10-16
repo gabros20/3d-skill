@@ -349,6 +349,124 @@ class SpecCheckTest(unittest.TestCase):
         self.fails(self.variant("refspec.example.json", lambda d: d["colour"]["palette"][0].update(hex="red")),
                    "$.colour.palette[0].hex")
 
+    GOOD_FEAS = {
+        "schema": "feasibility.v1", "pipeline": "live three.js, WebGLRenderer", "dynamics": "dynamic",
+        "target": "laptop",
+        "provenance": {"kind": "ai-video", "consistency": {"perspective": "fail", "lighting": "pass", "temporal": "unknown"},
+                       "evidence": "Seedance clip with prompt JSON"},
+        "features": [
+            {"g": "G3", "category": "materials", "visibility": "D", "tier": "LIVE-NATIVE", "technique": "T1"},
+            {"g": "G1", "category": "lighting", "visibility": "D", "tier": "OFFLINE-ONLY", "technique": None},
+            {"g": "G9", "category": "lighting", "visibility": "O", "tier": "LIVE-WITH-TECHNIQUE", "technique": ["T17"]}],
+        "ceiling": {"composition": 3, "lighting": 2, "materials": 2, "colour": 3, "motion": 3, "fidelity": 2},
+        "reference_target": {"composition": 3, "lighting": 3, "materials": 3, "colour": 3, "motion": 3, "fidelity": 3},
+        "ship_bar": {"composition": 2, "lighting": 2, "materials": 2, "colour": 2, "motion": 2, "fidelity": 2, "avg": 2.0},
+        "budget": {"rounds": 3, "tokens": 200000}, "accepted": True}
+    GOOD_ROUND = {
+        "schema": "rounds.v1", "round": 2, "version": "v003",
+        "scores": {"composition": 2, "lighting": 1.5, "materials": 2, "colour": 2.5, "motion": 2, "fidelity": 2},
+        "avg": 2.0, "twin": ".3d/twins/v003.png",
+        "defects": [
+            {"id": "D1", "category": "lighting", "label": "FIXABLE", "technique": "T8", "gain": 1, "note": "strip too narrow"},
+            {"id": "D2", "category": "materials", "label": "CEILING", "feature": "G2", "note": "many moving polished parts"},
+            {"id": "D3", "category": "composition", "label": "ARTEFACT", "ref": "R1", "note": "frames 12 vs 40 vanishing points differ"},
+            {"id": "D4", "category": "composition", "label": "FIXABLE", "technique": "fit:camera", "gain": 0.5, "note": "lens"}]}
+
+    def write(self, name: str, doc) -> Path:
+        p = self.tmp / name
+        p.write_text(json.dumps(doc))
+        return p
+
+    def test_feasibility_valid_and_broken(self) -> None:
+        import copy
+        self.assertEqual(run("spec-check", str(self.write("feasibility.json", self.GOOD_FEAS))).returncode, 0)
+        cases = [
+            (lambda d: d.update(dynamics="sometimes"), "$.dynamics"),
+            (lambda d: d.update(target="phone"), "$.target"),
+            (lambda d: d["features"][0].update(g="3"), "$.features[0].g"),
+            (lambda d: d["features"][0].update(tier="LIVE"), "$.features[0].tier"),
+            (lambda d: d["features"][2].update(technique=None), "$.features[2].technique"),
+            (lambda d: d["features"][0].update(category="sound"), "$.features[0].category"),
+            (lambda d: d["ceiling"].update(lighting=4), "$.ceiling.lighting"),
+            (lambda d: d["ceiling"].pop("motion"), "$.ceiling.motion"),
+            (lambda d: d["reference_target"].update(colour="3"), "$.reference_target.colour"),
+            (lambda d: d["ship_bar"].pop("avg"), "$.ship_bar.avg"),
+            (lambda d: d["budget"].update(rounds=0), "$.budget.rounds"),
+            (lambda d: d.update(accepted="yes"), "$.accepted"),
+            (lambda d: d["provenance"].update(kind="video"), "$.provenance.kind"),
+            (lambda d: d["provenance"]["consistency"].update(temporal="maybe"), "$.provenance.consistency.temporal"),
+        ]
+        for mutate, needle in cases:
+            doc = copy.deepcopy(self.GOOD_FEAS)
+            mutate(doc)
+            self.fails(self.write("feasibility.json", doc), needle)
+        doc = copy.deepcopy(self.GOOD_FEAS)
+        doc["ship_bar"]["lighting"] = 3  # above ceiling 2: user raised it -> WARN only
+        res = run("spec-check", str(self.write("feasibility.json", doc)))
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("WARN $.ship_bar.lighting", res.stdout)
+
+    def test_rounds_jsonl_valid_and_broken(self) -> None:
+        import copy
+        good = self.tmp / "rounds.jsonl"
+        good.write_text(json.dumps(self.GOOD_ROUND) + "\n\n" + json.dumps({**self.GOOD_ROUND, "round": 3}) + "\n")
+        res = run("spec-check", str(good))
+        self.assertEqual(res.returncode, 0, res.stdout)
+        cases = [
+            (lambda d: d.update(round=0), "$.round"),
+            (lambda d: d.update(version="3"), "$.version"),
+            (lambda d: d["scores"].update(lighting=5), "$.scores.lighting"),
+            (lambda d: d.update(avg="2"), "$.avg"),
+            (lambda d: d.pop("defects"), "$.defects"),
+            (lambda d: d["defects"][0].update(label="MAYBE"), "$.defects[0].label"),
+            (lambda d: d["defects"][0].pop("technique"), "$.defects[0].technique"),
+            (lambda d: d["defects"][0].update(gain=2), "$.defects[0].gain"),
+            (lambda d: d["defects"][1].pop("feature"), "$.defects[1].feature"),
+            (lambda d: d["defects"][2].update(ref="R9"), "$.defects[2].ref"),
+            (lambda d: d["defects"][2].pop("note"), "$.defects[2].note"),
+            (lambda d: d["defects"][1].update(id="D1"), "duplicate id"),
+        ]
+        for mutate, needle in cases:
+            bad_doc = copy.deepcopy(self.GOOD_ROUND)
+            mutate(bad_doc)
+            bad = self.tmp / "bad.jsonl"
+            bad.write_text(json.dumps(self.GOOD_ROUND) + "\n" + json.dumps(bad_doc) + "\n")
+            self.fails(bad, "line 2: " + needle if needle.startswith("$") else needle)
+        mixed = self.tmp / "mixed.jsonl"
+        mixed.write_text(json.dumps(self.GOOD_ROUND) + "\n{oops\n")
+        self.fails(mixed, "line 2: $: invalid JSON")
+        drift = {**self.GOOD_ROUND, "avg": 1.0}
+        res = run("spec-check", str(self.write("one.json", drift)))
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("WARN $.avg", res.stdout)
+
+    def test_id_ranges(self) -> None:
+        import copy
+        for g, ok in (("G22", True), ("G23", False), ("G0", False)):
+            d = copy.deepcopy(self.GOOD_FEAS)
+            d["features"][0]["g"] = g
+            self.assertEqual(run("spec-check", str(self.write("f.json", d))).returncode, 0 if ok else 1, g)
+        for tech, ok in (("T18", True), ("T19", False), ("T0", False)):
+            d = copy.deepcopy(self.GOOD_FEAS)
+            d["features"][0]["technique"] = tech
+            self.assertEqual(run("spec-check", str(self.write("f.json", d))).returncode, 0 if ok else 1, tech)
+        for ref, ok in (("R5", True), ("R6", False)):
+            d = copy.deepcopy(self.GOOD_ROUND)
+            d["defects"][2]["ref"] = ref
+            self.assertEqual(run("spec-check", str(self.write("r.json", d))).returncode, 0 if ok else 1, ref)
+        d = copy.deepcopy(self.GOOD_ROUND)
+        d["defects"][1]["feature"] = "G23"
+        self.assertEqual(run("spec-check", str(self.write("r.json", d))).returncode, 1)
+
+    def test_refspec_provenance(self) -> None:
+        self.fails(self.variant("refspec.example.json", lambda d: d["provenance"].update(kind="drawing")), "$.provenance.kind")
+        self.fails(self.variant("refspec.example.json",
+                                lambda d: d["provenance"]["consistency"].update(lighting="bad")),
+                   "$.provenance.consistency.lighting")
+        self.fails(self.variant("refspec.example.json", lambda d: d.update(provenance="ai")), "$.provenance")
+        path = self.variant("refspec.example.json", lambda d: d.pop("provenance"))
+        self.assertEqual(run("spec-check", str(path)).returncode, 0)
+
     def test_bad_inputs(self) -> None:
         junk = self.tmp / "junk.json"
         junk.write_text("{nope")
@@ -453,6 +571,107 @@ class RefExtractTest(unittest.TestCase):
                 self.assertEqual(h, 270)
                 self.assertGreater(w, 30)
 
+    def bar_clip(self, name: str, expr: str) -> Path:
+        vid = self.tmp / name
+        self.ff("-f", "lavfi", "-i", "color=black:size=640x360:rate=20:duration=6",
+                "-f", "lavfi", "-i", "color=white:size=40x360:rate=20",
+                "-filter_complex", f"[0][1]overlay=x='{expr}':shortest=1", "-pix_fmt", "yuv420p", str(vid))
+        return vid
+
+    def line_items(self, vid: Path) -> dict:
+        out = self.tmp / "o_" / vid.stem
+        res = run("ref-extract", str(vid), "--out", str(self.tmp / "o_"), "--frames", "2", "--motion-json")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        d = json.loads((out / "motion-summary.json").read_text())
+        self.assertEqual(len(d["items"]), 9 + 2)
+        return {i["axis"].split()[0]: i for i in d["items"] if i["kind"] == "line"}
+
+    def test_motion_summary_travel_speed(self) -> None:
+        row = self.line_items(self.bar_clip("travel.mp4", "t*100"))["row"]   # 100 px/s of 640 = 15.6 %W/s
+        self.assertAlmostEqual(row["speed_w_pct_s"], 15.6, delta=2.5)
+        self.assertEqual(row["confidence"], "high")
+        self.assertEqual(row["kind_of_motion"], "travelling")
+        self.assertIsNone(row["amplitude_x_pct_w"])  # steady travel is speed, not sway
+        self.assertIsNone(row["amplitude_px"])
+
+    def test_motion_summary_sway_period_and_amplitude(self) -> None:
+        row = self.line_items(self.bar_clip("sway.mp4", "300+40*sin(2*PI*t/2)"))["row"]  # 2 s period, 80 px p-p = 12.5 %W
+        self.assertIsNotNone(row["period_s"])
+        self.assertEqual(row["kind_of_motion"], "oscillating")
+        self.assertIsNone(row["speed_w_pct_s"])  # direction reverses: no travel speed
+        self.assertAlmostEqual(row["period_s"], 2.0, delta=0.3)
+        self.assertAlmostEqual(row["amplitude_x_pct_w"], 12.5, delta=3.5)
+        self.assertAlmostEqual(row["amplitude_x_px"], 80, delta=22)
+
+    def test_motion_summary_static_is_low_confidence(self) -> None:
+        vid = self.tmp / "still.mp4"
+        self.ff("-f", "lavfi", "-i", "testsrc=duration=3:size=320x180:rate=10", "-vf", "fps=10,loop=-1:size=1:start=0",
+                "-t", "3", "-pix_fmt", "yuv420p", str(vid))
+        row = self.line_items(vid)["row"]
+        self.assertEqual(row["kind_of_motion"], "static")
+        self.assertIsNone(row["speed_w_pct_s"])
+        self.assertIsNone(row["amplitude_x_pct_w"])
+        self.assertEqual(row["confidence"], "low")
+
+    REAL_CLIP = Path.home() / "Downloads" / "eagle-training" / "eagle-training-loop.mp4"
+
+    @unittest.skipUnless(REAL_CLIP.is_file(), "real clip eagle-training-loop.mp4 not present")
+    def test_motion_summary_real_clip(self) -> None:
+        out = self.tmp / "real"
+        res = run("ref-extract", str(self.REAL_CLIP), "--out", str(out), "--frames", "2", "--regions", "4",
+                  "--kymo-at", "0.5,0.65", "--motion-json")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        d = json.loads((out / "eagle-training-loop" / "motion-summary.json").read_text())
+        reg = json.loads((out / "eagle-training-loop" / "regions.json").read_text())
+        self.assertEqual(d["fps"], 24)
+        items = {i["id"]: i for i in d["items"]}
+        found = 0
+        for cell in reg["cells"]:
+            it = items[f"r{cell['row']}c{cell['col']}"]
+            # never contradict regions.json: it finds no period -> neither do we
+            if cell["period_s"] is None:
+                self.assertIsNone(it["period_s"], it["id"])
+            elif it["period_s"] is not None:
+                self.assertAlmostEqual(it["period_s"], cell["period_s"], delta=0.3, msg=it["id"])
+                found += 1
+        self.assertGreaterEqual(found, 11)
+        self.assertTrue(all(i["id"] and i["confidence"] in ("low", "med", "high") for i in d["items"]))
+        kinds = {i["kind_of_motion"] for i in d["items"]}
+        self.assertEqual(kinds, {"travelling", "oscillating", "static"})
+        for i in d["items"]:
+            self.assertEqual(i["amplitude_x_pct_w"] is not None or i["amplitude_y_pct_h"] is not None,
+                             i["kind_of_motion"] == "oscillating", i["id"])
+            self.assertEqual(i["speed_w_pct_s"] is not None or i["speed_h_pct_s"] is not None,
+                             i["kind_of_motion"] == "travelling", i["id"])
+        sway = [i["amplitude_x_pct_w"] for i in d["items"] if i["kind"] == "region" and i["kind_of_motion"] == "oscillating"]
+        self.assertTrue(sway and max(sway) < 3, sway)  # blade sway is about 0.5 %W, not the travelling pulses' 16
+        row = items["kymo-row-0.65"]
+        self.assertTrue(22 <= row["speed_w_pct_s"] <= 40, row["speed_w_pct_s"])  # headline = fastest strong window
+        mixed = items["r3c1"]
+        self.assertEqual((mixed["kind_of_motion"], mixed["confidence"]), ("oscillating", "low"))
+        self.assertIn("mixed travel/oscillation", mixed["motion_note"])
+        fast = [w["speed_pct_s"] for w in row["windows"] if w["travel_samples"] >= 20 and w["direction_share"] >= 0.7]
+        self.assertTrue(fast and 22 <= max(fast) <= 40, row["windows"])
+
+    def test_flag_mixed_rules(self) -> None:
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("ref_extract_mod", str(SCRIPTS / "ref-extract"))
+        mod = importlib.util.module_from_spec(importlib.util.spec_from_loader("ref_extract_mod", loader))
+        loader.exec_module(mod)
+
+        def osc(i, x, signed=0):
+            return {"id": i, "kind_of_motion": "oscillating", "amplitude_x_pct_w": x, "amplitude_y_pct_h": None,
+                    "confidence": "high", "motion_note": "ok", "_signed_n": signed}
+        items = [osc("a", 1.0), osc("b", 1.2), osc("c", 0.9), osc("big", 9.0), osc("rev", 1.0, signed=8)]
+        mod.flag_mixed(items)
+        by = {i["id"]: i for i in items}
+        self.assertEqual([by[k]["confidence"] for k in ("a", "b", "c")], ["high"] * 3)
+        for k in ("big", "rev"):
+            self.assertEqual(by[k]["confidence"], "low")
+            self.assertIn("check visually", by[k]["motion_note"])
+        self.assertTrue(all("_signed_n" not in i for i in items))
+
     def test_bad_regions_usage(self) -> None:
         self.assertEqual(run("ref-extract", "x.mp4", "--regions", "20").returncode, 2)
         self.assertEqual(run("ref-extract", "x.mp4", "--kymo-at", "3,1").returncode, 2)
@@ -460,6 +679,115 @@ class RefExtractTest(unittest.TestCase):
     def test_missing_input_exit_1(self) -> None:
         res = run("ref-extract", str(self.tmp / "nope.png"), "--out", str(self.tmp / "o"))
         self.assertEqual(res.returncode, 1)
+
+
+def look_at_camera(pos, tgt, fov, roll, w, h):
+    """Reference pinhole for fit-camera tests: returns a project(world) function."""
+    import math as m
+
+    def unit(a):
+        n = m.sqrt(sum(x * x for x in a))
+        return [x / n for x in a]
+
+    def cross(a, b):
+        return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+    def dot(a, b):
+        return sum(x * y for x, y in zip(a, b))
+    f = unit([t - p for t, p in zip(tgt, pos)])
+    u0 = unit([-dot([0, 1, 0], f) * f[0], 1 - dot([0, 1, 0], f) * f[1], -dot([0, 1, 0], f) * f[2]])
+    r0 = cross(f, u0)
+    th = m.radians(roll)
+    up = [u0[i] * m.cos(th) - r0[i] * m.sin(th) for i in range(3)]
+    right = cross(f, up)
+    fy = h / 2 / m.tan(m.radians(fov) / 2)
+
+    def project(wd):
+        d = [a - b for a, b in zip(wd, pos)]
+        x, y, z = dot(d, right), -dot(d, up), dot(d, f)
+        return [fy * x / z + w / 2, fy * y / z + h / 2]
+    return project
+
+
+WORLD_ANCHORS = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1], [-1, 0.5, 0.7], [0.5, -0.2, -1], [-0.8, 1.2, -0.6]]
+
+
+class FitCameraTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def write(self, points, size=(1280, 720)) -> Path:
+        p = self.tmp / "pts.json"
+        p.write_text(json.dumps({"image_size": list(size), "points": points}))
+        return p
+
+    def pts(self, cam, noise=0.0, world=None):
+        import random
+        rnd = random.Random(3)
+        return [{"image": [c + rnd.gauss(0, noise) for c in cam(w)], "world": w} for w in (world or WORLD_ANCHORS)]
+
+    def test_recovers_known_pose(self) -> None:
+        cam = look_at_camera([3, 2, 5], [0, 0.5, 0], 40, 10, 1280, 720)
+        res = run("fit-camera", str(self.write(self.pts(cam))), "--json")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        d = json.loads(res.stdout)
+        self.assertAlmostEqual(d["vertical_fov_deg"], 40, delta=0.05)
+        self.assertAlmostEqual(d["focal_mm"], 12 / __import__("math").tan(__import__("math").radians(20)), delta=0.05)
+        for got, want in zip(d["position"], [3, 2, 5]):
+            self.assertAlmostEqual(got, want, delta=0.01)
+        self.assertAlmostEqual(d["roll_deg"], 10, delta=0.1)
+        self.assertLess(d["rms_fit_px"], 0.01)
+        self.assertLess(d["rms_shot_px"], 0.05)
+        # the target lies on the optical axis: re-project through the emitted shot
+        again = look_at_camera(d["position"], d["target"], d["vertical_fov_deg"], d["roll_deg"], 1280, 720)
+        for w in WORLD_ANCHORS:
+            for a, b in zip(again(w), cam(w)):
+                self.assertAlmostEqual(a, b, delta=0.05)
+        # the emitted shot is a valid shots.v1 shot
+        doc = {"schema": "shots.v1", "aspect": d["aspect"], "shots": [d["shot"]]}
+        (self.tmp / "s.json").write_text(json.dumps(doc))
+        self.assertEqual(run("spec-check", str(self.tmp / "s.json")).returncode, 0)
+
+    def test_noisy_anchors_still_close(self) -> None:
+        cam = look_at_camera([-2.5, 1.2, 4.0], [0.2, 0.4, 0], 28, -6, 1920, 1080)
+        res = run("fit-camera", str(self.write(self.pts(cam, noise=0.4), (1920, 1080))), "--json")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        d = json.loads(res.stdout)
+        self.assertAlmostEqual(d["vertical_fov_deg"], 28, delta=1.5)
+        self.assertAlmostEqual(d["roll_deg"], -6, delta=1.0)
+        for got, want in zip(d["position"], [-2.5, 1.2, 4.0]):
+            self.assertAlmostEqual(got, want, delta=0.25)
+        self.assertLess(d["rms_shot_px"], 2.0)
+
+    def test_text_output_lists_errors_and_shot(self) -> None:
+        cam = look_at_camera([3, 2, 5], [0, 0.5, 0], 40, 0, 1280, 720)
+        res = run("fit-camera", str(self.write(self.pts(cam))), "--id", "S07")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("RMS:", res.stdout)
+        self.assertIn('"id": "S07"', res.stdout)
+
+    def test_degenerate_inputs_exit_1(self) -> None:
+        cam = look_at_camera([3, 2, 5], [0, 0.5, 0], 40, 0, 1280, 720)
+        few = run("fit-camera", str(self.write(self.pts(cam, world=WORLD_ANCHORS[:5]))))
+        self.assertEqual(few.returncode, 1)
+        self.assertIn("at least 6", few.stderr)
+        flat = [[x, 0, z] for x, z in [(0, 0), (1, 0), (0, 1), (1, 1), (-1, 0.5), (0.5, -1), (-0.8, -0.6)]]
+        planar = run("fit-camera", str(self.write(self.pts(cam, world=flat))))
+        self.assertEqual(planar.returncode, 1)
+        self.assertIn("coplanar", planar.stderr)
+        line = [[i * 0.3, i * 0.1, -i * 0.2] for i in range(8)]
+        self.assertEqual(run("fit-camera", str(self.write(self.pts(cam, world=line)))).returncode, 1)
+        bad = self.tmp / "bad.json"
+        bad.write_text("{nope")
+        self.assertEqual(run("fit-camera", str(bad)).returncode, 1)
+        nosize = self.tmp / "nosize.json"
+        nosize.write_text(json.dumps({"points": self.pts(cam)}))
+        res = run("fit-camera", str(nosize))
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("image size", res.stderr)
+        self.assertEqual(run("fit-camera", str(nosize), "--size", "1280", "720").returncode, 0)
+        self.assertEqual(run("fit-camera", str(self.tmp / "none.json")).returncode, 2)
 
 
 class RefExtractNoFfmpegTest(unittest.TestCase):

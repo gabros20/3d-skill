@@ -6,6 +6,8 @@
 //
 // R3F: call it from a tiny component, e.g.
 //   const { gl, scene, camera } = useThree();
+//   // Tunables: const P = readParams({ keyIntensity: 2 }); scene code reads P.keyIntensity;
+//   // installBridge({ ..., params: P, onParams: () => applyLook(P) }) lets `preview sweep` and ?p= retune it.
 //   useEffect(() => (process.env.NODE_ENV !== 'production' ? installBridge({ gl, scene, camera }) : undefined), [gl, scene, camera]);
 // Apps with postprocessing (EffectComposer etc.) pass `render` so captures include the post chain.
 import type { Camera, OrthographicCamera, PerspectiveCamera, Scene, Vector3Tuple, WebGLRenderer } from 'three';
@@ -33,7 +35,11 @@ export interface BridgeShot extends BridgePose {
   notes?: string;
 }
 
+/** Plain JSON object of tunables (the `P` block). */
+export type Params = Record<string, unknown>;
+
 export interface BridgeInfo {
+  params: Params;
   mode: 'live';
   shot: string | null;
   renderer: string;
@@ -53,6 +59,9 @@ export interface Bridge {
   setShot(id: string, t?: number): boolean;
   /** Put time-driven state at `t` seconds via the app's setTime hook; false when no hook is registered. */
   setTime(t: number): boolean;
+  /** Merge `obj` into the live params (mutating the object you passed as `params`), then call `onParams`. Returns a copy. */
+  setParams(obj: Params): Params;
+  getParams(): Params;
   frame(n?: number): number;
   capture(): string;
   info(): BridgeInfo;
@@ -72,6 +81,10 @@ export interface BridgeOptions {
   setTime?: (t: number) => void;
   /** Move scroll-driven state to normalised progress; shots with `scroll` call it. */
   setProgress?: (progress: number) => void;
+  /** Your `P` object (from readParams). setParams() mutates it in place so scene code that reads P sees the change. */
+  params?: Params;
+  /** Called after every setParams with the merged params: re-apply uniforms, lights, materials here. */
+  onParams?: (params: Params) => void;
   /** Draw one frame. Default gl.render(scene, camera); pass your composer's render for postprocessed apps. */
   render?: () => void;
   /** Run `?3d-preview` check yourself; default reads location.search. */
@@ -85,6 +98,39 @@ declare global {
 }
 
 const FIXED_DT = 1 / 60;
+
+const isPlain = (v: unknown): v is Params => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function merge(base: Params, over: Params): Params {
+  for (const [k, v] of Object.entries(over)) base[k] = isPlain(v) && isPlain(base[k]) ? merge(base[k] as Params, v) : v;
+  return base;
+}
+
+function decodeParam(b64: string): Params | null {
+  try {
+    const t = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(t + '='.repeat((4 - (t.length % 4)) % 4));
+    const json = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    const v: unknown = JSON.parse(json);
+    return isPlain(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tunables in one object: `const P = readParams({ keyIntensity: 2, bloom: { strength: 0.4 } })`.
+ * Merges `?p=<base64url JSON>` over the defaults (nested plain objects merge, everything else replaces).
+ * SSR-safe: without a window it returns a copy of the defaults. Never throws on a bad `p`.
+ */
+export function readParams<T extends Params>(defaults: T, search?: string): T {
+  const out = merge({}, JSON.parse(JSON.stringify(defaults)) as Params);
+  const q = search ?? (typeof window !== 'undefined' ? window.location.search : '');
+  const raw = q ? new URLSearchParams(q).get('p') : null;
+  const over = raw ? decodeParam(raw) : null;
+  if (over) merge(out, over);
+  return out as T;
+}
 
 const EASE = {
   linear: (t: number) => t,
@@ -140,6 +186,7 @@ export function installBridge(opts: BridgeOptions): () => void {
   const { gl, scene, camera, controls } = opts;
   let shots = normalise(opts.shots ?? []);
   let current: string | null = null;
+  const params: Params = opts.params ?? readParams({});
 
   let rollRad = 0;
   const draw = opts.render ?? ((): void => gl.render(scene, camera));
@@ -193,6 +240,12 @@ export function installBridge(opts: BridgeOptions): () => void {
       camera.updateMatrixWorld(true);
       return true;
     },
+    setParams(obj) {
+      merge(params, obj);
+      opts.onParams?.(params);
+      return JSON.parse(JSON.stringify(params)) as Params;
+    },
+    getParams: () => JSON.parse(JSON.stringify(params)) as Params,
     setTime(t) {
       opts.setTime?.(t);
       return opts.setTime !== undefined;
@@ -218,6 +271,7 @@ export function installBridge(opts: BridgeOptions): () => void {
       const name = ext ? String(ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'WebGL';
       return {
         mode: 'live',
+        params: JSON.parse(JSON.stringify(params)) as Params,
         shot: current,
         renderer: name,
         size: [gl.domElement.width, gl.domElement.height],

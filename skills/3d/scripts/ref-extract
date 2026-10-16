@@ -15,6 +15,22 @@ to half the clip), null when the cell is static or not periodic. A blink on/off 
 period. --kymo (video only) writes kymo-rows.png (width = frame x, height = time; the horizontal line
 at y) and kymo-cols.png (width = time, height = frame y; the vertical line at x), 8 samples/s, 480x270
 sampling; --kymo-at X,Y sets the line position as 0..1 fractions (default 0.5,0.5) and implies --kymo.
+--motion-json (video only) writes motion-summary.json: items[] for each region (id r<row>c<col>) of an N x N
+grid (N from --regions, default 3) and for the kymo lines (ids kymo-row-<y>, kymo-col-<x>, at --kymo-at,
+default 0.5,0.5), each with: period_s (fused: the mean-luma period, as regions.json, wins; agreement with
+the shift-track period is in period_agree; period_luma_s / period_shift_s keep both), speed_w_pct_s /
+speed_h_pct_s (median travel in %width / %height per second over samples that shift >= 1 sample px,
+measured on the residual after removing the static background; peak_speed_* is the 90th percentile),
+amplitude_x_px / amplitude_x_pct_w / amplitude_y_px / amplitude_y_pct_h (peak-to-peak sub-pixel sway by
+normalised cross-correlation with the steady drift removed; px are source pixels; amplitude_pct_w,
+amplitude_pct_h and amplitude_px are the same numbers under shorter names) and confidence high|med|low
+with a `why`. kind_of_motion is travelling (one direction; only then are speed_* set), oscillating (reverses and
+repeats; only then are amplitude_* set) or static; the other group is null and motion_note says why. Travel counts only shifts that keep one direction (>= 70% agree in sign); sway reverses, so
+it reads as amplitude and period, not speed. Kymo items search 8 windows along the line (`windows` lists each
+one with speed, sample count and direction share; sway_window and travel_window say which was used), so put
+the line through the moving band with --kymo-at. Sampling is 320x180
+grey at --motion-fps (default 24, capped at the source fps, at most 600 samples), so a reference and a
+captured clip read the same.
 Needs ffmpeg and ffprobe.
 Run it by path with your project root as the working directory; --out (.3d/refs) and inputs resolve against it.
 Exit 0 ok, 1 problems (missing ffmpeg, unreadable input), 2 usage. Stdlib + ffmpeg only.
@@ -243,7 +259,7 @@ def motion_energy(path: Path) -> list[dict]:
     return out
 
 
-def cell_period(series: list[float], fps: int) -> float | None:
+def cell_period(series: list[float], fps: float, min_var: float = 1.0) -> float | None:
     """Smallest lag whose normalised autocorrelation is a local peak above 0.3, in seconds."""
     n = len(series)
     if n < 6:
@@ -251,7 +267,7 @@ def cell_period(series: list[float], fps: int) -> float | None:
     mu = sum(series) / n
     x = [v - mu for v in series]
     var = sum(v * v for v in x)
-    if var / n < 1.0:  # flat signal (luma units^2)
+    if var / n < min_var:  # flat signal (luma units^2 by default)
         return None
     top = n // 2
     r = [sum(x[i] * x[i + lag] for i in range(n - lag)) / var for lag in range(top + 2)]
@@ -292,6 +308,285 @@ def region_grid(path: Path, n: int) -> dict:
             cells.append({"row": r, "col": c, "energy": e, "mean": round(sum(e) / len(e), 5) if e else 0.0,
                           "peak": max(e) if e else 0.0, "period_s": cell_period(luma[r][c], MOTION_FPS)})
     return {"n": n, "fps": MOTION_FPS, "t": [round(i / MOTION_FPS, 3) for i in range(1, frames)], "cells": cells}
+
+
+SUM_W, SUM_H = 320, 180      # motion-summary sampling size (grey)
+SUM_MAX_SAMPLES = 600        # cap on analysed samples (about 25 s at 24 fps)
+RAW_REACH, TRAVEL_REACH = 4, 14   # px search for sway (raw) and travel (residual)
+TRAVEL_DIR_FRAC = 0.7        # share of accepted shifts that must agree in sign to count as travel
+MIN_PERIOD_S = 0.4           # shorter fused periods are treated as noise
+TRAVEL_MIN_PX = 1.0          # a per-sample shift below this is sway/jitter, not travel
+CONF_ORDER = ("low", "med", "high")
+
+
+def ncc_lags(a: list[float], b: list[float], reach: int) -> tuple[float, float]:
+    """Best sub-pixel lag s with b[i] ~ a[i - s] by normalised cross-correlation; returns (s, corr)."""
+    n = len(a)
+    curve: dict[int, float] = {}
+    for s in range(-reach, reach + 1):
+        lo, hi = max(0, s), min(n, n + s)
+        if hi - lo < max(6, n // 3):
+            continue
+        x, y = b[lo:hi], a[lo - s:hi - s]
+        mx, my = sum(x) / len(x), sum(y) / len(y)
+        sx = math.sqrt(sum((v - mx) ** 2 for v in x))
+        sy = math.sqrt(sum((v - my) ** 2 for v in y))
+        curve[s] = sum((p - mx) * (q - my) for p, q in zip(x, y)) / (sx * sy) if sx > 1e-6 and sy > 1e-6 else 0.0
+    if not curve:
+        return 0.0, 0.0
+    best = max(curve, key=lambda k: (curve[k], -abs(k)))
+    sub = float(best)
+    if best - 1 in curve and best + 1 in curve:
+        l, c, r = curve[best - 1], curve[best], curve[best + 1]
+        den = l - 2 * c + r
+        if den < -1e-9:
+            sub = best + max(-0.5, min(0.5, 0.5 * (l - r) / den))
+    return sub, curve[best]
+
+
+def pct(values: list[float], q: float) -> float:
+    if not values:
+        return 0.0
+    v = sorted(values)
+    return v[min(len(v) - 1, int(q * (len(v) - 1) + 0.5))]
+
+
+def temporal_residual(profiles: list[list[float]]) -> list[list[float]]:
+    """Profiles minus their per-position temporal median: leaves what moves, drops what holds still."""
+    n = len(profiles[0])
+    med = [sorted(p[i] for p in profiles)[len(profiles) // 2] for i in range(n)]
+    return [[v - m for v, m in zip(p, med)] for p in profiles]
+
+
+def window_analysis(profiles: list[list[float]], fps: float) -> dict:
+    """Sway (raw sub-pixel track), travel (residual lags), and periods (shift track and mean luma) for one window."""
+    pairs = len(profiles) - 1
+    pos, acc, accepted = [], 0.0, 0
+    for a, b in zip(profiles, profiles[1:]):
+        s, c = ncc_lags(a, b, RAW_REACH)
+        if c >= 0.8:
+            acc += s
+            accepted += 1
+        pos.append(acc)
+    if pairs > 1:
+        slope = (pos[-1] - pos[0]) / (pairs - 1)
+        det = [p - slope * i for i, p in enumerate(pos)]
+        amp = max(det) - min(det)
+    else:
+        det, amp = pos, 0.0
+    shift_period = cell_period(det, fps, 0.01) if amp >= 0.3 else None
+    luma = [sum(p) / len(p) for p in profiles]
+    k = len(luma)
+    lslope = (luma[-1] - luma[0]) / (k - 1) if k > 1 else 0.0
+    luma_period = cell_period([v - lslope * i for i, v in enumerate(luma)], fps, 1.0)
+    if luma_period is not None and luma_period < MIN_PERIOD_S:
+        luma_period = None  # sample-rate noise, not a repeat
+    if shift_period is not None and shift_period < MIN_PERIOD_S:
+        shift_period = None
+    signed: list[float] = []
+    res = temporal_residual(profiles)
+    if max(max(abs(v) for v in p) for p in res) > 3:  # something moves in this window
+        for a, b in zip(res, res[1:]):
+            s, c = ncc_lags(a, b, TRAVEL_REACH)
+            if c >= 0.6 and abs(s) >= TRAVEL_MIN_PX:
+                signed.append(s)
+    # travel keeps one direction; shifts that reverse sign are sway or flicker, not travel
+    dir_frac = max(sum(1 for v in signed if v > 0), sum(1 for v in signed if v < 0)) / len(signed) if signed else 0.0
+    if signed and dir_frac >= TRAVEL_DIR_FRAC:
+        sign = 1 if sum(1 for v in signed if v > 0) >= len(signed) / 2 else -1
+        travel = [abs(v) for v in signed if (v > 0) == (sign > 0)]
+    else:
+        travel = []
+    return {"amp": amp, "coverage": accepted / pairs if pairs else 0.0, "shift_period": shift_period,
+            "luma_period": luma_period, "travel": travel, "dir_frac": dir_frac, "signed_n": len(signed), "pairs": pairs, "fps": fps}
+
+
+def fuse_period(shift_p: float | None, luma_p: float | None) -> tuple[float | None, bool | None, str]:
+    """One period from two methods; the luma period wins ties so this never contradicts regions.json."""
+    if shift_p and luma_p:
+        agree = abs(shift_p - luma_p) <= 0.15 * max(shift_p, luma_p)
+        return luma_p, agree, "high" if agree else "med"
+    if luma_p:
+        return luma_p, None, "med"
+    if shift_p:
+        return shift_p, None, "med"
+    return None, None, "low"
+
+
+def conf_max(a: str, b: str) -> str:
+    return max(a, b, key=CONF_ORDER.index)
+
+
+def axis_report(an: dict, size: int, src_px: int) -> dict:
+    """Per-axis numbers from a window analysis; size = sample px on that axis."""
+    unit = 100.0 / size
+    t = an["travel"]
+    n_t = len(t)
+    tconf = "high" if n_t >= 20 else "med" if n_t >= 6 else "low"
+    amp_pct = an["amp"] * unit
+    return {"amp_pct": round(amp_pct, 3), "amp_px": round(an["amp"] * src_px / size, 2),
+            "speed_pct_s": round(sorted(t)[len(t) // 2] * an["fps"] * unit, 3) if n_t >= 6 else 0.0,
+            "peak_speed_pct_s": round(pct(t, 0.9) * an["fps"] * unit, 3) if n_t >= 6 else 0.0,
+            "travel_samples": n_t, "travel_conf": tconf}
+
+
+def item_fields(item_id: str, tx: dict | None, ty: dict | None, w: int, h: int, src_w: int, src_h: int) -> dict:
+    ax = axis_report(tx, w, src_w) if tx else None
+    ay = axis_report(ty, h, src_h) if ty else None
+    main = max((a for a in (tx, ty) if a), key=lambda a: a["amp"] * (100.0 / (w if a is tx else h)))
+    period, agree, pconf = fuse_period(main["shift_period"], main["luma_period"])
+    if period is None:  # fall back to the other axis' periods
+        other = ty if main is tx else tx
+        if other:
+            period, agree, pconf = fuse_period(other["shift_period"], other["luma_period"])
+    tconf = max((a["travel_conf"] for a in (ax, ay) if a), key=CONF_ORDER.index, default="low")
+    conf = conf_max(pconf, tconf)
+    why = []
+    if period:
+        why.append(f"period {'agreed by shift and luma' if agree else 'from luma' if main['luma_period'] else 'from shift'}")
+    if tconf != "low":
+        why.append(f"travel from {max(a['travel_samples'] for a in (ax, ay) if a)} samples")
+    if not why:
+        why.append("little or no repeating or travelling motion found")
+    out = {"id": item_id, "_signed_n": max(a["signed_n"] for a in (tx, ty) if a), "period_s": period, "period_luma_s": main["luma_period"],
+           "period_shift_s": main["shift_period"], "period_agree": agree,
+           "speed_w_pct_s": ax["speed_pct_s"] if ax else None, "speed_h_pct_s": ay["speed_pct_s"] if ay else None,
+           "peak_speed_w_pct_s": ax["peak_speed_pct_s"] if ax else None,
+           "peak_speed_h_pct_s": ay["peak_speed_pct_s"] if ay else None,
+           "amplitude_x_px": ax["amp_px"] if ax else None, "amplitude_x_pct_w": ax["amp_pct"] if ax else None,
+           "amplitude_y_px": ay["amp_px"] if ay else None, "amplitude_y_pct_h": ay["amp_pct"] if ay else None,
+           "confidence": conf, "why": "; ".join(why)}
+    return out
+
+
+def classify_motion(out: dict) -> dict:
+    """travelling (one direction) > oscillating (reverses, repeats) > static; speed only for travel, amplitude only for sway."""
+    travelling = (out["speed_w_pct_s"] or 0) > 0 or (out["speed_h_pct_s"] or 0) > 0
+    if travelling:
+        kind, note = "travelling", "amplitude omitted: the shift track is dominated by travel, not sway"
+    elif out["period_s"]:
+        kind, note = "oscillating", "speed omitted: direction reverses"
+    else:
+        kind, note = "static", "no travel or repeating sway found"
+    out["kind_of_motion"] = kind
+    out["motion_note"] = note
+    if kind != "travelling":
+        for k in ("speed_w_pct_s", "speed_h_pct_s", "peak_speed_w_pct_s", "peak_speed_h_pct_s"):
+            out[k] = None
+    if kind != "oscillating":
+        for k in ("amplitude_x_px", "amplitude_x_pct_w", "amplitude_y_px", "amplitude_y_pct_h"):
+            out[k] = None
+    out["amplitude_pct_w"], out["amplitude_pct_h"] = out["amplitude_x_pct_w"], out["amplitude_y_pct_h"]
+    amps = [v for v in (out["amplitude_x_px"], out["amplitude_y_px"]) if v is not None]
+    out["amplitude_px"] = max(amps) if amps else None
+    return out
+
+
+def line_windows(profile_rows: list[list[float]], fps: float, n_win: int = 8) -> list[tuple[float, float, dict]]:
+    n = len(profile_rows[0])
+    out = []
+    for k in range(n_win):
+        lo, hi = round(k * n / n_win), round((k + 1) * n / n_win)
+        out.append((lo / n, hi / n, window_analysis([p[lo:hi] for p in profile_rows], fps)))
+    return out
+
+
+def line_item(item_id: str, kind_axis: str, at: tuple[float, float], profile_rows: list[list[float]], fps: float,
+              size: int, other: int, src_px: int, horizontal: bool) -> dict:
+    """Kymo line: sway from the whole line (or a strong window), travel from the best window along the line."""
+    whole = window_analysis(profile_rows, fps)
+    wins = line_windows(profile_rows, fps)
+    best_n = max(len(t[2]["travel"]) for t in wins)
+    # headline = the fastest window among those with >= 80% of the best sample count
+    strong = [t for t in wins if best_n >= 6 and len(t[2]["travel"]) >= 0.8 * best_n]
+    travel_win = max(strong, key=lambda t: sorted(t[2]["travel"])[len(t[2]["travel"]) // 2]) if strong else wins[0]
+    sway_cands = [(0.0, 1.0, whole)] + [t for t in wins if t[2]["coverage"] >= 0.5]
+    sway_win = max(sway_cands, key=lambda t: t[2]["amp"])
+    merged = dict(sway_win[2])
+    merged["travel"] = travel_win[2]["travel"] if len(travel_win[2]["travel"]) >= len(whole["travel"]) else whole["travel"]
+    if not merged["shift_period"] and not merged["luma_period"]:
+        merged["shift_period"], merged["luma_period"] = whole["shift_period"], whole["luma_period"]
+    w, h = (size, other) if horizontal else (other, size)
+    f = item_fields(item_id, merged if horizontal else None, None if horizontal else merged, w, h,
+                    src_px if horizontal else 1, 1 if horizontal else src_px)
+    classify_motion(f)
+    f.update({"kind": "line", "axis": kind_axis, "at": [round(at[0], 3), round(at[1], 3)],
+              "windows": [{"from": round(lo, 3), "to": round(hi, 3), "travel_samples": len(a["travel"]),
+                           "speed_pct_s": round(sorted(a["travel"])[len(a["travel"]) // 2] * fps * 100.0 / size, 2)
+                           if len(a["travel"]) >= 6 else 0.0, "direction_share": round(a["dir_frac"], 2),
+                           "amplitude_pct": round(a["amp"] * 100.0 / size, 3)} for lo, hi, a in wins],
+              "sway_window": [round(sway_win[0], 3), round(sway_win[1], 3)],
+              "travel_window": [round(travel_win[0], 3), round(travel_win[1], 3)]})
+    return f
+
+
+def flag_mixed(items: list[dict]) -> None:
+    """Oscillating items that look contaminated (outsized amplitude, or travel-like shifts that reverse) get low confidence."""
+    def amp(i: dict) -> float:
+        return max(v for v in (i["amplitude_x_pct_w"], i["amplitude_y_pct_h"]) if v is not None)
+    osc = [i for i in items if i["kind_of_motion"] == "oscillating"]
+    if not osc:
+        return
+    med = sorted(amp(i) for i in osc)[len(osc) // 2]
+    for i in osc:
+        if (med > 0 and amp(i) > 3 * med) or i.get("_signed_n", 0) >= 6:
+            i["confidence"] = "low"
+            i["motion_note"] = "mixed travel/oscillation \u2014 check visually"
+    for i in items:
+        i.pop("_signed_n", None)
+
+
+def motion_summary(path: Path, n_regions: int, at: tuple[float, float], src_w: int, src_h: int,
+                   src_fps: float, motion_fps: float, region_periods: dict | None = None) -> dict:
+    w, h = SUM_W, SUM_H
+    fps = min(src_fps, motion_fps) if src_fps > 0 else motion_fps
+    dur = min(MOTION_MAX_S, SUM_MAX_SAMPLES / fps)
+    res = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-t", f"{dur:.3f}", "-i", arg(path), "-an",
+               "-vf", f"fps={fps},scale={w}:{h},format=gray", "-f", "rawvideo", "-"], binary=True)
+    if res.returncode != 0:
+        raise ExtractError(f"motion-summary pass failed: {res.stderr.decode(errors='replace').strip()[:200]}")
+    data, size = res.stdout, w * h
+    frames = [data[i * size:(i + 1) * size] for i in range(len(data) // size)]
+    if len(frames) < 8:
+        raise ExtractError("clip too short for motion-summary (need at least 8 samples)")
+    items = []
+    xs = [round(i * w / n_regions) for i in range(n_regions + 1)]
+    ys = [round(i * h / n_regions) for i in range(n_regions + 1)]
+    for r in range(n_regions):
+        for c in range(n_regions):
+            x0, x1, y0, y1 = xs[c], xs[c + 1], ys[r], ys[r + 1]
+            colp = [[sum(fr[y * w + x] for y in range(y0, y1)) / (y1 - y0) for x in range(x0, x1)] for fr in frames]
+            rowp = [[sum(fr[y * w + x] for x in range(x0, x1)) / (x1 - x0) for y in range(y0, y1)] for fr in frames]
+            it = item_fields(f"r{r}c{c}", window_analysis(colp, fps), window_analysis(rowp, fps), w, h, src_w, src_h)
+            if region_periods is not None and (r, c) in region_periods:
+                rp = region_periods[(r, c)]  # regions.json is the source of truth for a cell's period
+                it["period_agree"] = None if rp is None or not it["period_shift_s"] else \
+                    abs(rp - it["period_shift_s"]) <= 0.15 * max(rp, it["period_shift_s"])
+                it["period_luma_s"] = rp
+                if rp is None:
+                    it["period_s"], it["confidence"] = None, "low" if not it["speed_w_pct_s"] and not it["speed_h_pct_s"] else it["confidence"]
+                    it["why"] = "no luma repeat in regions.json" + ("; shift track suggests %ss (unconfirmed)" % it["period_shift_s"] if it["period_shift_s"] else "")
+                else:
+                    it["period_s"] = rp
+                    if it["period_agree"] is False and it["confidence"] == "high":
+                        it["confidence"] = "med"
+            classify_motion(it)
+            it.update({"kind": "region", "row": r, "col": c})
+            items.append(it)
+    fx, fy = at
+    yl, xl = min(int(fy * h), h - 1), min(int(fx * w), w - 1)
+    band = range(max(0, yl - 2), min(h, yl + 3))
+    row_profiles = [[sum(fr[y * w + x] for y in band) / len(band) for x in range(w)] for fr in frames]
+    cband = range(max(0, xl - 2), min(w, xl + 3))
+    col_profiles = [[sum(fr[y * w + x] for x in cband) / len(cband) for y in range(h)] for fr in frames]
+    items.append(line_item(f"kymo-row-{fy:g}", "row (horizontal line, x motion)", at, row_profiles, fps, w, h, src_w, True))
+    items.append(line_item(f"kymo-col-{fx:g}", "col (vertical line, y motion)", at, col_profiles, fps, h, w, src_h, False))
+    flag_mixed(items)
+    return {"fps": fps, "sample": [w, h], "source": [src_w, src_h], "samples": len(frames), "regions": n_regions,
+            "shift_positive": "content moves right/down",
+            "speed": "median per-sample travel (shifts >= 1 sample px found on the residual after removing the static background)",
+            "amplitude": "peak-to-peak of the sub-pixel shift track after removing steady drift (source px and % of frame)",
+            "items": items}
 
 
 def write_png(path: Path, w: int, h: int, rows: list[bytes]) -> None:
@@ -340,7 +635,8 @@ def unique_dir(out_root: Path, src: Path, used: set[str]) -> Path:
 
 
 def process(src: Path, dest: Path, frames_n: int, scene: float, regions: int = 0,
-            kymo_at: tuple[float, float] | None = None) -> dict:
+            kymo_at: tuple[float, float] | None = None, motion_json: bool = False,
+            motion_fps: float = 24.0) -> dict:
     meta = probe(src)
     is_video = src.suffix.lower() in VIDEO_EXT and duration_of(meta) > 0
     dest.mkdir(parents=True, exist_ok=True)
@@ -361,10 +657,22 @@ def process(src: Path, dest: Path, frames_n: int, scene: float, regions: int = 0
             raise ExtractError(f"no frames could be extracted from {src}")
         (dest / "cuts.json").write_text(json.dumps({"threshold": scene, "duration": dur, "cuts": cuts}, indent=2))
         (dest / "motion.json").write_text(json.dumps({"fps": MOTION_FPS, "samples": motion_energy(src)}, indent=2))
-        if regions:
-            (dest / "regions.json").write_text(json.dumps(region_grid(src, regions)))
+        grid = region_grid(src, regions or 3) if (regions or motion_json) else None
+        if regions and grid:
+            (dest / "regions.json").write_text(json.dumps(grid))
         if kymo_at:
             kymographs(src, dest, *kymo_at)
+        if motion_json:
+            vs = next((st for st in meta.get("streams", []) if st.get("codec_type") == "video"), {})
+            try:
+                num, den = str(vs.get("r_frame_rate") or "0/1").split("/")
+                src_fps = float(num) / float(den)
+            except (ValueError, ZeroDivisionError):
+                src_fps = 0.0
+            (dest / "motion-summary.json").write_text(json.dumps(motion_summary(
+                src, regions or 3, kymo_at or (0.5, 0.5), int(vs.get("width") or SUM_W), int(vs.get("height") or SUM_H),
+                src_fps, motion_fps, {(c["row"], c["col"]): c["period_s"] for c in grid["cells"]} if grid else None),
+                indent=2))
     else:
         if src.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
             f = fdir / f"frame_001{src.suffix.lower()}"
@@ -391,6 +699,11 @@ def main() -> int:
     ap.add_argument("--frames", type=int, default=12, help="max keyframes per video (default 12)")
     ap.add_argument("--regions", type=int, default=0, metavar="N",
                     help="video: write regions.json, an NxN grid (2..8) of per-cell motion energy and dominant period")
+    ap.add_argument("--motion-json", action="store_true",
+                    help="video: write motion-summary.json (per region, default 3x3, and per kymo line: period, speed, "
+                         "amplitude, confidence); identical for a reference video and a `preview capture --clip` mp4")
+    ap.add_argument("--motion-fps", type=float, default=24.0, metavar="FPS",
+                    help="sample rate for --motion-json, capped at the source fps (default 24; at most 600 samples are analysed)")
     ap.add_argument("--kymo", action="store_true", help="video: write kymo-rows.png and kymo-cols.png time-slice images")
     ap.add_argument("--kymo-at", default=None, metavar="X,Y",
                     help="kymograph line position as 0..1 fractions (default 0.5,0.5); implies --kymo")
@@ -419,7 +732,7 @@ def main() -> int:
             failed = True
             continue
         try:
-            res = process(src, unique_dir(out_root, src, used), args.frames, args.scene, args.regions, kymo_at)
+            res = process(src, unique_dir(out_root, src, used), args.frames, args.scene, args.regions, kymo_at, args.motion_json, args.motion_fps)
         except ExtractError as exc:
             print(f"ref-extract: {raw}: {exc}", file=sys.stderr)
             failed = True

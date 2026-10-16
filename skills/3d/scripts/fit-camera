@@ -1,0 +1,408 @@
+#!/usr/bin/env python3
+"""fit-camera POINTS.json [--size W H] [--id S01] [--json] — solve a camera from 2D-3D anchors.
+
+POINTS.json: {"image_size": [W, H], "points": [{"image": [x, y], "world": [x, y, z]}, ...]} with
+at least 6 correspondences that are NOT all on one plane (pixels: x right, y down from the top-left;
+world: the shots.v1 frame, Y up). A direct linear transform (DLT, Hartley-normalised, least squares)
+gives the 3x4 projection; it is decomposed, then refined by Levenberg-Marquardt on the constrained
+pinhole (square pixels, centred principal point) into vertical FOV, focal_mm on the 24 mm sensor-height
+convention, position, target and roll_deg (positive rolls the camera's up toward its left, matching
+the preview bridge and render_shots). Square pixels and a centred principal point are assumed in the
+emitted shot; the fit's own principal point is reported and a large offset is flagged.
+Prints per-point reprojection error (px) and RMS for the raw fit and for the emitted pinhole camera,
+then a ready-to-paste shots.v1 shot. Exit 0 solved, 1 degenerate or unreadable input, 2 usage.
+Run `<skill>/scripts/fit-camera` by path with your project root as the working directory. Stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import sys
+from pathlib import Path
+
+Vec = list
+SENSOR_H = 24.0  # shots.v1 focal_mm convention: fov = 2*atan(12/f)
+
+
+class FitError(Exception):
+    pass
+
+
+# --- tiny linear algebra ----------------------------------------------------------------------
+
+def dot(a, b): return sum(x * y for x, y in zip(a, b))
+def sub(a, b): return [x - y for x, y in zip(a, b)]
+def add(a, b): return [x + y for x, y in zip(a, b)]
+def mul(a, k): return [x * k for x in a]
+def norm(a): return math.sqrt(dot(a, a))
+def unit(a):
+    n = norm(a)
+    if n < 1e-12:
+        raise FitError("zero-length vector in the solution (degenerate geometry)")
+    return mul(a, 1 / n)
+def cross(a, b): return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+
+def jacobi_eigen(a: list[list[float]], sweeps: int = 100) -> tuple[list[float], list[list[float]]]:
+    """Eigenvalues and eigenvectors (columns of v) of a symmetric matrix."""
+    n = len(a)
+    a = [row[:] for row in a]
+    v = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+    for _ in range(sweeps):
+        off = sum(a[i][j] ** 2 for i in range(n) for j in range(i + 1, n))
+        if off < 1e-24:
+            break
+        for p in range(n - 1):
+            for q in range(p + 1, n):
+                if abs(a[p][q]) < 1e-300:
+                    continue
+                theta = (a[q][q] - a[p][p]) / (2 * a[p][q])
+                t = (1 if theta >= 0 else -1) / (abs(theta) + math.sqrt(theta * theta + 1))
+                c = 1 / math.sqrt(t * t + 1)
+                s = t * c
+                for k in range(n):
+                    akp, akq = a[k][p], a[k][q]
+                    a[k][p], a[k][q] = c * akp - s * akq, s * akp + c * akq
+                for k in range(n):
+                    apk, aqk = a[p][k], a[q][k]
+                    a[p][k], a[q][k] = c * apk - s * aqk, s * apk + c * aqk
+                for k in range(n):
+                    vkp, vkq = v[k][p], v[k][q]
+                    v[k][p], v[k][q] = c * vkp - s * vkq, s * vkp + c * vkq
+    return [a[i][i] for i in range(n)], v
+
+
+def solve3(m: list[list[float]], b: list[float]) -> list[float]:
+    a = [m[i][:] + [b[i]] for i in range(3)]
+    for i in range(3):
+        piv = max(range(i, 3), key=lambda r: abs(a[r][i]))
+        if abs(a[piv][i]) < 1e-14:
+            raise FitError("singular projection matrix")
+        a[i], a[piv] = a[piv], a[i]
+        for r in range(3):
+            if r != i:
+                f = a[r][i] / a[i][i]
+                a[r] = [x - f * y for x, y in zip(a[r], a[i])]
+    return [a[i][3] / a[i][i] for i in range(3)]
+
+
+def det3(m): return dot(m[0], cross(m[1], m[2]))
+
+
+# --- DLT --------------------------------------------------------------------------------------
+
+def normalise(points: list[list[float]], target: float):
+    dim = len(points[0])
+    c = [sum(p[i] for p in points) / len(points) for i in range(dim)]
+    mean_d = sum(norm(sub(p, c)) for p in points) / len(points)
+    if mean_d < 1e-12:
+        raise FitError("all points coincide")
+    s = target / mean_d
+    return c, s
+
+
+def planarity(world: list[list[float]]) -> tuple[float, float]:
+    """Ratios (smallest/largest, middle/largest) of the covariance eigenvalues of the world points."""
+    c = [sum(p[i] for p in world) / len(world) for i in range(3)]
+    cov = [[sum((p[i] - c[i]) * (p[j] - c[j]) for p in world) for j in range(3)] for i in range(3)]
+    ev = sorted(jacobi_eigen(cov)[0])
+    top = max(ev[2], 1e-300)
+    return ev[0] / top, ev[1] / top
+
+
+def dlt(img: list[list[float]], world: list[list[float]]) -> list[list[float]]:
+    ci, si = normalise(img, math.sqrt(2))
+    cw, sw = normalise(world, math.sqrt(3))
+    rows = []
+    for (u, v), w in zip(img, world):
+        x, y = (u - ci[0]) * si, (v - ci[1]) * si
+        X = [(w[0] - cw[0]) * sw, (w[1] - cw[1]) * sw, (w[2] - cw[2]) * sw, 1.0]
+        rows.append(X + [0.0] * 4 + [-x * t for t in X])
+        rows.append([0.0] * 4 + X + [-y * t for t in X])
+    ata = [[sum(r[i] * r[j] for r in rows) for j in range(12)] for i in range(12)]
+    vals, vecs = jacobi_eigen(ata)
+    order = sorted(range(12), key=lambda i: vals[i])
+    if vals[order[1]] < 1e-9 * max(vals[order[-1]], 1e-300):
+        raise FitError("anchors do not constrain the camera (rank-deficient system): spread them across depth "
+                       "and the image, and make sure they are not coplanar or collinear")
+    p = [vecs[k][order[0]] for k in range(12)]
+    ph = [p[0:4], p[4:8], p[8:12]]
+    # denormalise: P = T^-1 * Ph * U
+    pu = [[ph[r][0] * sw, ph[r][1] * sw, ph[r][2] * sw, ph[r][3] - sw * dot(ph[r][:3], cw)] for r in range(3)]
+    pm = [pu[0][:], pu[1][:], pu[2][:]]
+    # T^-1: x = x_hat/si + ci with homogeneous third row kept
+    out = [[(pu[0][k] / si) + ci[0] * pu[2][k] for k in range(4)],
+           [(pu[1][k] / si) + ci[1] * pu[2][k] for k in range(4)],
+           pm[2][:]]
+    return out
+
+
+def project(p: list[list[float]], w: list[float]) -> tuple[float, float]:
+    X = [w[0], w[1], w[2], 1.0]
+    a, b, c = (dot(row, X) for row in p)
+    if abs(c) < 1e-12:
+        return float("inf"), float("inf")
+    return a / c, b / c
+
+
+def decompose(p: list[list[float]]) -> dict:
+    m = [row[:3] for row in p]
+    if det3(m) < 0:
+        p = [[-x for x in row] for row in p]
+        m = [row[:3] for row in p]
+    r3 = unit(m[2])
+    k33 = dot(m[2], r3)
+    k23 = dot(m[1], r3)
+    r2 = sub(m[1], mul(r3, k23))
+    k22 = norm(r2)
+    r2 = unit(r2)
+    k13 = dot(m[0], r3)
+    k12 = dot(m[0], r2)
+    r1 = sub(sub(m[0], mul(r3, k13)), mul(r2, k12))
+    k11 = norm(r1)
+    r1 = unit(r1)
+    if min(k11, k22, k33) < 1e-12:
+        raise FitError("degenerate calibration matrix")
+    centre = mul(solve3(m, [row[3] for row in p]), -1)
+    return {"fx": k11 / k33, "fy": k22 / k33, "skew": k12 / k33, "cx": k13 / k33, "cy": k23 / k33,
+            "R": [r1, r2, r3], "C": centre}
+
+
+def matmul(a, b): return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+
+def rodrigues(v: list[float]) -> list[list[float]]:
+    th = norm(v)
+    if th < 1e-14:
+        return [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]
+    k = mul(v, 1 / th)
+    kx = [[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]]
+    kk = matmul(kx, kx)
+    return [[(1.0 if i == j else 0.0) + math.sin(th) * kx[i][j] + (1 - math.cos(th)) * kk[i][j] for j in range(3)]
+            for i in range(3)]
+
+
+def solve_n(a: list[list[float]], b: list[float]) -> list[float]:
+    n = len(b)
+    m = [a[i][:] + [b[i]] for i in range(n)]
+    for i in range(n):
+        piv = max(range(i, n), key=lambda r: abs(m[r][i]))
+        if abs(m[piv][i]) < 1e-18:
+            raise FitError("singular normal equations")
+        m[i], m[piv] = m[piv], m[i]
+        for r in range(n):
+            if r != i:
+                f = m[r][i] / m[i][i]
+                m[r] = [x - f * y for x, y in zip(m[r], m[i])]
+    return [m[i][n] / m[i][i] for i in range(n)]
+
+
+def refine(cam: dict, img: list[list[float]], world: list[list[float]], w: int, h: int) -> dict:
+    """Levenberg-Marquardt on the constrained pinhole (square pixels, centred principal point):
+    parameters f, camera centre (3), small rotation (3). Starts from the DLT decomposition."""
+    r0 = cam["R"]
+    f0 = cam["fy"]
+    scale = max(norm(sub(cam["C"], [sum(p[i] for p in world) / len(world) for i in range(3)])), 1e-3)
+
+    def residuals(p: list[float]) -> list[float]:
+        R = matmul(rodrigues(p[4:7]), r0)
+        out = []
+        for im, wd in zip(img, world):
+            d = sub(wd, p[1:4])
+            x, y, z = dot(R[0], d), dot(R[1], d), dot(R[2], d)
+            if z < 1e-9:
+                out += [1e6, 1e6]
+                continue
+            out += [p[0] * x / z + w / 2 - im[0], p[0] * y / z + h / 2 - im[1]]
+        return out
+
+    p = [f0, *cam["C"], 0.0, 0.0, 0.0]
+    steps = [f0 * 1e-6, scale * 1e-7, scale * 1e-7, scale * 1e-7, 1e-8, 1e-8, 1e-8]
+    r = residuals(p)
+    cost, lam = dot(r, r), 1e-3
+    for _ in range(80):
+        jac = []
+        for j in range(7):
+            q = p[:]
+            q[j] += steps[j]
+            rj = residuals(q)
+            jac.append([(a - b) / steps[j] for a, b in zip(rj, r)])
+        jtj = [[dot(jac[i], jac[j]) for j in range(7)] for i in range(7)]
+        jtr = [dot(jac[i], r) for i in range(7)]
+        improved = False
+        for _try in range(8):
+            damped = [[jtj[i][j] + (lam * (jtj[i][i] + 1e-12) if i == j else 0.0) for j in range(7)] for i in range(7)]
+            try:
+                delta = solve_n(damped, [-v for v in jtr])
+            except FitError:
+                lam *= 10
+                continue
+            q = [a + b for a, b in zip(p, delta)]
+            rq = residuals(q)
+            cq = dot(rq, rq)
+            if cq < cost:
+                p, r, improved = q, rq, True
+                gain = cost - cq
+                cost = cq
+                lam = max(lam / 5, 1e-12)
+                break
+            lam *= 10
+        if not improved or gain < 1e-14 * max(cost, 1e-12):
+            break
+    out = dict(cam)
+    out.update({"fy": p[0], "fx": p[0], "R": matmul(rodrigues(p[4:7]), r0), "C": p[1:4], "cx": w / 2, "cy": h / 2, "skew": 0.0})
+    return out
+
+
+def pose_to_shot_fields(cam: dict, w: int, h: int, world: list[list[float]]) -> dict:
+    fy = cam["fy"]
+    fov = math.degrees(2 * math.atan(h / 2 / fy))
+    focal_mm = (SENSOR_H / 2) / math.tan(math.radians(fov) / 2)
+    r1, r2, r3 = cam["R"]
+    f, up, right = r3, mul(r2, -1), r1
+    y_axis = [0.0, 1.0, 0.0]
+    u0 = sub(y_axis, mul(f, dot(y_axis, f)))
+    if norm(u0) < 1e-6:  # looking straight up or down: roll measured from world -Z
+        u0 = sub([0.0, 0.0, -1.0], mul(f, dot([0.0, 0.0, -1.0], f)))
+    u0 = unit(u0)
+    right0 = cross(f, u0)
+    roll = math.degrees(math.atan2(-dot(up, right0), dot(up, u0)))
+    cen = [sum(p[i] for p in world) / len(world) for i in range(3)]
+    dist = max(dot(sub(cen, cam["C"]), f), 1e-3)
+    target = add(cam["C"], mul(f, dist))
+    return {"fov": fov, "focal_mm": focal_mm, "position": cam["C"], "target": target, "roll_deg": roll}
+
+
+def pinhole_project(fields: dict, w: int, h: int, pt: list[float]) -> tuple[float, float]:
+    """Project through the emitted camera: centred principal point, square pixels."""
+    f = unit(sub(fields["target"], fields["position"]))
+    u0 = sub([0.0, 1.0, 0.0], mul(f, dot([0.0, 1.0, 0.0], f)))
+    if norm(u0) < 1e-6:
+        u0 = sub([0.0, 0.0, -1.0], mul(f, dot([0.0, 0.0, -1.0], f)))
+    u0 = unit(u0)
+    right0 = cross(f, u0)
+    th = math.radians(fields["roll_deg"])
+    up = sub(mul(u0, math.cos(th)), mul(right0, math.sin(th)))
+    right = cross(f, up)
+    d = sub(pt, fields["position"])
+    x, y, z = dot(d, right), -dot(d, up), dot(d, f)
+    fy = h / 2 / math.tan(math.radians(fields["fov"]) / 2)
+    return fy * x / z + w / 2, fy * y / z + h / 2
+
+
+def aspect_string(w: int, h: int) -> str:
+    g = math.gcd(w, h) or 1
+    a, b = w // g, h // g
+    return f"{a}:{b}" if a <= 64 and b <= 64 else f"{w / h:.3f}:1"
+
+
+def solve(doc: dict, size: tuple[int, int] | None, shot_id: str) -> dict:
+    pts = doc.get("points", doc.get("correspondences"))
+    if not isinstance(pts, list):
+        raise FitError('input needs a "points" array of {"image": [x, y], "world": [x, y, z]}')
+    if size is None:
+        sz = doc.get("image_size")
+        if not (isinstance(sz, list) and len(sz) == 2 and all(isinstance(v, (int, float)) and v > 0 for v in sz)):
+            raise FitError('image size missing: add "image_size": [W, H] or pass --size W H')
+        size = (int(sz[0]), int(sz[1]))
+    img, world = [], []
+    for i, p in enumerate(pts):
+        try:
+            im, wd = [float(v) for v in p["image"]], [float(v) for v in p["world"]]
+            assert len(im) == 2 and len(wd) == 3 and all(math.isfinite(v) for v in im + wd)
+        except (KeyError, TypeError, ValueError, AssertionError):
+            raise FitError(f"points[{i}] needs finite image [x, y] and world [x, y, z]")
+        img.append(im)
+        world.append(wd)
+    if len(img) < 6:
+        raise FitError(f"need at least 6 correspondences, got {len(img)}")
+    small, mid = planarity(world)
+    if mid < 1e-6:
+        raise FitError("world points are collinear: spread the anchors in 3D")
+    if small < 1e-6:
+        raise FitError("world points are coplanar: a single plane cannot give focal length and pose together "
+                       "(DLT needs anchors off the plane; add at least one at a different height or depth)")
+    p = dlt(img, world)
+    cam = decompose(p)
+    w, h = size
+    dlt_fields = pose_to_shot_fields(cam, w, h, world)
+    refined = refine(cam, img, world, w, h)
+    fields = pose_to_shot_fields(refined, w, h, world)
+    if not all(math.isfinite(v) for v in [fields["fov"], fields["roll_deg"], *fields["position"], *fields["target"]]):
+        fields = dlt_fields  # refinement diverged: keep the plain DLT solution
+    if not all(math.isfinite(v) for v in [fields["fov"], fields["roll_deg"], *fields["position"], *fields["target"]]):
+        raise FitError("solution is not finite (degenerate anchors)")
+    if not 0 < fields["fov"] < 180:
+        raise FitError(f"solved vertical FOV {fields['fov']:.1f} deg is outside 0..180: anchors are inconsistent")
+    fit_err, shot_err = [], []
+    for im, wd in zip(img, world):
+        u, v = project(p, wd)
+        fit_err.append(math.hypot(u - im[0], v - im[1]))
+        u2, v2 = pinhole_project(fields, w, h, wd)
+        shot_err.append(math.hypot(u2 - im[0], v2 - im[1]))
+    rms = lambda e: math.sqrt(sum(x * x for x in e) / len(e))
+    warnings = []
+    if abs(cam["cx"] - w / 2) > 0.05 * w or abs(cam["cy"] - h / 2) > 0.05 * h:
+        warnings.append(f"fitted principal point ({cam['cx']:.0f}, {cam['cy']:.0f}) is far from the image centre; "
+                        "crops or lens shift are not represented in the emitted shot")
+    if abs(cam["skew"]) > 0.02 * cam["fy"] or abs(cam["fx"] / cam["fy"] - 1) > 0.05:
+        warnings.append(f"non-square pixels or skew in the fit (fx/fy {cam['fx'] / cam['fy']:.3f}); anchors are noisy or mismatched")
+    if len(img) < 8:
+        warnings.append("only %d anchors: more (8-12) spread across depth makes the solve steadier" % len(img))
+    shot = {"id": shot_id, "purpose": f"camera fitted from {len(img)} anchors",
+            "focal_mm": round(fields["focal_mm"], 2),
+            "position": [round(v, 4) for v in fields["position"]], "target": [round(v, 4) for v in fields["target"]],
+            "roll_deg": round(fields["roll_deg"], 3),
+            "notes": f"fit-camera: rms {rms(shot_err):.2f}px at {w}x{h}, vertical fov {fields['fov']:.2f} deg"}
+    return {"image_size": [w, h], "aspect": aspect_string(w, h), "vertical_fov_deg": fields["fov"],
+            "focal_mm": fields["focal_mm"], "position": fields["position"], "target": fields["target"],
+            "roll_deg": fields["roll_deg"], "principal_point": [cam["cx"], cam["cy"]],
+            "per_point_px": [{"index": i, "fit": round(a, 4), "shot": round(b, 4)} for i, (a, b) in enumerate(zip(fit_err, shot_err))],
+            "rms_fit_px": rms(fit_err), "rms_shot_px": rms(shot_err), "warnings": warnings, "shot": shot}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Solve camera focal/pose from >= 6 non-coplanar 2D-3D anchors (DLT) and emit a shots.v1 shot. "
+                    "Run by path with your project root as the working directory.")
+    ap.add_argument("points", help='JSON: {"image_size":[W,H],"points":[{"image":[x,y],"world":[x,y,z]},...]}')
+    ap.add_argument("--size", nargs=2, type=int, metavar=("W", "H"), help="image size in pixels (overrides the file)")
+    ap.add_argument("--id", default="S01", help="shot id for the emitted shot (default S01)")
+    ap.add_argument("--json", action="store_true", help="print the full result as JSON")
+    args = ap.parse_args()
+    path = Path(args.points)
+    if not path.is_file():
+        print(f"fit-camera: not a file: {args.points}", file=sys.stderr)
+        return 2
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(doc, dict):
+            raise FitError("input root must be an object")
+        res = solve(doc, tuple(args.size) if args.size else None, args.id)
+    except ValueError as exc:
+        print(f"fit-camera: invalid JSON: {exc}", file=sys.stderr)
+        return 1
+    except FitError as exc:
+        print(f"fit-camera: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return 0
+    w, h = res["image_size"]
+    print(f"image {w}x{h}  vertical fov {res['vertical_fov_deg']:.2f} deg  focal_mm {res['focal_mm']:.2f} (24 mm sensor height)")
+    print("position " + ", ".join(f"{v:.3f}" for v in res["position"]) + "   target " + ", ".join(f"{v:.3f}" for v in res["target"])
+          + f"   roll {res['roll_deg']:.2f} deg")
+    print("reprojection error (px)   point: raw fit / emitted camera")
+    for e in res["per_point_px"]:
+        print(f"  {e['index']:>3}: {e['fit']:8.3f} / {e['shot']:8.3f}")
+    print(f"RMS: raw fit {res['rms_fit_px']:.3f} px, emitted camera {res['rms_shot_px']:.3f} px")
+    for wmsg in res["warnings"]:
+        print(f"WARN {wmsg}")
+    print("shot:")
+    print(json.dumps(res["shot"], indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -38,7 +38,7 @@ Use `<skill>/assets/templates/brief.md`. Prose is the source of truth; every sec
 9. Motion (beats, timing, easing character, loop rule, idle vs triggered, reduced-motion alternative)
 10. FX and interaction (effects with purpose; inputs and responses)
 11. Deliverables and budgets (files, formats, sizes, fps; budgets resolve to [shared-performance](shared-performance.md) defaults unless 3D.md overrides)
-12. Pipeline (strategy from [brief-approach](brief-approach.md), stages, owner, fallback ladder)
+12. Pipeline (strategy from [brief-approach](brief-approach.md), stages, owner, fallback ladder, feasibility statement)
 13. Acceptance tests (below)
 14. Assumptions, risks, Out of scope, decision log
 

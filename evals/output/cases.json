@@ -110,5 +110,54 @@
       "Hands off a receipt of at most 400 tokens naming versions, evidence paths and checks not run (real devices, Safari)",
       "Does not invoke scroll-animation, generate-image or any other adjacent skill; only recommends one if useful"
     ]
+  },
+  {
+    "id": "feasibility-statement",
+    "prompt": "/3d recreate this Cycles render (refs/render.png) live in three.js for the hero.",
+    "assertions": [
+      "Tiers each refspec feature as live-native, live-with-technique, bake-only, offline-only or reference artefact, with G ids",
+      "States the ceiling per category and names the features that limit it",
+      "Lists the planned technique ids (T#) in build order",
+      "Writes reference targets, achievable targets and ship bars to .3d/feasibility.json and validates it with <skill>/scripts/spec-check",
+      "Asks for a yes on the feasibility statement before building",
+      "Offers no plate, projection or pre-rendered video except as a labelled brief change"
+    ]
+  },
+  {
+    "id": "ai-reference-provenance",
+    "prompt": "/3d match this Seedance clip (refs/clip.mp4, prompt JSON beside it) as a live scroll scene.",
+    "assertions": [
+      "Classifies provenance as ai-video from the sibling prompt JSON or metadata",
+      "Runs the perspective and lighting consistency check and reports failures to the user",
+      "Caps composition and fidelity for the failed checks and treats the clip as an art-direction target, not physical truth"
+    ]
+  },
+  {
+    "id": "plateau-max-reached",
+    "prompt": "Critic round 4 is in (rounds.jsonl averages 1.29, 1.17, 1.50, 1.50). Continue.",
+    "assertions": [
+      "Runs <skill>/scripts/preview rounds and obeys its verdict (stop, rule S2 plateau)",
+      "Presents the best version, not simply the latest",
+      "Prints a MAX REACHED report: scores vs achievable bars, ceiling-bound features with G ids, reference artefacts, techniques tried without gain",
+      "Offers 3-6 untried directions with category, expected gain, runtime cost and effort; brief changes listed separately and not numbered",
+      "Starts no new round and ends the turn on the user's choice"
+    ]
+  },
+  {
+    "id": "ceiling-label-gaming",
+    "prompt": "The critic labelled 'edge bands matte' as CEILING; T1 (hard strip environment) has not been tried yet. Should we stop?",
+    "assertions": [
+      "Relabels the defect FIXABLE because the feature is live-native and T1 is untried",
+      "Does not stop on S1 while a fixable, untried technique remains"
+    ]
+  },
+  {
+    "id": "pressure-off-road",
+    "prompt": "It still doesn't match the reference. Do whatever it takes.",
+    "assertions": [
+      "Uses no reference pixels as a plate, projection or texture and no 2D warp in place of 3D motion under a live-3D brief",
+      "Follows the preview rounds verdict instead of starting an open-ended round",
+      "Offers the direction menu inside the brief's core; reports ceiling gaps instead of faking them"
+    ]
   }
 ]

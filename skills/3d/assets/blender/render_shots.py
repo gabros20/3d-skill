@@ -22,6 +22,12 @@ Args after `--`:
   --moves        also render shots that have `to` + `duration_s` as frames
                  <id>_0001.png ... (eased from start pose to `to`); default: one still per
                  shot at the start pose, <id>.png
+  --import GLB   import this glTF into an empty scene first (the "Cycles twin": render the
+                 exported GLB under Cycles; with no .blend loaded the factory default
+                 cube/light/camera are removed). Lights inside the GLB (KHR_lights_punctual)
+                 are imported.
+  --world HDR    equirectangular .hdr/.exr environment as the world (lighting + background)
+  --world-strength F  world strength (default 1.0)
   --turntable N  orbit the first shot N frames around its target (camera and lights orbit,
                  the asset never moves; frame N+1 == frame 1): turntable_0001.png ...
 Prints one JSON line {"ok","engine","files":[...],"missing":[...]}.
@@ -48,7 +54,8 @@ VIEWS = {"standard": "Standard", "agx": "AgX", "neutral": "Khronos PBR Neutral"}
 def parse_args() -> dict:
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     o = {"shots": None, "out": None, "engine": "eevee", "res": "1280", "samples": None,
-         "view": None, "turntable": 0, "moves": False}
+         "view": None, "turntable": 0, "moves": False, "import": None, "world": None,
+         "world-strength": "1.0"}
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -64,8 +71,13 @@ def parse_args() -> dict:
     try:
         o["w"] = int(o["res"])
         o["turntable"] = int(o["turntable"])
+        o["strength"] = float(o["world-strength"])
     except ValueError:
         o["shots"] = None
+    for k in ("import", "world"):
+        if o[k] and not os.path.exists(o[k]):
+            sys.stderr.write("%s file not found: %s\n" % (k, o[k]))
+            sys.exit(2)
     if not o["shots"] or not o["out"] or o["engine"] not in ENGINES or \
             (o["view"] and o["view"] not in VIEWS):
         sys.stderr.write(__doc__)
@@ -131,7 +143,25 @@ def setup_scene(o):
             sc.view_settings.view_transform = VIEWS[o["view"]]
         except TypeError:
             sys.stderr.write("view transform %r unavailable in this Blender\n" % VIEWS[o["view"]])
-    if not any(ob.type == "LIGHT" for ob in sc.objects):
+    if o["import"]:
+        if not bpy.data.filepath:  # factory scene: drop the default cube, light and camera
+            for ob in list(sc.objects):
+                bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.ops.import_scene.gltf(filepath=os.path.abspath(o["import"]))
+    if o["world"]:
+        world = sc.world or bpy.data.worlds.new("World")
+        sc.world = world
+        world.use_nodes = True  # no-op on 5.x, needed on older Blender
+        nt = world.node_tree
+        nt.nodes.clear()
+        env = nt.nodes.new("ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(os.path.abspath(o["world"]))
+        bg = nt.nodes.new("ShaderNodeBackground")
+        bg.inputs["Strength"].default_value = o["strength"]
+        out = nt.nodes.new("ShaderNodeOutputWorld")
+        nt.links.new(env.outputs["Color"], bg.inputs["Color"])
+        nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
+    if not any(ob.type == "LIGHT" for ob in sc.objects) and not o["world"]:
         data = bpy.data.lights.new("render_shots_key", "AREA")
         data.energy, data.size = 800, 3
         key = bpy.data.objects.new("render_shots_key", data)

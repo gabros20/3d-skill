@@ -57,27 +57,26 @@ For scroll-video seams, ssim between one clip's last frame and the next clip's f
 ## What headless numbers can and cannot prove
 
 - Can prove: draw calls, triangles, geometries, textures, programs (`renderer.info`), console errors, layout and progress mapping, that frame N looks as intended.
-- Cannot prove: real fps, GPU time, thermal behaviour, Safari or iOS rendering. Software or virtualised GL can run several times slower than a headed GPU, so a headless fps is a floor, never a verdict.
-- A performance claim needs: a production build, DPR 2, a named viewport, a warm-up, p50 and p95 frame time, on the named target. Quote it like "p95 14 ms, 1440x900 @2x, production build, M-series Chrome". The dev server costs roughly 2x per frame.
-- Prefer draw calls and CPU p95 over fps when headless.
+- Cannot prove: real fps, GPU time, thermal behaviour, Safari or iOS rendering. A headless fps is a floor, never a verdict (software GL can run several times slower).
+- A performance claim needs: a production build, DPR 2, a named viewport, a warm-up, p50 and p95 frame time, on the named target. The dev server costs roughly 2x per frame.
 - Fullscreen passes (bloom, DoF, grain) scale with pixels, so test them at DPR 2.
 
 ## Scorecard (0–3 each; score the real page state, not a showroom)
 
 Composition and hierarchy · lighting · materials · colour and tone · motion and timing · performance evidence · fidelity to the refspec.
 
-Ship when every category ≥ 2 and the average ≥ 2.3. Automatic fail: placeholder primitive plus glow, bloom or fog standing in for geometry, one flat grey, text over 3D unreadable, no evidence image for a claimed shot, no renderer diagnostics for a performance claim.
+Ship when every category reaches its ship bar and the average reaches the average bar in `.3d/feasibility.json` (default `min(2, ceiling)` per category and `min(2.3, mean ceiling - 0.2)`; set at the feasibility gate, [realism-gate](realism-gate.md)). Without a feasibility file: every category ≥ 2 and average ≥ 2.3. Automatic fail: core violation in a live-3D brief (reference pixels as colour or lighting, 2D warps for 3D motion), placeholder primitive plus glow, bloom or fog standing in for geometry, one flat grey, text over 3D unreadable, no evidence image for a claimed shot, no renderer diagnostics for a performance claim.
 
 ## Fresh-critic gate
 
 Validation passing is not visual verification: render after every stage and look at it.
 
-0. Measure first. Record the render like the reference: `<skill>/scripts/preview capture --clip SECONDS`, then `<skill>/scripts/ref-extract --regions N --kymo` on the clip, and compare with the reference's regions and motion numbers. Those numbers go to the critic as evidence; the critic does not re-estimate them.
+0. Numbers before images. Run `<skill>/scripts/preview match --version vNNN --json` first (ssim, edge-ssim, mask IoU, region luma and delta E against refspec tolerances, a verdict per channel). For motion, record `preview capture --clip SECONDS`, run `<skill>/scripts/ref-extract --motion-json` (with `--regions N --kymo`) on the clip and on the reference, and compare speed, period and amplitude. These numbers go to the critic as evidence; it does not re-estimate them. At most 4 image views per iteration, and never view the same path twice.
 1. From round 1, every round the critic gets the SAME anchored rubric and the same reference frames, with per-category pass criteria derived from refspec measurements (e.g. motion period ±10 %, pulse speed ±15 %, sway amplitude ±15 %, luma p5/p50/p95 ±0.05), so verdicts do not contradict across rounds. After each iteration, hand the evidence PNGs, the measured numbers, the brief and the refspec to a FRESH reviewer context (a new subagent or a clean pass) that is NEVER told what was just fixed or which notes were addressed.
-2. It lists defects and a scorecard; you fix only what it confirms against evidence.
+2. It lists defects, each labelled FIXABLE(T#) / CEILING(G#) / ARTEFACT(R#) ([realism-gate](realism-gate.md)), and a scorecard; you fix only what it confirms against evidence.
 3. Record each round in the `3D.md` version log (round, critic verdict, defects found, fixed).
 4. A failing critic round is fixed as a NEW version and re-captured; only a version whose critic round passes is shown to the user.
-5. The loop is bounded. Hard cap: after 3 non-converging critic rounds stop, report the score trend and the board (`<skill>/scripts/preview board`), and ask the user (iterate on X / accept / change approach). Plateau: 2 rounds with no score change in a failing category is an approach problem, not tuning; stop and ask, offering the options in [brief-approach](brief-approach.md). Never loop silently.
+5. Stop and continue are decided by `<skill>/scripts/preview rounds`, not by you: caps, plateau, ceiling and the MAX REACHED report are in [realism-gate](realism-gate.md). Never loop silently.
 6. Iterate at low resolution (`--size 854x480`); judge the approval candidate at full resolution.
 
 ## Sign-off
@@ -89,4 +88,3 @@ One `3D.md` line: version, shots checked, metrics with their conditions, known d
 - Declaring a perf pass from a dev-server headless run.
 - Using ssim to prove fidelity to a different-pipeline reference.
 - Letting a post effect mask a geometry or material fault.
-- Checking only the shot you changed.

@@ -44,6 +44,7 @@ Compatible with the `generate-image` attribute tree: `type` first; `camera{lens,
 | `schema` | `"refspec.v1"` |
 | `refs[]` | `id`, `path`, `kind` image\|video, `role`, `intent`, `weight`, `meta{w,h,fps,duration_s,exif,color}` |
 | `type` | one phrase: "photoreal product still", "stylised 3D scene" |
+| `provenance` | `kind` photo \| offline-render \| realtime-capture \| ai-image \| ai-video \| unknown; `consistency{perspective, lighting, temporal}` each pass \| fail \| unknown; `evidence` (metadata, sibling prompt, user's words) |
 | `medium` | photoreal · cgi-real · stylised-3d · toon · clay · low-poly · isometric · flat-vector · painterly · mixed |
 | `style_tokens` | 1-3 observable technique tokens, no artist names |
 | `anchors[]` | 3-5 strings, most similarity-critical first |

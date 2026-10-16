@@ -39,6 +39,21 @@ Never mix the pmndrs composer with `WebGPURenderer`.
 2. When bright non-emissive surfaces (specular, white UI) bleed: switch to MRT emissive channel read by bloom (WebGPU `mrt`), or selective layers. Dual-pass material-swap selective bloom costs several full renders; restore materials in `finally`.
 3. Bloom resolution scale ≤ 0.5 on mobile.
 
+## Realism passes
+
+Ranking: [realism-toolbox](realism-toolbox.md). Measure every pass at DPR 2.
+
+| T | Pass | WebGL | WebGPU r186 node |
+|---|---|---|---|
+| T7 | AO | `<N8AO>` (n8ao 2.0): `quality` is `'performance' \| 'low' \| 'medium' \| 'high' \| 'ultra'`; neural modes only via ref `setQualityMode("Neural-Medium")`. Skip when AO is baked | `ao()` (GTAONode); `ssao` also exists |
+| T9 | selective bloom | pmndrs `SelectiveBloomEffect` / wrapper `Selection` + `Select`; keep `luminanceThreshold` high | `bloom` with an MRT emissive output |
+| T11 | AA | SMAA or MSAA | `traa` (needs depth + velocity from the scene pass MRT; excludes MSAA) |
+| T13 | reflections | `SSRPass`, drei `MeshReflectorMaterial` for floors | `ssr()`; always keep an env fallback |
+| T14 | GI | none first-party | `ssgi()` (temporal filtering, recommended, requires `traa`); `vxgi()` from `three/addons/lighting/vxgi/VXGINode.js`; `LightProbeGrid` |
+| T15 | motion blur | custom | `motionBlur(input, velocity, samples)` function |
+
+Order: AO on indirect only, never stacked on baked AO. Grading (T2/T10): AgX has no punchy variant in r186 or pmndrs 6.39, so add contrast with a LUT (`LUT3DEffect`, or `lut3D` node) after tone mapping, then film grain (`film`) and dither last.
+
 ## Grade and lens
 
 - LUT after tone map; 32³ is enough. Vignette/grain are cheap; chromatic aberration only if the brief names it.

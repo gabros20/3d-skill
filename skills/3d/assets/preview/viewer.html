@@ -5,11 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3D Preview</title>
 <!-- 3d skill preview viewer. Single static file, no build step. Served by `scripts/preview serve`
-     (file:// cannot load ES modules). three is pinned; bump the version in BOTH places below. -->
+     (file:// cannot load ES modules). Everything is pinned (three 0.186.1, three-mesh-bvh 0.9.16, three-gpu-pathtracer
+     0.0.27); the last three entries are only fetched by path-trace mode (window.__3d.pathtrace). three is pinned; bump the version in BOTH places below. -->
 <script type="importmap">
 {"imports":{
   "three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
-  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+  "three/examples/jsm/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+  "three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.webgpu.js",
+  "three/tsl":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.tsl.js",
+  "three-mesh-bvh":"https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.16/src/index.js",
+  "three-mesh-bvh/webgpu":"https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.16/src/webgpu/index.js",
+  "three-gpu-pathtracer/webgpu":"https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.27/src/webgpu/index.js"
 }}
 </script>
 <style>
@@ -150,6 +157,17 @@ if (BARE) document.documentElement.classList.add('bare');
 document.body.classList.toggle('bare', BARE);
 
 // `room` is procedural and the offline default; the HDRIs need network (royal/venice pinned to r170).
+// ---- params: ?p=<base64url JSON> and __3d.setParams/getParams (same contract as assets/web/bridge.ts).
+// The viewer itself reacts to: exposure, toneMapping (None|Linear|Reinhard|Cineon|ACESFilmic|AgX|Neutral),
+// environment (room|royal|studio|venice|none), envBackground, turntable, roll_deg. Other keys are stored and
+// echoed by info().params, so sweeps and look files can share one object with a live app.
+function decodeParams(b64) {
+  try {
+    const t = b64.replace(/-/g, '+').replace(/_/g, '/'); const bin = atob(t + '='.repeat((4 - t.length % 4) % 4));
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  } catch { return null; }
+}
+let PARAMS = (qs.has('p') && decodeParams(qs.get('p'))) || {};
 const ENVS = {
   room: { label: 'Room (procedural, offline)' },
   royal: { label: 'Royal Esplanade (HDRI)', url: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/textures/equirectangular/royal_esplanade_1k.hdr' },
@@ -285,6 +303,17 @@ async function applyEnv(key) {
 // look.v1 (.3d/look.json): toneMapping neutral|agx|aces|none, exposure, environment room|<path or url>,
 // background "#rrggbb" or "environment". Applied at load; the UI toggles override per session.
 const LOOK_TONES = { neutral: 'Neutral', agx: 'AgX', aces: 'ACESFilmic', none: 'None' };
+function applyParams() {
+  const P = PARAMS;
+  if (Number.isFinite(+P.exposure) && P.exposure !== undefined && +P.exposure > 0) { S.exposure = +P.exposure; $('rngExp').value = S.exposure; $('expVal').textContent = S.exposure.toFixed(2); }
+  if (typeof P.toneMapping === 'string' && P.toneMapping in TONES) { S.tone = P.toneMapping; $('selTone').value = S.tone; }
+  if (typeof P.envBackground === 'boolean') { S.envBg = P.envBackground; $('chkBg').checked = S.envBg; }
+  if (typeof P.environment === 'string' && ENVS[P.environment] && P.environment !== S.env) { S.env = P.environment; $('selEnv').value = S.env; applyEnv(S.env); }
+  else if (typeof P.envBackground === 'boolean') applyEnv(S.env);
+  if (typeof P.turntable === 'boolean' && P.turntable !== S.turntable) toggleTurn();
+  if (Number.isFinite(+P.roll_deg) && P.roll_deg !== undefined) S.roll = +P.roll_deg;
+  applyTone();
+}
 function applyLook(look) {
   S.look = look && typeof look === 'object' ? look : null;
   if (!S.look) return;
@@ -559,18 +588,99 @@ function wire() {
 }
 function toggleTurn() { S.turntable = !S.turntable; controls.autoRotate = S.turntable; $('btnTurn').setAttribute('aria-pressed', S.turntable); }
 
+// The tracer wants scene.environment as a Color, a CubeTexture or an equirect DataTexture with pixel data; a PMREM
+// render-target texture (what the live view uses) crashes EquirectHdrInfo.updateFrom. So `room` is baked to a float
+// equirect here: RoomEnvironment -> cube camera -> equirect pass -> readback (512x256, low-frequency by nature).
+function bakeRoomEquirect(w = 512, h = 256) {
+  const cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+  const cc = new THREE.CubeCamera(0.1, 100, cubeRT);
+  const room = new RoomEnvironment(); const prevTone = renderer.toneMapping; renderer.toneMapping = THREE.NoToneMapping;
+  cc.position.set(0, 1.6, 0); cc.update(renderer, room); renderer.toneMapping = prevTone;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { envMap: { value: cubeRT.texture } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: `uniform samplerCube envMap; varying vec2 vUv;
+      void main(){ float phi = (vUv.x - 0.5) * 6.28318530718; float th = (vUv.y - 0.5) * 3.14159265359;
+        vec3 d = vec3(cos(th) * cos(phi), sin(th), cos(th) * sin(phi)); gl_FragColor = vec4(textureCube(envMap, vec3(-d.x, d.y, d.z)).rgb, 1.0); }`,
+  });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); const qs = new THREE.Scene(); qs.add(quad);
+  const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.FloatType, format: THREE.RGBAFormat });
+  const prevRT = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.render(qs, new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)); renderer.setRenderTarget(prevRT);
+  const data = new Float32Array(w * h * 4); renderer.readRenderTargetPixels(rt, 0, 0, w, h, data);
+  rt.dispose(); cubeRT.dispose(); mat.dispose(); quad.geometry.dispose();
+  const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.FloatType);
+  tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.LinearSRGBColorSpace;
+  tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  return tex;
+}
+
+// ---- path-trace mode: the "twin" (preview capture --pathtrace). WebGPU only; separate renderer and canvas,
+// the same scene, camera, tone mapping and environment as the live view. Loaded lazily so the viewer works without WebGPU.
+async function pathTrace({ samples = 256, maxSeconds = 180 } = {}) {
+  if (S.mode !== 'gltf' || !roots.A) throw new Error('path tracing needs a glTF version loaded');
+  if (!navigator.gpu || !(await navigator.gpu.requestAdapter())) throw new Error('WebGPU is not available in this browser');
+  const T = await import('three/webgpu');
+  const { WebGPUPathTracer } = await import('three-gpu-pathtracer/webgpu');
+  const t0 = performance.now();
+  const w = canvas.width, h = canvas.height;
+  const gpuCanvas = document.createElement('canvas');
+  const gr = new T.WebGPURenderer({ canvas: gpuCanvas, antialias: false });
+  gr.setPixelRatio(1); gr.setSize(w, h, false);
+  gr.toneMapping = renderer.toneMapping; gr.toneMappingExposure = renderer.toneMappingExposure;
+  await gr.init();
+  const scene = scenes.A, savedEnv = scene.environment, savedBg = scene.background;
+  let env = null;
+  try {
+    if (S.env === 'room') env = bakeRoomEquirect();
+    else if (ENVS[S.env]?.url) { env = await new HDRLoader().loadAsync(ENVS[S.env].url); env.mapping = THREE.EquirectangularReflectionMapping; }
+    scene.environment = env; scene.background = S.envBg && env ? env : new THREE.Color(S.bgColor);
+    const rr = THREE.MathUtils.degToRad(S.roll || 0);
+    if (rr) { camera.rotateZ(rr); camera.updateMatrixWorld(); }
+    const pt = new WebGPUPathTracer(gr);
+    pt.renderDelay = 0; pt.dynamicLowRes = false; pt.fadeDuration = 0; pt.minSamples = 1;
+    pt.setScene(scene, camera);
+    let reached = 0, lastCheck = 0;
+    while (reached < samples) {
+      pt.renderSample();
+      const now = performance.now();
+      if (now - lastCheck > 250) {
+        lastCheck = now;
+        reached = (await pt.getSampleCountsAsync()).min;
+        if ((now - t0) / 1000 > maxSeconds) break;
+      }
+    }
+    reached = (await pt.getSampleCountsAsync()).min;
+    pt.renderSample(); // present the accumulated image to the canvas
+    const out = document.createElement('canvas'); out.width = w; out.height = h;
+    out.getContext('2d').drawImage(gpuCanvas, 0, 0);
+    if (rr) { camera.rotateZ(-rr); camera.updateMatrixWorld(); }
+    try { await gr.backend?.device?.queue?.onSubmittedWorkDone?.(); } catch {}
+    const info = (await navigator.gpu.requestAdapter()).info || {};
+    const result = { dataUrl: out.toDataURL('image/png'), samples: Math.round(reached), requested: samples, timedOut: reached < samples,
+      seconds: +((performance.now() - t0) / 1000).toFixed(2), size: [w, h], adapter: [info.vendor, info.architecture].filter(Boolean).join(' ') || 'unknown' };
+    pt.dispose?.();
+    await new Promise((r) => setTimeout(r, 100)); // let in-flight GPU readbacks settle before the renderer goes away
+    return result;
+  } finally {
+    scene.environment = savedEnv; scene.background = savedBg; env?.dispose?.(); gr.dispose?.();
+  }
+}
+
 // ---- window.__3d : the contract used by scripts/preview capture
 const api = {
   ready: false,
   shots: () => S.data.shots.map((s) => ({ ...s })),
   loadShots(list) { S.data.shots = list.map((s, i) => ({ ...s, id: String(s.id || `shot${i + 1}`) })); renderShotButtons(); },
   setShot(id, t = 0) { if (!applyShot(id, true, t)) throw new Error(`unknown shot "${id}"`); return true; },
+  pathtrace: (opts) => pathTrace(opts),
+  getParams: () => JSON.parse(JSON.stringify(PARAMS)),
+  setParams(obj) { PARAMS = { ...PARAMS, ...(obj && typeof obj === 'object' ? obj : {}) }; applyParams(); return JSON.parse(JSON.stringify(PARAMS)); },
   setTime(t) { S.time = t; if (mixer) mixer.setTime(t); const v = document.querySelector('#media-wrap video'); if (v) v.currentTime = t; return !!(mixer || v); },
   frame(n = 1) { for (let i = 0; i < n; i++) controls.update(1 / 60); render(); return n; },
   capture() { render(); return S.mode === 'gltf' ? canvas.toDataURL('image/png') : null; },
   info() {
     const a = S.stats.A;
-    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, look: S.look, time: S.time, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
+    return { mode: S.mode, version: S.version, shot: S.shot, error: S.error, renderer: rendererName(), toneMapping: S.tone, exposure: S.exposure, env: S.env, look: S.look, params: PARAMS, time: S.time, camera: camera.isOrthographicCamera ? 'orthographic' : 'perspective', fov: camera.fov ?? null,
       size: [canvas.width, canvas.height], tris: a?.tris ?? null, drawCalls: renderer.info.render.calls, textures: a?.textures ?? null,
       texMB: a?.texMB ?? null, glbBytes: a?.glbBytes ?? null, visibility: document.visibilityState, three: THREE.REVISION };
   },
@@ -584,7 +694,7 @@ window.__3d = api;
     const want = qs.get('version'), ids = S.data.versions.map((v) => v.id);
     const first = ids.includes(want) ? want : ids[ids.length - 1];
     S.shot = qs.get('shot') || S.data.shots[0]?.id || null;
-    applyLook(S.data.look); applyTone(); applyEnv(S.env);
+    applyLook(S.data.look); applyParams(); applyTone(); applyEnv(S.env);
     if (first) { $('selVersion').value = first; await loadVersion(first); }
     else { showMsg('<div><b>No versions yet.</b><br>Run <code>scripts/preview new-version</code>, copy a .glb into it, and reload.</div>'); canvas.style.visibility = 'hidden'; }
     await envReady();

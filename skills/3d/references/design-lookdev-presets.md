@@ -19,7 +19,7 @@ Produces:
 
 ## Contents
 
-- Colour and tone policy · Lighting recipes · Material recipes · Presets A-E · Intake use · Traps
+- Colour and tone policy · Lighting recipes · Material recipes · Matching Blender · Presets A-E · Intake use · Traps
 
 ## Colour and tone policy (canonical)
 
@@ -48,6 +48,14 @@ Produces:
 - **Paper / clay**: roughness 0.8-1, `sheen` for fuzz, generous bevel, strong AO and contact shadow, soft shadows. Never tile a small texture on a close-up.
 - **Dark premium**: black glass + dark metal, roughness 0.2-0.4, light shaped by strips and rims, not fill.
 - Detail by scale: geometry for silhouette, normal/roughness for surface. Texel budget: required px = projected CSS px x DPR x 1.0-1.5. `normalScale` 0.25-0.8. Wear is causal.
+
+## Matching Blender
+
+three's AgX is not Blender's: r186's shader has the AgX look step commented out (no Looks) and no Punchy variant exists in the source (verified in the 0.186.1 source; three PR #27618 was closed unmerged). Blender's grade will read flatter-or-punchier than the browser.
+- Pick by need: **Neutral** on both sides when brand hex must match (the safest cross-renderer match); AgX only for cinematic, then accept a small drift.
+- Match exposure first (EV in Blender = 2^EV on `toneMappingExposure`), then contrast/saturation with a grade in the post chain: a CDL (slope/offset/power, saturation) or 3D LUT after `OutputPass`, fitted to a render-vs-capture pair; never by changing lamps.
+- Bake and render with the same view transform. Colour maps sRGB, data maps `NoColorSpace`, glTF UVs `flipY = false`; one lighting setup in both (Blender's default world is not neutral).
+- An export that looks flat: no environment in three (Blender's world is gone), baked lighting multiplied onto metalness (lightmap plus metal double-lights), or a missing sun. Fix the environment first.
 
 ## Presets
 
@@ -86,4 +94,3 @@ Offer A to E as "pick one, then override" with a one-line mood each; map a refer
 - Fixing flatness with exposure instead of key-to-env ratio.
 - Bloom radius up to hide weak materials.
 - Tone mapping twice (renderer and `OutputPass`), or effects after tone mapping that expect HDR.
-- Different view transforms in Blender and three: renders will never match the browser.

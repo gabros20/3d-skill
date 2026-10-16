@@ -15,6 +15,10 @@ Inputs:
 Produces:
 - A provenance answer; a new row when a source is added.
 
+## Contents
+
+- Front door · Shared · three.js, R3F, shaders · Scroll and design · Assets and Blender · Realism · Optional · Primary documentation
+
 Every reference is written in this skill's own words. **Adapted** = MIT, Apache-2.0 or ISC source whose ideas were rewritten, never copied. **Inspired only** = no licence, NOASSERTION, AGPL or vendor docs: ideas informed the text, nothing was copied or vendored. Surveyed 2026-10-16; the long form with commits and dates is the repository's `SOURCES.md`.
 
 ## Front door: intake, references, brief
@@ -72,6 +76,17 @@ Every reference is written in this skill's own words. **Adapted** = MIT, Apache-
 | kajisho5/blender-skill, ifBars/blender-agent-studio, elithril blender-kiln | MIT | adapted: headless budget checks, render contract, MCP rules |
 | meshy-dev/meshy-3d-agent | MIT | adapted: paid-job rules |
 | ahujasid/mcp-for-blender; Blender Lab MCP | MIT; GPL-3.0 | recommended tools, no text taken |
+
+## Realism: gap, toolbox, gate
+
+| Source | Licence | Use |
+|---|---|---|
+| Andrew Woan (Codrops 2025); Lusion studio write-ups | articles | inspired only: bake recipe, texel density, offline plus live overlay |
+| Wawa Sensei, Immersive Studios (YouTube) | videos | inspired only: when to bake, texture budgets |
+| three.js forum threads by drcmda and donmccurdy | forum posts | inspired only: environment first, colour management, AgX base only |
+| "Moving Frostbite to PBR" course notes (Lagarde, de Rousiers) | none stated | reference only: the gap taxonomy, nothing reproduced |
+| Filament PBR docs; LearnOpenGL PBR/IBL | Apache-2.0 repo; CC BY-NC 4.0 | inspired only: split-sum IBL limits, BRDF terms |
+| gkjohnson/three-gpu-pathtracer | MIT | recommended tool: the path-traced twin; API from its docs |
 
 ## Optional: Spline, splats and XR, CAD
 

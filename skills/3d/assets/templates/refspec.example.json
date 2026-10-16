@@ -12,6 +12,11 @@
     }
   ],
   "type": { "value": "photoreal product still", "confidence": "high", "evidence": "read" },
+  "provenance": {
+    "kind": "ai-image",
+    "consistency": { "perspective": "pass", "lighting": "pass", "temporal": "unknown" },
+    "evidence": "user said it came from an image generator"
+  },
   "medium": { "value": "cgi-real", "confidence": "med", "evidence": "read" },
   "style_tokens": ["dark seamless studio", "rim-lit glossy hard surface"],
   "anchors": [
