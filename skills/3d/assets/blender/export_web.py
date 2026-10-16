@@ -15,10 +15,18 @@ Args after `--`:
                         never applied (shape keys would be lost) and are reported.
   --root NAME           export only this object and its descendants
   --images auto|webp|jpeg  texture format (default auto = PNG/JPEG as authored)
-  --lights / --cameras  include them (default: excluded, the runtime owns lights)
+  --no-lights / --no-cameras  leave them out (default: both exported; punctual lights are
+                        written as KHR_lights_punctual and marked required)
+  --lighting compat|spec|raw  light unit conversion (default compat: W/4pi, right for
+                        HDR-lit web scenes; spec turns 1000 W into 54,351 cd and blows out)
+  --gn-instances        keep Geometry Nodes modifiers unapplied so instances export as
+                        EXT_mesh_gpu_instancing; instance source objects are hidden and
+                        excluded. Default applies GN (realised mesh).
+  --cull-backfaces      set backface culling on every material (the exporter writes
+                        doubleSided=true otherwise); closed meshes only
   --extras              write custom properties (default on) / --no-extras
 Compression is NOT done here (see references/asset-pipeline.md). Prints Blender's own log lines, then one JSON line (the line starting with `{`):
-{"ok","out","bytes","applied","skipped","dropped_kwargs","glb":{...}}.
+{"ok","out","bytes","applied","skipped","warnings","dropped_kwargs","glb":{...}}.
 Exit 0 ok / 1 export failed / 2 usage.
 """
 from __future__ import annotations
@@ -41,15 +49,25 @@ SHAPE_MODS = {"NODES", "BOOLEAN", "BEVEL", "MIRROR", "SOLIDIFY", "SUBSURF", "WEI
 def parse_args() -> dict:
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     o = {"out": None, "apply": "auto", "root": None, "images": "auto",
-         "lights": False, "cameras": False, "extras": True}
+         "lights": True, "cameras": True, "extras": True, "lighting": "compat", "gn_instances": False,
+         "cull": False}
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("--out", "--apply", "--root", "--images") and i + 1 < len(argv):
             o[a[2:]] = argv[i + 1]
             i += 2
-        elif a in ("--lights", "--cameras"):
-            o[a[2:]] = True
+        elif a in ("--no-lights", "--no-cameras"):
+            o[a[5:]] = False
+            i += 1
+        elif a == "--lighting" and i + 1 < len(argv):
+            o["lighting"] = argv[i + 1].lower()
+            i += 2
+        elif a == "--gn-instances":
+            o["gn_instances"] = True
+            i += 1
+        elif a == "--cull-backfaces":
+            o["cull"] = True
             i += 1
         elif a in ("--extras", "--no-extras"):
             o["extras"] = a == "--extras"
@@ -58,7 +76,7 @@ def parse_args() -> dict:
             sys.stderr.write(__doc__ + "\nunknown arg: %s\n" % a)
             sys.exit(2)
     if not o["out"] or o["apply"] not in ("auto", "none", "all") or \
-            o["images"] not in ("auto", "webp", "jpeg"):
+            o["images"] not in ("auto", "webp", "jpeg") or o["lighting"] not in ("compat", "spec", "raw"):
         sys.stderr.write(__doc__)
         sys.exit(2)
     return o
@@ -74,7 +92,42 @@ def collect(root_name):
     return [root] + list(root.children_recursive)
 
 
-def apply_modifiers(objs, mode):
+def gn_instance_sources(objs):
+    """Objects fed into Geometry Nodes through Object Info nodes (instancing sources)."""
+    sources = set()
+    for ob in objs:
+        for mod in ob.modifiers:
+            if mod.type != "NODES" or mod.node_group is None:
+                continue
+            for node in mod.node_group.nodes:
+                if node.bl_idname == "GeometryNodeObjectInfo" and node.inputs[0].default_value:
+                    sources.add(node.inputs[0].default_value)
+    return sources
+
+
+def material_warnings():
+    """Materials using volume / thin film need a 'glTF Material Output' group to export them."""
+    out = []
+    for mat in bpy.data.materials:
+        tree = mat.node_tree if mat.users else None
+        if tree is None:
+            continue
+        has_group = any(n.type == "GROUP" and n.node_tree and n.node_tree.name.startswith("glTF Material Output")
+                        for n in tree.nodes)
+        needs = []
+        for n in tree.nodes:
+            if n.type == "OUTPUT_MATERIAL" and n.inputs["Volume"].is_linked:
+                needs.append("volume")
+            if n.type == "BSDF_PRINCIPLED" and "Thin Film Thickness" in n.inputs and \
+                    n.inputs["Thin Film Thickness"].default_value > 0:
+                needs.append("thin film (iridescence)")
+        if needs and not has_group:
+            out.append("material %r uses %s but has no 'glTF Material Output' node group: "
+                       "volume/thickness/dispersion/iridescence will not export" % (mat.name, ", ".join(needs)))
+    return out
+
+
+def apply_modifiers(objs, mode, keep_gn=False):
     applied, skipped = [], []
     if mode == "none":
         return applied, skipped
@@ -88,7 +141,7 @@ def apply_modifiers(objs, mode):
             skipped.append({"object": ob.name, "reason": "linked duplicate: left unapplied to keep instances"})
             continue
         for mod in list(ob.modifiers):
-            if mod.type == "ARMATURE":
+            if mod.type == "ARMATURE" or (keep_gn and mod.type == "NODES"):
                 continue
             if mode == "auto" and mod.type not in SHAPE_MODS:
                 continue
@@ -107,21 +160,37 @@ def glb_summary(path):
         magic, _ver, _len = struct.unpack("<4sII", fh.read(12))
         clen, ctype = struct.unpack("<II", fh.read(8))
         doc = json.loads(fh.read(clen)) if ctype == 0x4E4F534A else {}
-    return {"meshes": len(doc.get("meshes", [])), "materials": len(doc.get("materials", [])),
+    return {"cameras": len(doc.get("cameras", [])),
+            "lights": len(doc.get("extensions", {}).get("KHR_lights_punctual", {}).get("lights", [])),
+            "double_sided": sum(1 for m in doc.get("materials", []) if m.get("doubleSided")),
+            "meshes": len(doc.get("meshes", [])), "materials": len(doc.get("materials", [])),
             "images": len(doc.get("images", [])), "animations": len(doc.get("animations", [])),
-            "nodes": len(doc.get("nodes", [])), "extensionsUsed": doc.get("extensionsUsed", [])}
+            "nodes": len(doc.get("nodes", [])), "node_names": [n.get("name") for n in doc.get("nodes", [])], "extensionsUsed": doc.get("extensionsUsed", [])}
 
 
 def main() -> int:
     o = parse_args()
     objs = collect(o["root"])
-    applied, skipped = apply_modifiers(objs, o["apply"])
+    warnings = material_warnings()
+    sources = gn_instance_sources(objs)
+    if o["gn_instances"]:
+        for src in sources:
+            src.hide_set(True)
+    else:
+        warnings += ["instance source %r is exported as its own node (hide_render does not exclude it); "
+                     "delete it after applying or use --gn-instances" % src.name for src in sources]
+    if o["cull"]:
+        for mat in bpy.data.materials:
+            mat.use_backface_culling = True
+    applied, skipped = apply_modifiers(objs, o["apply"], keep_gn=o["gn_instances"])
 
     wanted = dict(
         filepath=os.path.abspath(o["out"]), export_format="GLB", export_yup=True,
         export_apply=False, use_selection=bool(o["root"]),
         export_cameras=o["cameras"], export_lights=o["lights"], export_extras=o["extras"],
-        export_gpu_instances=True, export_animations=True,
+        export_gpu_instances=True, export_gn_mesh=True, export_animations=True,
+        use_visible=bool(o["gn_instances"]),
+        export_import_convert_lighting_mode=o["lighting"].upper(),
         export_image_format={"auto": "AUTO", "webp": "WEBP", "jpeg": "JPEG"}[o["images"]],
         export_draco_mesh_compression_enable=False, export_meshopt_compression_enable=False,
     )
@@ -141,7 +210,7 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": str(exc), "dropped_kwargs": dropped}))
         return 1
     ok = "FINISHED" in res and os.path.exists(kwargs["filepath"])
-    out = {"ok": ok, "out": kwargs["filepath"], "applied": applied, "skipped": skipped,
+    out = {"ok": ok, "out": kwargs["filepath"], "applied": applied, "skipped": skipped, "warnings": warnings,
            "dropped_kwargs": dropped}
     if ok:
         out["bytes"] = os.path.getsize(kwargs["filepath"])

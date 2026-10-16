@@ -35,6 +35,8 @@ Produces:
 
 ## Bake for web (lighting into textures)
 
+Rule: static lights and objects → Cycles bake (lighting into textures); anything that moves or is relit → PBR bake (maps, live light). Usually both: baked environment plus a PBR dynamic hero. The bake output type sets the runtime material: Background output = `MeshBasicMaterial` (exact light, no shadows); Principled output = `MeshStandardMaterial` that double-lights a baked scene; Emission output = `MeshStandardMaterial` with an emissive map (correct light, still receives shadows). Emission is the usual compromise.
+
 For static lights and static objects only (dynamic items stay live PBR + env: [threejs-lookdev](threejs-lookdev.md)). Output-type choice (Background vs Emission output, lightMap channel, intensity) lives there; this is the Blender side.
 
 1. Prepare: delete faces the camera never sees; Face Orientation all blue; apply scale; merge by distance; make data single-user; join static objects that share a UV map. Split a big scene across several textures or it blurs. Cap open light fixtures (light leaks through missing faces).

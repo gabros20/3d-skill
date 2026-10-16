@@ -104,6 +104,7 @@ project. Never run them from the skill directory.
 
 | Condition | Read | Contribution |
 |---|---|---|
+| Which engine: three.js or Babylon.js, PlayCanvas, Needle, model-viewer; `react-babylonjs`?; `@babylonjs/*` in the project | [engine-choice](references/engine-choice.md) | engine decision line; Babylon notes |
 | Spline named; a designer maintains the scene | [spline](references/spline.md) | Spline runtime, Spline GLB or R3F, decided |
 | Splats (`.ply`, `.spz`), WebXR, AR, Quick Look | [splats-xr](references/splats-xr.md) | splat or XR integration with budgets |
 | Printable or mechanical part, STL/STEP, CAD in a web scene | [cad-print](references/cad-print.md) | routing to CAD skills, verification laws |
@@ -156,7 +157,8 @@ project. Never run them from the skill directory.
    Validate with `<skill>/scripts/spec-check`. Then pass the [sign-off gates](references/brief-spec.md)
    in order, each on the user's yes: brief → style frames → blockout → lookdev → final.
 4. **Approach.** [brief-approach](references/brief-approach.md) maps target use to a pipeline and
-   fallback ladder, records it in `3D.md`, and names the area files. A matched reference or a
+   fallback ladder, settles the engine ([engine-choice](references/engine-choice.md); default
+   three.js + R3F), records both in `3D.md`, and names the area files. A matched reference or a
    realism ask first passes the [feasibility gate](references/realism-gate.md): ceilings, ship
    bars and planned techniques, accepted by the user before build.
 5. **Build.** Read only those files. One change-set per version (`<skill>/scripts/preview new-version`).

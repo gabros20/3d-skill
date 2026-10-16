@@ -26,6 +26,12 @@ Produces:
 - Pin the CLI (`npm i -D @gltf-transform/cli@4.5`) and confirm flags with `gltf-transform help <command>`; they drift between versions.
 - meshopt is the default geometry compression; Draco only for large static, geometry-dominant meshes where the decoder cost is accepted. Never both.
 
+## Judge by GPU memory
+
+Compare VRAM, not file size. Decoded textures cost width x height x 4 bytes plus about a third for mips, whatever the file format; KTX2 stays block-compressed on the GPU. Compression can make the file larger and still cut VRAM (one measured case: Draco + WebP with textures capped at 1024 px took the file from 2.6 to 2.95 MB while VRAM fell from 137 to 49 MB; freeCodeCamp 2026); KTX2 saves VRAM further because it stays block-compressed. Report both numbers in the before/after line, with `renderer.info.memory` as the runtime check.
+
+Draw calls: one material is one draw call. Merge look-alike materials into an atlas or trim sheet at authoring time (shared UV layout, one texture set), not with `optimize --palette`, which renames materials.
+
 ## Steps
 
 1. Inspect the master: `gltf-transform inspect master.glb` and `<skill>/scripts/glb-report master.glb --budget hero`. Read which axis is heavy: geometry, textures or draw calls. Check real-world scale here (1 unit = 1 m) before any AR use.
@@ -65,7 +71,9 @@ Produces:
 
 ## gltfpack (alternative)
 
-Use when `gltf-transform` cannot be installed or you want one fast pass. Prefer the native binary from the meshoptimizer releases; the npm build lacks texture compression.
+Blender 5.2's glTF exporter has gltfpack built in (`export_use_gltfpack`, `export_gltfpack_*`; options in [blender-export](blender-export.md); the binary is not bundled and not read from PATH: set the glTF add-on preference `gltfpack_path_ui` to a gltfpack executable, or the export fails with PermissionError). Prefer the explicit `gltf-transform` passes above when you need `inspect` between steps, per-slot texture control, `--keep-leaves`, or reproducible CI; prefer the exporter path for a quick one-shot. Either way keep the uncompressed master.
+
+Use standalone when `gltf-transform` cannot be installed or you want one fast pass. Prefer the native binary from the meshoptimizer releases; the npm build lacks texture compression.
 ```
 gltfpack -i master.glb -o out.glb -c -kn -km
 ```

@@ -290,5 +290,18 @@
       "references/blender-modeling.md",
       "references/splats-xr.md"
     ]
+  },
+  {
+    "id": "engine-question",
+    "prompt": "Should we build the configurator in three.js or Babylon.js? The team knows Unity; we also looked at PlayCanvas and react-babylonjs.",
+    "expected_references": [
+      "references/engine-choice.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/scroll-video.md",
+      "references/blender-modeling.md",
+      "references/realism-gate.md"
+    ]
   }
 ]

@@ -159,5 +159,15 @@
       "Follows the preview rounds verdict instead of starting an open-ended round",
       "Offers the direction menu inside the brief's core; reports ceiling gaps instead of faking them"
     ]
+  },
+  {
+    "id": "babylon-project",
+    "prompt": "Our Next.js app already uses @babylonjs/core. Add the hero model from Blender to the landing page.",
+    "assertions": [
+      "Detects Babylon from package.json and keeps it; does not switch the project to three.js",
+      "Ships the model as glTF/GLB through the asset pipeline and loads it with Babylon's glTF loader",
+      "Mounts plain Babylon in a 'use client' component; does not add react-babylonjs by default",
+      "Records the engine decision with its reason in 3D.md"
+    ]
   }
 ]

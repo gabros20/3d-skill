@@ -166,6 +166,70 @@ img.save()
                     str(self.tmp / "x"), "--import", str(self.tmp / "nope.glb"))
         self.assertEqual(r.returncode, 2)
 
+    def _gn_scene(self, extra=""):
+        script = self.tmp / "gn_scene.py"
+        blend = self.tmp / "gn_scene.blend"
+        script.write_text("""
+import bpy
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.mesh.primitive_cube_add(size=0.2); src = bpy.context.object; src.name = "src"
+bpy.ops.mesh.primitive_plane_add(size=0.01); gn = bpy.context.object; gn.name = "GN"
+md = gn.modifiers.new("GN", "NODES"); ng = bpy.data.node_groups.new("A", "GeometryNodeTree")
+ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+ng.nodes.new("NodeGroupInput"); go = ng.nodes.new("NodeGroupOutput")
+ml = ng.nodes.new("GeometryNodeMeshLine"); ml.inputs["Count"].default_value = 4
+ml.inputs["Offset"].default_value = (0.3, 0, 0)
+iop = ng.nodes.new("GeometryNodeInstanceOnPoints"); oi = ng.nodes.new("GeometryNodeObjectInfo")
+oi.inputs[0].default_value = src; oi.transform_space = "RELATIVE"
+ng.links.new(ml.outputs[0], iop.inputs["Points"]); ng.links.new(oi.outputs["Geometry"], iop.inputs["Instance"])
+ng.links.new(iop.outputs[0], go.inputs[0]); md.node_group = ng
+m = bpy.data.materials.new("Glass"); m.use_nodes = True
+v = m.node_tree.nodes.new("ShaderNodeVolumeAbsorption")
+out = [n for n in m.node_tree.nodes if n.type == "OUTPUT_MATERIAL"][0]
+m.node_tree.links.new(v.outputs[0], out.inputs["Volume"]); gn.data.materials.append(m)
+d = bpy.data.lights.new("Pt", "POINT"); d.energy = 1000
+lo = bpy.data.objects.new("Pt", d); bpy.context.scene.collection.objects.link(lo)
+cd = bpy.data.cameras.new("Cam"); co = bpy.data.objects.new("Cam", cd)
+bpy.context.scene.collection.objects.link(co)
+bpy.ops.wm.save_as_mainfile(filepath=%r)
+""" % str(blend))
+        self.bl(None, "--python", str(script))
+        return blend
+
+    def test_export_web_defaults(self):
+        """Defaults: COMPAT lights (1000 W -> 79.58), lights and cameras on, warnings for the
+        volume material without a Material Output group and for the instance source."""
+        blend = self._gn_scene()
+        glb = self.tmp / "d" / "defaults.glb"
+        r = self.bl(blend, "--python", str(BPY / "export_web.py"), "--", "--out", str(glb))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        res = last_json(r.stdout)
+        self.assertEqual(res["glb"]["cameras"], 1)
+        self.assertEqual(res["glb"]["lights"], 1)
+        text = " ".join(res["warnings"])
+        self.assertIn("glTF Material Output", text)
+        self.assertIn("instance source", text)
+        import struct
+        data = glb.read_bytes()
+        n = struct.unpack("<I", data[12:16])[0]
+        doc = json.loads(data[20:20 + n])
+        light = doc["extensions"]["KHR_lights_punctual"]["lights"][0]
+        self.assertAlmostEqual(light["intensity"], 1000 / (4 * 3.14159265), delta=0.5)
+
+    def test_export_web_gn_instances(self):
+        blend = self._gn_scene()
+        glb = self.tmp / "d" / "inst.glb"
+        r = self.bl(blend, "--python", str(BPY / "export_web.py"), "--", "--out", str(glb),
+                    "--gn-instances", "--no-lights", "--no-cameras", "--lighting", "spec")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        res = last_json(r.stdout)
+        self.assertIn("EXT_mesh_gpu_instancing", res["glb"]["extensionsUsed"])
+        self.assertEqual(res["glb"]["cameras"], 0)
+        self.assertEqual(res["glb"]["lights"], 0)
+        self.assertNotIn("instance source", " ".join(res["warnings"]))
+        self.assertNotIn("src", res["glb"]["node_names"])  # the source cube is not exported
+
 
 if __name__ == "__main__":
     unittest.main()

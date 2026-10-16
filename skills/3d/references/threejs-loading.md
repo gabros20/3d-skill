@@ -43,6 +43,13 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 - Conditional asset = conditionally mount a child, never a null URL.
 - Suspense groups assets that reveal together. Suspense does not catch rejections: add an error boundary with retry. Inside the Canvas use a three-side fallback; drei `Loader` lives outside. `useProgress` is not byte-accurate.
 
+## After loading a Blender glTF
+
+- Shadows are not in glTF: `traverse` and set `castShadow` / `receiveShadow`, then pick a shadow technique ([threejs-lookdev](threejs-lookdev.md)).
+- Lightmaps from a second UV are assigned in code (`texture.channel = 1`, `material.lightMap`); the exporter carries only AO.
+- Materials often arrive `doubleSided` (Blender default): set `side = FrontSide` where the mesh is closed.
+- `KHR_materials_variants` needs a third-party plugin, stale since 2022: test before relying on it.
+
 ## Hide compile and upload behind the preloader
 
 1. Mount the scene while the preloader is up (paused CSS animation, un-paused on the ready signal).

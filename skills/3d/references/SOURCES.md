@@ -17,7 +17,7 @@ Produces:
 
 ## Contents
 
-- Front door · Shared · three.js, R3F, shaders · Scroll and design · Assets and Blender · Realism · Optional · Primary documentation
+- Front door · Shared · three.js, R3F, shaders · Scroll and design · Assets and Blender · Realism · Engines · Optional · Primary documentation
 
 Every reference is written in this skill's own words. **Adapted** = MIT, Apache-2.0 or ISC source whose ideas were rewritten, never copied. **Inspired only** = no licence, NOASSERTION, AGPL or vendor docs: ideas informed the text, nothing was copied or vendored. Surveyed 2026-10-16; the long form with commits and dates is the repository's `SOURCES.md`.
 
@@ -87,6 +87,14 @@ Every reference is written in this skill's own words. **Adapted** = MIT, Apache-
 | "Moving Frostbite to PBR" course notes (Lagarde, de Rousiers) | none stated | reference only: the gap taxonomy, nothing reproduced |
 | Filament PBR docs; LearnOpenGL PBR/IBL | Apache-2.0 repo; CC BY-NC 4.0 | inspired only: split-sum IBL limits, BRDF terms |
 | gkjohnson/three-gpu-pathtracer | MIT | recommended tool: the path-traced twin; API from its docs |
+
+## Engines
+
+| Source | Licence | Use |
+|---|---|---|
+| Spotvirtual, "Why we use Babylon.js instead of three.js" (2022) | article | inspired only: when Babylon's batteries pay off |
+| Babylon.js docs; Khronos glTF 2.0 and the Blender glTF I/O | Apache-2.0 docs | adapted: Babylon loading, environment, PBR and lightmap notes; export facts measured by hand |
+| gamefromscratch Babylon 9 review; Wawa Sensei; freeCodeCamp café course; Bruno Simon (2026 WebGPU/TSL course) | videos | inspired only: engine trade-offs, Blender-to-web practice |
 
 ## Optional: Spline, splats and XR, CAD
 

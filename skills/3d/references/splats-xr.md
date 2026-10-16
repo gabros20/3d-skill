@@ -26,7 +26,9 @@ Spark 2.x (`@sparkjsdev/spark`, MIT, World Labs) is the default library: three.j
 4. Starting budgets (practitioner figures, measure on device): phones 1-3M splats, desktop 1-5M (10-20M on strong GPUs), headset about 1M. Set `antialias:false` on the renderer. Prefer pre-built LoD over runtime LoD.
 5. Splats have no physical shading or shadows; mix with meshes only when depth order is tested. Provide a poster image fallback.
 6. R3F: use `extend({ SparkRenderer, SplatMesh })`. The official R3F/Next examples date from 2025-07 and pin Spark 0.1.x: re-verify against 2.x. Mark Spark modules `"use client"`. Spark's WASM `new URL()` is fragile under webpack (works under Vite/Turbopack): test the production build.
-7. Capture (photos/video → splat) is done outside the web stack; ask which tool the user has and take the `.ply` from there. Untested here.
+7. `KHR_gaussian_splatting` is ratified by Khronos: splats can ride in a glTF/GLB. Babylon 9 loads it natively; three r186 lists it only as a separately registered plugin (no plugin verified here, so name none and test). Spark's own formats remain the dependable three route.
+8. Realism route for static scenes: splat a Blender render. Render 50-150 frames from a camera array (fixed focal 30-70 mm, no motion blur), e.g. with the BlenderNeRF add-on (Blender ≥ 4.0), train on a GPU, compress to `.spz`/`.sog`. You get path-traced look and view-dependent reflections baked in; static only, no relighting, orbit-limited. Good for reflective props and scene fragments.
+9. Capture (photos/video → splat) is done outside the web stack; ask which tool the user has and take the `.ply` from there. Untested here.
 
 ## WebXR
 

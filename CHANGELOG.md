@@ -12,6 +12,33 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-16
+
+Engine choice and a measured Blender → web export path (a test scene rendered in Cycles, EEVEE,
+three.js r186 and Babylon.js 9.31).
+
+### Added
+- `engine-choice` reference: an engine gate at the approach step. The default is three.js + R3F + drei.
+  It recommends Babylon.js, PlayCanvas, Needle, model-viewer or Spline when the project fits, using
+  measured bundle sizes, download numbers and glTF extension coverage. It also covers Babylon notes
+  (env rotation, lightmaps in code, Inspector, plain Babylon in a Next client component; react-babylonjs
+  is not recommended). The engine decision is recorded in `3D.md`.
+- `blender-export`: a per-goal strategy table and a pre-export checklist.
+
+### Changed
+- `export_web.py` defaults: COMPAT light units, lights and cameras on, Geometry Nodes meshes on,
+  `--gn-instances`; warns when volume or thin-film materials lack the glTF Material Output group and
+  when an instance source would export as its own node.
+- Export knowledge from measurement:
+  - Volume, thickness, dispersion and iridescence need the Material Output group; the default light
+    mode blows HDR-lit scenes out.
+  - Shadows are not in glTF; materials export double-sided by default.
+  - Blender's built-in gltfpack needs its binary set in the add-on preferences; diffuse transmission is
+    not exported; the .babylon exporter is frozen; KHR_gaussian_splatting is ratified.
+  - Judge compression by VRAM, not file size.
+- `threejs-loading`: after loading a Blender glTF, add shadows, assign lightmaps in code, fix the
+  double-sided default.
+
 ## [0.5.0] — 2026-10-16
 
 Realism know-how, a feasibility gate and a stop mechanism, built from a live test where real-time

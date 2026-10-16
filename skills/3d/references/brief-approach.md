@@ -26,6 +26,8 @@ Pre-render when the viewer does not drive the camera or state AND device or weig
 
 ## Matrix
 
+Engine: default is three.js + R3F; run the engine gate in [engine-choice](engine-choice.md) when the project or team hints otherwise.
+
 | Use | Strategy | Choose when | Read next |
 |---|---|---|---|
 | HERO live | Real-time three.js or R3F scene, compressed GLB, poster first | interactivity, brand-reactive, crisp at any size | [threejs-renderer](threejs-renderer.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md) |
