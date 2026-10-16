@@ -1,12 +1,12 @@
 ---
-name: __SKILL_NAME__
+name: 3d
 description: >-
   TODO: State the primary outcome, major artifacts, literal trigger language, and close-neighbor
   exclusions. Keep the primary intent in the first sentence and the full description under 800
   characters.
 ---
 
-# __SKILL_TITLE__
+# 3D
 
 ## Mission and boundary
 

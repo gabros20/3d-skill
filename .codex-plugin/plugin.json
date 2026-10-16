@@ -1,26 +1,26 @@
 {
-  "name": "__REPO_NAME__",
+  "name": "3d-skill",
   "version": "1.0.0",
-  "description": "__SKILL_TAGLINE__",
+  "description": "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents.",
   "author": {
     "name": "gabros20",
     "url": "https://github.com/gabros20"
   },
-  "homepage": "https://__REPO_NAME__.vercel.app",
-  "repository": "https://github.com/gabros20/__REPO_NAME__",
+  "homepage": "https://3d-skill.vercel.app",
+  "repository": "https://github.com/gabros20/3d-skill",
   "license": "MIT",
-  "keywords": ["agent-skill", "__SKILL_NAME__"],
+  "keywords": ["agent-skill", "3d"],
   "skills": "./skills/",
   "interface": {
-    "displayName": "__SKILL_TITLE__",
-    "shortDescription": "__SKILL_TAGLINE__",
-    "longDescription": "__SKILL_TAGLINE__",
+    "displayName": "3D",
+    "shortDescription": "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents.",
+    "longDescription": "Three.js, scroll-driven 3D, shaders, Blender and the asset pipeline — one routed skill for coding agents.",
     "developerName": "gabros20",
     "category": "Productivity",
     "capabilities": [],
     "defaultPrompt": [
-      "Use $__SKILL_NAME__ to TODO: provide one short starter request."
+      "Use $3d to TODO: provide one short starter request."
     ],
-    "brandColor": "__ACCENT_LIGHT__"
+    "brandColor": "#0e7c86"
   }
 }
