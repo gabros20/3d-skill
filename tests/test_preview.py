@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import re
 import shutil
 import socket
@@ -453,6 +454,56 @@ class CliTests(unittest.TestCase):
         r = cli("new-version", "--snapshot", "nope.glb", cwd=self.tmp)
         self.assertEqual(r.returncode, 1)
         self.assertFalse((self.tmp / ".3d" / "versions").exists())
+
+    def test_new_version_is_atomic_on_failure(self):
+        (self.tmp / "ok.txt").write_text("x")
+        (self.tmp / "bad").mkdir()
+        os.symlink(self.tmp / "nowhere", self.tmp / "bad" / "dangling")  # copytree raises on the broken link
+        r = cli("new-version", "--snapshot", "ok.txt", "bad", cwd=self.tmp)
+        self.assertNotEqual(r.returncode, 0)
+        vroot = self.tmp / ".3d" / "versions"
+        self.assertEqual(sorted(p.name for p in vroot.iterdir()), [])  # no vNNN, no .tmp-vNNN
+        ok = cli("new-version", cwd=self.tmp)
+        self.assertEqual(json.loads(ok.stdout)["version"], "v001")
+
+    def test_new_version_ignores_incomplete_dirs_for_numbering(self):
+        vroot = self.tmp / ".3d" / "versions"
+        (vroot / "v001").mkdir(parents=True)
+        (vroot / "v001" / "manifest.json").write_text("{}")
+        (vroot / "v002").mkdir()  # empty leftover with no manifest
+        r = cli("new-version", cwd=self.tmp)
+        self.assertEqual(json.loads(r.stdout)["version"], "v002")
+        self.assertTrue((vroot / "v002" / "manifest.json").is_file())
+        (vroot / "v003").mkdir()
+        (vroot / "v003" / "stray.txt").write_text("x")  # non-empty, no manifest: refuse rather than clobber
+        r = cli("new-version", cwd=self.tmp)
+        self.assertEqual(r.returncode, 1)
+        self.assertTrue((vroot / "v003" / "stray.txt").exists())
+
+    def test_new_version_sigint_leaves_nothing(self):
+        import signal
+        import time
+        big = self.tmp / "big"
+        big.mkdir()
+        for i in range(400):
+            (big / f"f{i}.bin").write_bytes(os.urandom(200_000))
+        proc = subprocess.Popen([sys.executable, str(PREVIEW), "new-version", "--snapshot", str(big)], cwd=self.tmp,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        tmpdir = self.tmp / ".3d" / "versions" / ".tmp-v001"
+        for _ in range(300):
+            if tmpdir.exists() or proc.poll() is not None:
+                break
+            time.sleep(0.01)
+        if proc.poll() is None:
+            proc.send_signal(signal.SIGINT)
+        out, err = proc.communicate(timeout=60)
+        vroot = self.tmp / ".3d" / "versions"
+        names = sorted(p.name for p in vroot.iterdir())
+        if proc.returncode == 0:  # finished before the signal landed: must be complete, never partial
+            self.assertEqual(names, ["v001"])
+            self.assertTrue((vroot / "v001" / "manifest.json").is_file())
+        else:
+            self.assertEqual(names, [], err)
 
     def test_feedback_command_groups(self):
         d = self.tmp / ".3d"

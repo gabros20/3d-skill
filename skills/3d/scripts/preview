@@ -579,6 +579,7 @@ def cmd_selftest(_: argparse.Namespace | None = None) -> int:
 # ---------------------------------------------------------------- new-version
 
 def cmd_new_version(a: argparse.Namespace) -> int:
+    """Atomic: build in versions/.tmp-vNNN, rename into place last; any failure or signal removes the temp dir."""
     root = Path(a.dir)
     snaps = [Path(x) for x in (a.snapshot or [])]
     for sp in snaps:
@@ -586,22 +587,39 @@ def cmd_new_version(a: argparse.Namespace) -> int:
             die(f"--snapshot path not found: {sp}")
         if sp.name == "manifest.json":
             die("--snapshot cannot include a file named manifest.json")
-    ids = version_ids(root)
-    nxt = (int(ids[-1][1:]) + 1) if ids else 1
+    vroot = root / "versions"
+    complete = [v for v in version_ids(root) if (vroot / v / "manifest.json").is_file()]
+    nxt = (int(complete[-1][1:]) + 1) if complete else 1
     vid = f"v{nxt:03d}"
-    vdir = root / "versions" / vid
-    vdir.mkdir(parents=True)
-    files: list[str] = []
-    for sp in snaps:
-        if sp.is_dir():
-            dest = vdir / sp.name
-            shutil.copytree(sp, dest)
-            files += sorted(str(f.relative_to(vdir)).replace(os.sep, "/") for f in dest.rglob("*") if f.is_file())
-        else:
-            shutil.copy2(sp, vdir / sp.name)
-            files.append(sp.name)
-    manifest = {"version": vid, "created": now(), "note": a.note or "", "files": sorted(set(files))}
-    (vdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    vdir, tmp = vroot / vid, vroot / f".tmp-{vid}"
+    if vdir.exists():  # leftover without a manifest (an older interrupted run): reuse the number only if it is empty
+        if any(vdir.iterdir()):
+            die(f"{vdir} exists without manifest.json and is not empty; inspect or remove it, then retry")
+        vdir.rmdir()
+    shutil.rmtree(tmp, ignore_errors=True)
+    old_term = signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
+    try:
+        tmp.mkdir(parents=True)
+        files: list[str] = []
+        for sp in snaps:
+            if sp.is_dir():
+                dest = tmp / sp.name
+                shutil.copytree(sp, dest)
+                files += sorted(str(f.relative_to(tmp)).replace(os.sep, "/") for f in dest.rglob("*") if f.is_file())
+            else:
+                shutil.copy2(sp, tmp / sp.name)
+                files.append(sp.name)
+        manifest = {"version": vid, "created": now(), "note": a.note or "", "files": sorted(set(files))}
+        (tmp / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        os.rename(tmp, vdir)
+    except BaseException as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            print("preview: interrupted; no version created", file=sys.stderr)
+            return 130 if isinstance(e, KeyboardInterrupt) else int(e.code or 1)
+        die(f"new-version failed, nothing created: {e}")
+    finally:
+        signal.signal(signal.SIGTERM, old_term)
     print(json.dumps({"version": vid, "dir": str(vdir)}))
     return 0
 

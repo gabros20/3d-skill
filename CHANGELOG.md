@@ -12,6 +12,13 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-16
+
+### Fixed
+- `preview new-version` is atomic: it builds in a temp dir and renames into place only after the
+  snapshot and manifest succeed. Failures and interrupts leave no empty `vNNN`, and numbering counts
+  only complete versions.
+
 ## [0.3.0] — 2026-10-16
 
 Fixes and features from a live end-to-end test (recreating a generated video loop in three.js).
