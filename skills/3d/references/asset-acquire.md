@@ -52,7 +52,7 @@ Paid-job rules:
 4. Request GLB (and `enable_pbr` where offered). Meshy's `lowpoly` type retires 2026-10-30: use `smart-topology` with a `target_polycount` near the budget.
 5. Save the raw output untouched in `.3d/` with the prompt and task id beside it.
 
-Cleanup (the real work): import to Blender ([blender-modeling](blender-modeling.md)); inspect without fixing first and list defects; remesh or decimate to budget; check UVs and normals; bake or remove lit-in shading from albedo; unify scale and pivot; then export per [blender-export](blender-export.md) and process with [asset-pipeline](asset-pipeline.md). A rendered image does not prove topology quality: check the wireframe and tri count.
+Cleanup (the real work): import to Blender ([blender-modeling](blender-modeling.md), section Cleaning a generated or scanned mesh); inspect without fixing first and list defects; remesh or decimate to budget; check UVs and normals; bake or remove lit-in shading from albedo; retexture or fix texture sets per [blender-texturing](blender-texturing.md); unify scale and pivot; then export per [blender-export](blender-export.md) and process with [asset-pipeline](asset-pipeline.md). A rendered image does not prove topology quality: check the wireframe and tri count.
 
 ## Image to procedural code (img2threejs)
 

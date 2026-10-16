@@ -89,6 +89,12 @@ class BlenderScripts(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(last_json(r.stdout)["glb"]["meshes"], 2)
 
+    def test_help_exits_0(self):
+        for name in ("inspect_scene.py", "export_web.py", "render_shots.py"):
+            r = self.bl(None, "--python", str(BPY / name), "--", "--help")
+            self.assertEqual(r.returncode, 0, name + r.stdout + r.stderr)
+            self.assertIn("Args after", r.stdout, name)
+
     def test_export_usage_exit_2(self):
         r = self.bl(self.blend, "--python", str(BPY / "export_web.py"), "--")
         self.assertEqual(r.returncode, 2)

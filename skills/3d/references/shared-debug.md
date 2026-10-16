@@ -62,6 +62,14 @@ Scripts run by path (`<skill>/scripts/...`) with the project root as the working
 | MCP call times out | Long export or render over the default tool timeout; Blender main thread busy | tool timeout setting | Split the request; raise the per-server timeout; use headless CLI for exports ([blender-channels](blender-channels.md)) |
 | MCP says connected but does nothing | Add-on server not started, or two Blender MCPs active | add-on panel status | Start the server; keep only one MCP active |
 | Headless script runs but changes nothing | Script ran before the `.blend` loaded | argument order | `blender -b file.blend --python-exit-code 1 --python x.py -- args` (file first) |
+| Bake ends CANCELLED, or comes out black or flat | No Image Texture node, or it is not the active selected node; wrong colour space on the target image | bake result and node selection in each material | Add, select and activate the image node; data maps Non-Color ([blender-uv-bake](blender-uv-bake.md)) |
+| Grid lattice or visible seams on a texture; bumps look inverted | Tile or seam repetition; DirectX-convention normals | texture at 1:1 and normal green channel | Fix per [blender-texturing](blender-texturing.md) |
+| Geometry Nodes result stale or unchanged after setting an input | Evaluation not refreshed | read the result after refresh | `ob.update_tag()` then `bpy.context.view_layer.update()` ([blender-geometry-nodes](blender-geometry-nodes.md)) |
+| Rigify enable silently fails; operators absent | `addon_utils.enable("rigify")` without `default_set=True` | `addon_utils.check('rigify')` | `default_set=True`, assert the result ([blender-rigging](blender-rigging.md)) |
+| Mesh tears when posed, unweighted vertices | Weights missing or unnormalised | `rig_check` | Fix weights ([blender-rigging](blender-rigging.md)) |
+| Headless render ignores `-o`, `-s`, `-e` | `-a` placed before them | argument order | Settings flags first, `-a` last ([blender-lookdev-render](blender-lookdev-render.md)) |
+| Animation missing in GLB (cycles, noise) | F-curve modifiers do not export | export result channels | Bake to keyframes ([blender-animation](blender-animation.md)) |
+| `rigidbody.bake_to_keyframes` fails headless; sim differs when jumping frames | The operator fails headless; a rigid-body sim depends on stepping frames in order | step frames in order | Step frames and sample `matrix_world` into keys ([blender-physics](blender-physics.md)) |
 
 ## Traps
 

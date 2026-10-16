@@ -72,10 +72,21 @@ Every reference is written in this skill's own words. **Adapted** = MIT, Apache-
 |---|---|---|
 | skinnye/3d-web-pack `optimize-3d-assets` | MIT | adapted: inspect, targeted passes, gltfjsx |
 | vladmdgolam/agent-skills `blender-mcp` | MIT | adapted: headless export, no bare `optimize` |
-| scenario-labs/skills, EL4CTEO/blender-skills, czlonkowski/blender-web-3d-skill | MIT | adapted: Blender 5.x traps, budgets, Blender-to-three hand-off |
-| kajisho5/blender-skill, ifBars/blender-agent-studio, elithril blender-kiln | MIT | adapted: headless budget checks, render contract, MCP rules |
+| scenario-labs/skills Blender domains | MIT | adapted: procedures, numbers and gates for rigging, animation, hair, retopo, UV and bake, hard-surface, Grease Pencil, sculpt, Geometry Nodes |
+| EL4CTEO/blender-skills | MIT | adapted: game and web delivery rules, 5.x notes |
+| czlonkowski/blender-web-3d-skill | MIT | adapted: Blender 5.x traps, budgets, Blender-to-three hand-off |
+| FreedomIntelligence/BlenderLore | Apache-2.0 | adapted: verification phrasing |
+| ifBars/blender-agent-studio | MIT | adapted: simulation contract, render contract |
+| terminalskills/skills | Apache-2.0 | adapted: compositing and VSE API traps |
+| ra100/blender-claude-plugin | MIT | adapted: physics and driver snippets, rewritten |
+| icesixgod astra | MIT | inspired only: reference-first acceptance |
+| kajisho5/blender-skill, elithril blender-kiln | MIT | adapted: headless budget checks, MCP rules |
+| Poly Haven, ambientCG | CC0 | asset sources; no attribution required |
+| CHORD (Ubisoft) | research-only | not used: refused in the texturing licence table |
+| Hunyuan3D-2.1 | territory-restricted | not used by default: excluded in the EU, UK and South Korea, and above 1M MAU |
+| TRELLIS.2 native texture | NVIDIA non-commercial | not used: refused |
 | meshy-dev/meshy-3d-agent | MIT | adapted: paid-job rules |
-| ahujasid/mcp-for-blender; Blender Lab MCP | MIT; GPL-3.0 | recommended tools, no text taken |
+| ahujasid/mcp-for-blender; Blender Lab MCP | MIT; GPL-3.0 | recommended tools, no text taken; the Lab MCP source was read as reference only, nothing copied |
 
 ## Realism: gap, toolbox, gate
 
@@ -113,5 +124,5 @@ Every reference is written in this skill's own words. **Adapted** = MIT, Apache-
 three.js docs, source and release notes (r186); pmndrs React Three Fiber 9, drei 10 and the v10
 migration notes; Next.js App Router docs; Khronos glTF 2.0, PBR Neutral and KTX-Software; glTF
 Transform and meshoptimizer (`gltfpack`) docs; Blender 5.x manual, Python API and release notes;
-Blender Lab MCP docs; Spline, Spark and model-viewer docs; Apple AR Quick Look and WebXR; Motion,
+Blender Lab MCP docs; Blender manual and Python API; Poly Haven and ambientCG licence pages; Meshy and Tripo API docs; licence texts of CHORD, Hunyuan3D-2.1, StableGen, DeepBump and Material Maker; Spline, Spark and model-viewer docs; Apple AR Quick Look and WebXR; Motion,
 GSAP and Lenis docs; FFmpeg filters; Playwright.

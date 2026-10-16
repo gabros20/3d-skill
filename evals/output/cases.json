@@ -169,5 +169,46 @@
       "Mounts plain Babylon in a 'use client' component; does not add react-babylonjs by default",
       "Records the engine decision with its reason in 3D.md"
     ]
+  },
+  {
+    "id": "blender-ai-texture",
+    "prompt": "Make an AI-generated brick texture for the hero wall and build the material in Blender.",
+    "assertions": [
+      "Checks Poly Haven and ambientCG (CC0) first and generates only if no set matches",
+      "Recommends the generate-image skill for a new texture and never invokes it",
+      "Runs the seam gate with <skill>/assets/blender/texture_prep.py before building the material",
+      "Sets colour maps to sRGB and data maps (roughness, normal, AO) to Non-Color",
+      "Checks the generator's licence against the commercial flag and writes a licence line in 3D.md",
+      "Renders the material and looks at the render before claiming it works"
+    ]
+  },
+  {
+    "id": "blender-rigify-headless",
+    "prompt": "Rig character.blend with Rigify headless and check it.",
+    "assertions": [
+      "Enables Rigify with addon_utils.enable('rigify', default_set=True) and asserts addon_utils.check('rigify')[1]",
+      "Makes the metarig the active object via view_layer.objects.active and select_set(True) before bpy.ops.pose.rigify_generate()",
+      "Runs <skill>/assets/blender/rig_check.py and gets exit 0 before claiming the rig works",
+      "Names the fallback when automatic weights fail"
+    ]
+  },
+  {
+    "id": "blender-official-mcp",
+    "prompt": "Use the official Blender MCP to tweak the scene live.",
+    "assertions": [
+      "Says the MCP executes arbitrary Python and gets consent",
+      "Saves a backup copy of the .blend before edits",
+      "Keeps one MCP active at a time and checks for a port 9876 conflict",
+      "Reads the tool's result dict instead of assuming success"
+    ]
+  },
+  {
+    "id": "blender-sim-to-web",
+    "prompt": "Make the flag wave in cloth sim and put it on the landing page.",
+    "assertions": [
+      "States the simulation contract (frame range, scale, collision objects) before baking",
+      "Bakes the sim stepped from the first frame, not by jumping frames",
+      "Chooses a web delivery route (shape-key/vertex animation, baked video, or GLB animation) and gives the reason"
+    ]
   }
 ]

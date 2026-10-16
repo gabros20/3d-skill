@@ -22,7 +22,7 @@ Produces:
 
 | Goal | Route |
 |---|---|
-| Max-realism static | Prefer pre-rendered stills or frames (Cycles). If the user may orbit a little: Cycles Combined bake per static group to 2–4 atlases ([blender-lookdev-render](blender-lookdev-render.md)); glass and metal stay live PBR with env |
+| Max-realism static | Prefer pre-rendered stills or frames (Cycles). If the user may orbit a little: Cycles Combined bake per static group to 2–4 atlases ([blender-uv-bake](blender-uv-bake.md)); glass and metal stay live PBR with env |
 | Interactive hero | One root, live PBR (clearcoat, sheen, transmission as needed), ORM packed, one AO bake, shape keys for morphs (no `export_apply`), a baked contact blob; compress downstream |
 | Configurator | Parts as separate nodes with stable ASCII names, shared material per finish, `KHR_materials_variants` (Babylon native; three needs a plugin or swap by name), AO baked per part; lightmaps do not survive reconfiguration; never join/flatten/palette |
 | Animated story | Clips as NLA tracks or actions named per beat; bake sims to shape keys or vertex textures, or pre-render the beat and layer live; verify clip names in code |
@@ -34,10 +34,10 @@ Babylon: glTF is the only Blender route; the official `.babylon` exporter is fro
 
 1. `inspect_scene.py`: fix FAIL, resolve or justify warnings.
 2. Metres at unit scale 1.0 (the exporter ignores unit scale); rotation and scale applied; doubles removed; normals fixed; ASCII names without spaces or dots; no negative scale; ≤ 4 skin influences; prop origin at base.
-3. Every material is Principled fed by Image Texture / RGB / UV only; Color Ramp, noise, bump, Sheen BSDF and Hair BSDF baked or replaced ([blender-lookdev-render](blender-lookdev-render.md)).
+3. Every material is Principled fed by Image Texture / RGB / UV only; Color Ramp, noise, bump, Sheen BSDF and Hair BSDF baked or replaced ([blender-shading](blender-shading.md), [blender-uv-bake](blender-uv-bake.md)).
 4. Volume, thin film, dispersion: add the Material Output group (below).
 5. GN and booleans handled per the modifier rules; Array replaced by linked duplicates under one Empty.
-6. Animation: actions per clip, constraints and drivers baked, names final.
+6. Animation: actions per clip, constraints and drivers baked ([blender-animation](blender-animation.md)), names final; skinned meshes: DEF-only skeleton ([blender-rigging](blender-rigging.md)).
 7. Decide lights and cameras (default exported), light units (COMPAT), and backface culling per material.
 8. Export the master, read the JSON line, diff `extensionsUsed` against what you intended.
 9. `gltf-transform validate`, open it in the target engine, run the pixel-parity gate ([shared-verification](shared-verification.md)); compress once from the master.

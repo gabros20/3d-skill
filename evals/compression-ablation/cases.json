@@ -92,5 +92,21 @@
       "ceiling gaps reported, never faked",
       "no plate shortcut"
     ]
+  },
+  {
+    "id": "bake-silent-failure",
+    "prompt": "Bake the procedural wood material to a texture for the GLB.",
+    "variants": [
+      "no-skill",
+      "current",
+      "compressed-candidate"
+    ],
+    "preserve": [
+      "active image node set on the target material",
+      "low-poly object active",
+      "Non-Color for data maps",
+      "pixel gate on the baked map",
+      "FINISHED proves nothing"
+    ]
   }
 ]

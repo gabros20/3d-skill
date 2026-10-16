@@ -476,6 +476,68 @@ class SpecCheckTest(unittest.TestCase):
         self.assertEqual(run("spec-check", str(self.tmp / "missing.json")).returncode, 2)
 
 
+def load_script(name: str):
+    import importlib.machinery
+    import importlib.util
+    loader = importlib.machinery.SourceFileLoader(name.replace("-", "_") + "_mod", str(SCRIPTS / name))
+    mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(mod)
+    return mod
+
+
+class CapabilitiesBlenderTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_version_parse_and_mcp_flag(self) -> None:
+        mod = load_script("capabilities")
+        self.assertEqual(mod.parse_blender_version("Blender 5.2.2 LTS"), (5, 2, 2))
+        self.assertEqual(mod.parse_blender_version("Blender 4.5"), (4, 5, 0))
+        self.assertIsNone(mod.parse_blender_version("Unrecognized option"))
+        for text, ready in (("Blender 5.2.2", True), ("Blender 5.1.0", True), ("Blender 5.0.1", False), ("Blender 4.5.3", False)):
+            tools = [{"cli": "blender", "found": True, "path": "", "version": text}]
+            self.assertEqual(mod.detect_blender_extras(tools)["official_mcp_ready"], ready, text)
+        none = mod.detect_blender_extras([{"cli": "blender", "found": False, "path": "", "version": ""}])
+        self.assertFalse(none["official_mcp_ready"])
+        self.assertIsNone(none["blender_version"])
+
+    def test_rigify_detection_in_fake_installs(self) -> None:
+        mod = load_script("capabilities")
+        mac = self.tmp / "mac" / "Contents"
+        (mac / "MacOS").mkdir(parents=True)
+        (mac / "MacOS" / "Blender").write_text("")
+        (mac / "Resources" / "5.2" / "scripts" / "addons_core" / "rigify").mkdir(parents=True)
+        self.assertTrue(mod.rigify_present(str(mac / "MacOS" / "Blender"), (5, 2, 2)))
+        bare = self.tmp / "bare" / "Contents"
+        (bare / "MacOS").mkdir(parents=True)
+        (bare / "MacOS" / "Blender").write_text("")
+        (bare / "Resources" / "5.2" / "scripts" / "addons_core").mkdir(parents=True)
+        self.assertFalse(mod.rigify_present(str(bare / "MacOS" / "Blender"), (5, 2, 2)))
+        self.assertIsNone(mod.rigify_present("", None))
+
+    def test_env_names_only_and_material_maker(self) -> None:
+        import os
+        proj = self.tmp / "proj"
+        proj.mkdir()
+        env = {**os.environ, "MESHY_API_KEY": "SECRETKEY-meshy", "COMFYUI_URL": "http://SECRETHOST:8188"}
+        env.pop("TRIPO_API_KEY", None)
+        res = subprocess.run([sys.executable, str(SCRIPTS / "capabilities"), "--root", str(proj), "--json"],
+                             capture_output=True, text=True, env=env, timeout=120)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        md = (proj / ".3d" / "capabilities.md").read_text()
+        for out in (res.stdout, res.stderr, md):
+            self.assertNotIn("SECRET", out)
+        data = json.loads(res.stdout)["blender"]
+        flags = {e["name"]: e["set"] for e in data["env"]}
+        self.assertEqual(flags, {"COMFYUI_URL": True, "MESHY_API_KEY": True, "TRIPO_API_KEY": False})
+        self.assertEqual({e["name"]: e["cost"] for e in data["env"]}["MESHY_API_KEY"], "PAID")
+        self.assertIn("material_maker", data)
+        self.assertIn("Blender and asset lanes", md)
+        self.assertIn("MESHY_API_KEY: set", md)
+        self.assertIn("comfy", {t["cli"] for t in json.loads(res.stdout)["tools"]})
+
+
 @unittest.skipUnless(FFMPEG, "ffmpeg/ffprobe not installed")
 class RefExtractTest(unittest.TestCase):
     def setUp(self) -> None:

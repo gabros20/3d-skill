@@ -56,6 +56,9 @@ def parse_args() -> dict:
     o = {"shots": None, "out": None, "engine": "eevee", "res": "1280", "samples": None,
          "view": None, "turntable": 0, "moves": False, "import": None, "world": None,
          "world-strength": "1.0"}
+    if any(x in ("-h", "--help") for x in argv):
+        print(__doc__)
+        sys.exit(0)
     i = 0
     while i < len(argv):
         a = argv[i]

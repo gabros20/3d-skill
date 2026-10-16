@@ -51,6 +51,9 @@ def parse_args() -> dict:
     o = {"out": None, "apply": "auto", "root": None, "images": "auto",
          "lights": True, "cameras": True, "extras": True, "lighting": "compat", "gn_instances": False,
          "cull": False}
+    if any(x in ("-h", "--help") for x in argv):
+        print(__doc__)
+        sys.exit(0)
     i = 0
     while i < len(argv):
         a = argv[i]

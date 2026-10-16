@@ -12,6 +12,43 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-17
+
+Blender for agents, verified on Blender 5.2.2 headless: about 130 API names checked, plus headless proofs for
+the texture chain, Rigify, NLA bake, physics, compositing and the shadow catcher.
+
+### Added
+- `blender-scripting`: the canonical home for agentic bpy. It covers data-API first, `temp_override`, depsgraph
+  evaluation, the 5.x layered and slotted Action API, Geometry Nodes inputs plus `update_tag` and
+  `view_layer.update`, idempotent scripts, verification after every change, headless limits (no timers, no undo),
+  `--python-exit-code` and the JSON result contract, batch and farm rendering, and file hygiene.
+- New references: `blender-shading`, `blender-uv-bake`, `blender-texturing` (CC0 first, then generate-image,
+  then seam gate, de-light, PBR maps, material, bake; licence gates for CHORD, Hunyuan3D in EU/UK/KR and
+  TRELLIS NC; paid texture APIs per job), `blender-geometry-nodes`, `blender-rigging` (Rigify headless,
+  weights, web export of deform bones), `blender-animation` (layered Actions, NLA as one glTF clip per action,
+  drivers, Grease Pencil, VSE), `blender-physics` (rigid body, cloth, soft body, Mantaflow, hair curves,
+  simulation nodes and XPBD, simulations to the web).
+- New bpy tools, each tested headless: `bake_maps.py`, `material_from_maps.py`, `texture_prep.py`
+  (seam test and fix, de-light, derive normal/roughness/height), `uv_check.py`, `rig_check.py`.
+- `capabilities` reports the Blender version and official-MCP readiness, Rigify, the Cycles device hint, and
+  ComfyUI and Material Maker presence. For paid generative-3D keys it shows set or not, never the value.
+
+### Changed
+- `blender-channels`: the official Blender Lab MCP v1.0.3, with its tool map, online-access gate, lack of
+  undo and sandbox, headless serving, and an evidence rule (MCP screenshot vs headless render).
+- `blender-modeling`: modifier stack order, sculpt, retopology, decimate for the web, cleanup of generated
+  meshes. `blender-lookdev-render` now holds render settings, passes, compositing and the shadow catcher.
+- `blender-version-traps`:
+  - VSE strips; `world.use_nodes`.
+  - Rigify needs `default_set=True`; OIDN is the only denoiser on Apple.
+  - Resample Curve mode is a socket; `remove_doubles`; `shade_smooth_by_angle`.
+- `shared-debug` gains rows for Blender's silent failures: a bake CANCELLED with no image node, a stale
+  Geometry Nodes result, `-a` flag order, F-curve modifiers not exporting, `rigidbody.bake_to_keyframes`
+  failing headless.
+
+### Fixed
+- `export_web.py` and `render_shots.py` `--help` exit 0.
+
 ## [0.6.0] — 2026-10-16
 
 Engine choice and a measured Blender → web export path (a test scene rendered in Cycles, EEVEE,

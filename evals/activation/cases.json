@@ -118,5 +118,40 @@
     "id": "three-limit-question",
     "prompt": "What can three.js not do that Cycles can, for this render?",
     "should_trigger": true
+  },
+  {
+    "id": "rigify-character",
+    "prompt": "Rig this character with Rigify and check the weights.",
+    "should_trigger": true
+  },
+  {
+    "id": "ai-brick-tileable",
+    "prompt": "Make this AI brick texture tileable and build a PBR material in Blender.",
+    "should_trigger": true
+  },
+  {
+    "id": "official-blender-mcp",
+    "prompt": "Set up the official Blender MCP for Claude Code.",
+    "should_trigger": true
+  },
+  {
+    "id": "bake-procedural-material",
+    "prompt": "Bake the procedural material so the GLB keeps it.",
+    "should_trigger": true
+  },
+  {
+    "id": "cloth-drape-hero",
+    "prompt": "Cloth drape on the hero product for the landing page.",
+    "should_trigger": true
+  },
+  {
+    "id": "near-miss-brick-photo",
+    "prompt": "Generate a photo of a brick wall.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-davinci-vlog",
+    "prompt": "Edit my vlog in DaVinci Resolve and add captions.",
+    "should_trigger": false
   }
 ]

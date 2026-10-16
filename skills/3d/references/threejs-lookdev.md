@@ -53,7 +53,7 @@ Ranking and gains: [realism-toolbox](realism-toolbox.md). Recipes live here.
 - Brushed metal (T3): `MeshPhysicalMaterial` `anisotropy` (0–1) with `anisotropyRotation` or `anisotropyMap`, plus a grain roughness map; vary `roughness` ±0.05 and tilt per instance so repeated parts do not read as clones.
 - Reflection probe (T5): `CubeCamera` placed at the object, hide the object, `update()` once (or every N frames), assign `cubeRenderTarget.texture` to `material.envMap`. Cost 1–3 ms per update [U].
 - Shadows (T6): drei `ContactShadows` for grounding, `AccumulativeShadows` + `RandomizedLight` for static soft shadows (`frames` 40–100, `temporal` off for stills), `SoftShadows` is a global shader patch.
-- Baked maps (T4): `lightMap` with `texture.channel = 1`, `lightMapIntensity`; lightmap colour space sRGB, AO map linear data. A lightMap is multiplied by the diffuse contribution, so it has no visible effect at `metalness` 1: bake diffuse only and let metal read the env/probe. Output Combined with Background-vs-Emission set so lights are not applied twice. GLTFLoader maps occlusion to `aoMap` only; assign `lightMap` in code.
+- Baked maps (T4): `lightMap` with `texture.channel = 1`, `lightMapIntensity`; lightmap colour space sRGB, AO map linear data. A lightMap is multiplied by the diffuse contribution, so it has no visible effect at `metalness` 1: bake diffuse only and let metal read the env/probe. Bake recipe in [blender-uv-bake](blender-uv-bake.md). Output Combined with Background-vs-Emission set so lights are not applied twice. GLTFLoader maps occlusion to `aoMap` only; assign `lightMap` in code.
 
 ## Cost notes
 

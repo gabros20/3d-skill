@@ -16,7 +16,7 @@ Produces:
 
 ## Meta-rule
 
-Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, `bpy.ops.x.y.get_rna_type().properties.keys()`. Static enums list via `bl_rna.properties['prop'].enum_items`; dynamic enums (render engine, view transform, denoiser, add-on enums) do not (headless 5.2.2 returns `['BLENDER_EEVEE']`, `['NONE']`, `[]`). For those, assign a bad value in try/except and read the allowed list from the `TypeError` text, e.g. `enum "zzz" not found in ('Standard', 'ACES 1.3', 'ACES 2.0', 'Khronos PBR Neutral', 'AgX', …)`. `hasattr(bpy.types.Mesh, "prop")` is False for RNA properties. Assign engine and enum values inside try/except so a bad guess fails loudly. Current reference: Blender 5.2 LTS (Python 3.13 since 5.1).
+Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, `bpy.ops.x.y.get_rna_type().properties.keys()`. Static enums list via `bl_rna.properties['prop'].enum_items`; dynamic enums (render engine, view transform, denoiser, add-on enums) do not (headless 5.2.2 returns `['BLENDER_EEVEE']`, `['NONE']`, `[]`). For those, assign a bad value in try/except and read the allowed list from the `TypeError` text (the Cycles denoiser list is also hardware-dependent), e.g. `enum "zzz" not found in ('Standard', 'ACES 1.3', 'ACES 2.0', 'Khronos PBR Neutral', 'AgX', …)`. `hasattr(bpy.types.Mesh, "prop")` is False for RNA properties. Assign engine and enum values inside try/except so a bad guess fails loudly. Current reference: Blender 5.2 LTS (Python 3.13 since 5.1).
 
 ## Old → new (5.x)
 
@@ -54,3 +54,15 @@ Ask Blender, do not remember. `dir(obj)`, `type(obj).bl_rna.properties.keys()`, 
 | EEVEE bloom, SSR toggles | Glare compositor node, `use_raytracing`, `use_fast_gi` |
 | Colour spaces `Linear`, `Raw` | `Linear Rec.709`, `Non-Color` |
 | glTF kwarg `export_colors` | `export_vertex_color` enum; filter every kwarg through `get_rna_type().properties` |
+
+## More traps (verified on 5.2.2)
+
+| Old or assumed | New |
+|---|---|
+| `scene.sequence_editor.sequences`, `sequences_all`, `sequences.new_movie/new_image/new_sound/new_effect` | `strips`, `strips_all`, `strips.new_clip/new_mask/new_scene/new_image/new_movie/new_sound/new_meta/new_effect`; `scene.sequence_editor_create()` first |
+| `world.use_nodes = True` (like `Material.use_nodes`) | deprecated, removal in 6.0; `world.node_tree` exists afterwards |
+| `addon_utils.enable("rigify")` with `default_set=False` | prints a traceback, returns `None`, add-on stays off, its operators are absent; use `default_set=True` and assert `addon_utils.check(name)[1]` (never raises on failure) |
+| `scene.cycles.denoiser = 'OPTIX'` or `'NLM'` on Apple | enum is `('OPENIMAGEDENOISE')` only on Metal; assigning others raises `TypeError` |
+| Resample Curve node `.mode = 'COUNT'` (node property, older docs and scripts) | on 5.2.2 `mode` is a socket: `node.inputs['Mode'].default_value = 'Count'` (value names are title case); other GN nodes (Mesh Line, Curve Circle, Mesh Boolean, Distribute Points) keep node properties: introspect `node.bl_rna.properties` and `node.inputs` |
+| `bpy.ops.mesh.merge_by_distance` (menu label) | `bpy.ops.mesh.remove_doubles(threshold=…)` |
+| `object.shade_auto_smooth` as "set sharp edges" | it adds a Smooth by Angle modifier; `object.shade_smooth_by_angle(angle=…)` writes the `sharp_edge` attribute and adds no modifier |

@@ -37,7 +37,14 @@ TOOLS = [
     ("gltf-validator", "Khronos glTF validator", "free", "npm i -g gltf-validator"),
     ("ffmpeg", "reference frames, palette, diff, video", "free", "brew install ffmpeg"),
     ("ffprobe", "media metadata", "free", "ships with ffmpeg"),
+    ("comfy", "ComfyUI CLI (StableGen / local diffusion lane)", "free", "pip install comfy-cli  (then `comfy install`)"),
 ]
+
+MATERIAL_MAKER_APP = "/Applications/Material Maker.app"
+# env var NAMES whose presence is reported as a boolean; values are never read into the output
+ENV_HINTS = [("COMFYUI_URL", "ComfyUI server URL", "free"), ("MESHY_API_KEY", "Meshy generative 3D", "PAID"),
+             ("TRIPO_API_KEY", "Tripo generative 3D", "PAID")]
+OFFICIAL_MCP_MIN = (5, 1)  # the official Blender Lab MCP needs Blender >= 5.1
 
 STACK_KEYS = [
     "three", "@types/three", "@react-three/fiber", "@react-three/drei", "@react-three/postprocessing",
@@ -83,6 +90,66 @@ def detect_tools() -> list[dict]:
         rows.append({"cli": cli, "found": bool(path), "path": path, "version": version,
                      "purpose": purpose, "cost": cost, "install": install})
     return rows
+
+
+def parse_blender_version(text: str) -> tuple[int, int, int] | None:
+    m = re.search(r"Blender\s+(\d+)\.(\d+)(?:\.(\d+))?", text or "")
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)) if m else None
+
+
+def rigify_present(blender_path: str, version: tuple[int, int, int] | None) -> bool | None:
+    """True/False when the install layout was found; None when it could not be located."""
+    if not blender_path:
+        return None
+    real = Path(os.path.realpath(blender_path))
+    series = f"{version[0]}.{version[1]}" if version else None
+    # primary: the binary's own install (macOS bundle, then flat/Linux); fallback only if neither layout exists:
+    # Homebrew puts a wrapper script beside Blender.app, and the macOS app default is /Applications
+    primary = [real.parent.parent / "Resources", real.parent]
+    fallback = [real.parent.parent / "Blender.app/Contents/Resources", real.parent / "Blender.app/Contents/Resources",
+                Path(BLENDER_APP).parent.parent / "Resources"]
+    for roots in (primary, fallback):
+        found_layout = False
+        for root in roots:
+            for sub in ([series] if series else []) + ["."]:
+                scripts = root / sub / "scripts"
+                if scripts.is_dir():
+                    found_layout = True
+                    if any((scripts / add / "rigify").is_dir() for add in ("addons_core", "addons", "addons_contrib")):
+                        return True
+            ext = root / "extensions"
+            if ext.is_dir():
+                found_layout = True
+                if any(ext.glob("*/rigify")):
+                    return True
+        if found_layout:
+            return False
+    return None
+
+
+def cycles_hint() -> str:
+    if sys.platform == "darwin":
+        import platform
+        return ("Metal (Apple Silicon): first Cycles render compiles kernels, budget minutes"
+                if platform.machine() == "arm64" else "CPU or Metal-capable AMD; check Blender Preferences > System")
+    return "run `blender -b --python-expr \"import bpy;print(bpy.context.preferences.addons['cycles'].preferences.get_devices())\"` to list devices"
+
+
+def detect_blender_extras(tools: list[dict]) -> dict:
+    row = next((t for t in tools if t["cli"] == "blender"), None)
+    version = parse_blender_version(row["version"]) if row and row["found"] else None
+    path = row["path"] if row and row["found"] else ""
+    mm = MATERIAL_MAKER_APP if os.path.isdir(MATERIAL_MAKER_APP) else (which("material-maker") or "")
+    return {
+        "blender_version": ".".join(map(str, version)) if version else None,
+        "official_mcp_ready": bool(version and version[:2] >= OFFICIAL_MCP_MIN),
+        "official_mcp_note": f"official Blender Lab MCP needs Blender >= {OFFICIAL_MCP_MIN[0]}.{OFFICIAL_MCP_MIN[1]}",
+        "rigify_in_install": rigify_present(path, version),
+        "cycles_device_hint": cycles_hint() if path else None,
+        "oidn": "denoiser ships inside Blender (Cycles > Denoise: OpenImageDenoise); nothing separate to install",
+        "material_maker": {"found": bool(mm), "path": mm, "cost": "free", "install": "download from materialmaker.org (free)"},
+        "env": [{"name": n, "set": bool(os.environ.get(n)), "purpose": p, "cost": c} for n, p, c in ENV_HINTS],
+    }
 
 
 def detect_playwright() -> dict:
@@ -167,6 +234,7 @@ def mcp_hints(root: Path) -> list[dict]:
 def proposals(tools: list[dict], pw: dict, stack: dict) -> list[str]:
     by = {t["cli"]: t for t in tools}
     out = []
+    blender_ver = parse_blender_version(by["blender"]["version"]) if by["blender"]["found"] else None
     if not by["node"]["found"]:
         out.append(f"node missing: {by['node']['install']} [free]")
     if not by["blender"]["found"]:
@@ -178,6 +246,9 @@ def proposals(tools: list[dict], pw: dict, stack: dict) -> list[str]:
         out.append(f"ktx missing (KTX2 textures){hint}: {by['ktx']['install']} [free]")
     if not by["ffmpeg"]["found"]:
         out.append(f"ffmpeg missing (ref-extract, preview diff): {by['ffmpeg']['install']} [free]")
+    if by["blender"]["found"] and blender_ver and blender_ver[:2] < OFFICIAL_MCP_MIN:
+        out.append(f"Blender {'.'.join(map(str, blender_ver))} is below {OFFICIAL_MCP_MIN[0]}.{OFFICIAL_MCP_MIN[1]}: "
+                   "the official Blender MCP is unavailable; use the community MCP or headless scripts")
     if not pw["python_playwright"]:
         out.append(f"python playwright missing (preview capture): {pw['install']} [free]")
     if not pw["chrome"]:
@@ -191,7 +262,7 @@ def collect(root: Path) -> dict:
     tools = detect_tools()
     pw = detect_playwright()
     stack = read_stack(root)
-    return {"root": str(root), "tools": tools, "playwright": pw, "stack": stack,
+    return {"root": str(root), "tools": tools, "blender": detect_blender_extras(tools), "playwright": pw, "stack": stack,
             "mcp": mcp_hints(root), "proposals": proposals(tools, pw, stack)}
 
 
@@ -202,6 +273,15 @@ def render(info: dict) -> str:
         mark = "yes" if t["found"] else "no"
         extra = t["purpose"] if t["found"] else f"{t['purpose']} — `{t['install']}`"
         lines.append(f"| {t['cli']} | {mark} | {t['version'] or '-'} | {t['cost']} | {extra} |")
+    bl = info["blender"]
+    lines += ["", "## Blender and asset lanes", "",
+              f"- Blender version: {bl['blender_version'] or 'not found'}; official MCP ready: "
+              f"{'yes' if bl['official_mcp_ready'] else 'no'} ({bl['official_mcp_note']})",
+              f"- Rigify in the install: {'yes' if bl['rigify_in_install'] else 'no' if bl['rigify_in_install'] is False else 'unknown'}"
+              " (still enable it in the session and check the operator exists)",
+              f"- Cycles devices: {bl['cycles_device_hint'] or 'n/a'}", f"- OIDN: {bl['oidn']}",
+              f"- Material Maker: {'yes ' + bl['material_maker']['path'] if bl['material_maker']['found'] else 'no (free; ' + bl['material_maker']['install'] + ')'}"]
+    lines += [f"- {e['name']}: {'set' if e['set'] else 'not set'} ({e['purpose']}, {e['cost']}; value never read)" for e in bl["env"]]
     pw = info["playwright"]
     lines += ["", "## Preview capture", "",
               f"- python playwright module: {'yes' if pw['python_playwright'] else 'no'}",

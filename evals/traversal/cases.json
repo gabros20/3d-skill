@@ -303,5 +303,72 @@
       "references/blender-modeling.md",
       "references/realism-gate.md"
     ]
+  },
+  {
+    "id": "blender-rigging",
+    "prompt": "Rig the mascot with Rigify headless and make sure the weights hold when posed.",
+    "expected_references": [
+      "references/blender-channels.md",
+      "references/blender-scripting.md",
+      "references/blender-rigging.md"
+    ],
+    "forbidden_references": [
+      "references/blender-texturing.md",
+      "references/threejs-renderer.md",
+      "references/threejs-lookdev.md",
+      "references/threejs-interaction.md"
+    ]
+  },
+  {
+    "id": "blender-ai-texture",
+    "prompt": "Turn this AI-generated stone texture into a tileable PBR material in Blender.",
+    "expected_references": [
+      "references/blender-texturing.md",
+      "references/blender-shading.md"
+    ],
+    "forbidden_references": [
+      "references/blender-rigging.md",
+      "references/blender-physics.md"
+    ]
+  },
+  {
+    "id": "blender-mcp-setup",
+    "prompt": "Set up the official Blender Lab MCP for this project.",
+    "expected_references": [
+      "references/blender-channels.md"
+    ],
+    "forbidden_references": [
+      "references/blender-modeling.md"
+    ]
+  },
+  {
+    "id": "blender-bake",
+    "prompt": "Bake AO and the procedural material to textures so the GLB keeps them.",
+    "expected_references": [
+      "references/blender-uv-bake.md"
+    ],
+    "forbidden_references": [
+      "references/blender-texturing.md"
+    ]
+  },
+  {
+    "id": "blender-scatter",
+    "prompt": "Scatter rocks and grass over the terrain procedurally and keep it exportable.",
+    "expected_references": [
+      "references/blender-geometry-nodes.md"
+    ],
+    "forbidden_references": [
+      "references/blender-physics.md"
+    ]
+  },
+  {
+    "id": "blender-cloth",
+    "prompt": "Drape a cloth over the product and deliver the sim to the landing page.",
+    "expected_references": [
+      "references/blender-physics.md"
+    ],
+    "forbidden_references": [
+      "references/blender-rigging.md"
+    ]
   }
 ]

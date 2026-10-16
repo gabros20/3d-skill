@@ -2,12 +2,12 @@
 name: 3d
 description: >-
   Plan, build, preview and iterate production 3D for the web and Blender: decompose intent and
-  image/video references into a measured spec, brief and shots, then build three.js/R3F
-  scenes, shaders, scroll-driven 3D, look-dev, GLB pipelines, Blender assets and renders, Spline,
-  splats and AR, with versioned previews. Triggers: "3D hero", "make it look like this",
-  "scroll-driven 3D", "optimize this GLB", "export from Blender", "black R3F scene". Not for 2D
-  scroll/DOM animation (→ scroll-animation), image/video generation (→ generate-image,
-  generate-video) or CAD-to-print (→ manufacturing-workflow).
+  references into a measured spec, brief and shots, then build three.js/R3F scenes, shaders,
+  scroll-driven 3D, GLB pipelines, Blender modelling, rigging, texturing, renders, Spline, splats
+  and AR, with versioned previews. Triggers: "3D hero", "make it look like this", "scroll-driven
+  3D", "optimize this GLB", "export from Blender", "black R3F scene". Not for 2D scroll/DOM
+  animation (→ scroll-animation), image/video generation (→ generate-image, generate-video) or
+  CAD-to-print (→ manufacturing-workflow).
 ---
 
 # 3D
@@ -19,7 +19,7 @@ pipeline → build → versioned previews the user reviews → the record in `3D
 around it (2D motion, layout, image or video generation, printing). Works alone; project rules
 and decisions already in `3D.md` win over every default here.
 
-Invoke as `/3d` or `$3d` with a request, a reference file or URL, or a GLB/`.blend` path.
+Invoke as `/3d` or `$3d` with a request, a reference, or a GLB/`.blend` path.
 `<skill>` is this installed skill's directory. Run every script by path, `<skill>/scripts/<x>`,
 with the user's project root as the working directory, so defaults such as `.3d` land in the
 project. Never run them from the skill directory.
@@ -34,20 +34,20 @@ project. Never run them from the skill directory.
 
 | Lane | Read | Skip |
 |---|---|---|
-| **Debug a broken scene**: black, washed, blank, slow, unlike Blender or the reference | [shared-debug](references/shared-debug.md) → the one area file it names → [shared-verification](references/shared-verification.md) for the fix claim | intake, brief, design |
-| **Add or change one thing**: a light, a shader, a loader, compress a GLB, one export | the area row below; [shared-preview](references/shared-preview.md) when the user must see it | intake and brief, unless the change contradicts the approved brief |
-| **Build a new 3D piece end to end** | the whole Core workflow: front door → [brief-approach](references/brief-approach.md) → only the packs it names | areas the pipeline does not use (no Blender rows for a code-built scene) |
-| **Blender asset**: model, look-dev, render, export | [blender-channels](references/blender-channels.md) → the one Blender file for the task; [blender-version-traps](references/blender-version-traps.md) before writing `bpy`; [asset-pipeline](references/asset-pipeline.md) after export | `threejs-*`, `scroll-*` |
-| **Review and iterate**: notes on a version, "does it match", a ship check | [shared-preview](references/shared-preview.md) → [shared-verification](references/shared-verification.md); [shared-performance](references/shared-performance.md) for numbers | intake; area files unless a note maps to one |
+| **Debug**: black, washed, blank, slow, unlike Blender or the reference | [shared-debug](references/shared-debug.md) → the area file it names → [shared-verification](references/shared-verification.md) | intake, brief, design |
+| **Add or change one thing**: a light, a shader, compress a GLB | the area row; [shared-preview](references/shared-preview.md) when the user must see it | intake and brief, unless the change contradicts the brief |
+| **Build a new 3D piece end to end** | the Core workflow: front door → [brief-approach](references/brief-approach.md) → only the packs it names | areas the pipeline does not use |
+| **Blender asset**: model, texture, rig, animate, simulate, render, export | [blender-channels](references/blender-channels.md) → one Blender row; [blender-scripting](references/blender-scripting.md) + [blender-version-traps](references/blender-version-traps.md) before writing `bpy`; [asset-pipeline](references/asset-pipeline.md) after export | `threejs-*`, `scroll-*` |
+| **Review and iterate**: notes, "does it match", a ship check | [shared-preview](references/shared-preview.md) → [shared-verification](references/shared-verification.md); [shared-performance](references/shared-performance.md) for numbers | intake; area files unless a note maps to one |
 
 ### Front door
 
 | Condition | Read | Contribution |
 |---|---|---|
-| New request without an approved `.3d/brief.md`; vague prompt | [intake-grill](references/intake-grill.md) | frontier rounds of ≤ 6 questions with recommended answers; restate and explicit yes |
+| New request without an approved `.3d/brief.md`; vague prompt | [intake-grill](references/intake-grill.md) | ≤ 6 questions per round with recommended answers; explicit yes |
 | An image, video, screenshot, site capture, "make it look like this" | [intake-references](references/intake-references.md) | `<skill>/scripts/ref-extract` plus vision passes → `.3d/reference-spec.json` |
-| Writing or validating `.3d/reference-spec.json`; a refspec becomes a generation prompt | [refspec](references/refspec.md) | the `refspec.v1` schema |
-| Refspec or brief must become camera, lights, tone, materials, post | [refspec-mapping](references/refspec-mapping.md) | starting values and the parameter to move first |
+| Writing or validating `.3d/reference-spec.json` | [refspec](references/refspec.md) | the `refspec.v1` schema |
+| Refspec or brief must become camera, lights, tone, materials | [refspec-mapping](references/refspec-mapping.md) | starting values, the parameter to move first |
 | Brief, storyboard, shot list, scroll map, camera path, sign-off gates | [brief-spec](references/brief-spec.md) | `.3d/brief.md`, `.3d/shots.json` (`shots.v1`), lens defaults, the five gates |
 | "Make it look exactly like this render"; "how real can three.js get" | [realism-gap](references/realism-gap.md) | each feature tiered live, bake-only, offline-only or artefact; ceiling per category |
 | A vague term ("dramatic", "glossy") must become checkable | [brief-lexicon](references/brief-lexicon.md) | production wording |
@@ -62,14 +62,14 @@ project. Never run them from the skill directory.
 | Budgets; slow, hot, first-frame jank, memory growth | [shared-performance](references/shared-performance.md) | canonical budgets by target, frame-loop rules |
 | A version the user must see; notes came back | [shared-preview](references/shared-preview.md) | versions, captures for every shot, feedback loop |
 | About to say done, matches or fast | [shared-verification](references/shared-verification.md) | claim-scoped verdicts and scorecard |
-| Critic not converging; "keep going?", "should we stop", a ceiling claim | [realism-gate](references/realism-gate.md) | feasibility gate, defect labels, `preview rounds` verdict, MAX REACHED report |
+| Critic not converging; "should we stop"; a ceiling claim | [realism-gate](references/realism-gate.md) | feasibility gate, defect labels, stop verdict, MAX REACHED report |
 
 ### three.js, R3F and shaders
 
 | Condition | Read | Contribution |
 |---|---|---|
-| Vanilla renderer setup; washed, dark or blank output; `Clock`, `PostProcessing`, `RGBELoader` | [threejs-renderer](references/threejs-renderer.md) | backend, colour, one loop, resize, dispose, stale APIs |
-| `<Canvas>` in Next or React; `ssr: false` errors; double mount; GPU burning off-screen | [threejs-r3f-next](references/threejs-r3f-next.md) | client-only scene behind a lazy wrapper |
+| Vanilla renderer setup; washed or blank output; `Clock`, `PostProcessing`, `RGBELoader` | [threejs-renderer](references/threejs-renderer.md) | backend, colour, loop, dispose, stale APIs |
+| `<Canvas>` in Next or React; `ssr: false` errors; GPU burning off-screen | [threejs-r3f-next](references/threejs-r3f-next.md) | client-only lazy scene |
 | Lighting rig, environment, materials, shadows; metals render black | [threejs-lookdev](references/threejs-lookdev.md) | env, 1–3 lights, material roles, shadow cost |
 | Loaders and decoders (meshopt, Draco, KTX2); freeze after the preloader | [threejs-loading](references/threejs-loading.md) | one loader config, gated reveal |
 | Bloom, LUT, DOF, SSAO; double tone mapping | [threejs-postfx](references/threejs-postfx.md) | one pipeline, no-post baseline |
@@ -83,28 +83,38 @@ project. Never run them from the skill directory.
 | Condition | Read | Contribution |
 |---|---|---|
 | A live scene moves with scroll: camera path, chapters, pinned 3D | [scroll-conductor](references/scroll-conductor.md) | one conductor, ownership split with `scroll-animation` |
-| A fixed move pre-rendered and scrubbed: "scrub video", frames on scroll; a scrub that feels like mud or freezes on iPhone | [scroll-video](references/scroll-video.md) | short-GOP encodes, poster, `currentTime` from the conductor, frame fallback |
-| Feeding the conductor from native, Motion, GSAP, Lenis or `ScrollControls`; pin jumps on iPhone | [scroll-adapters](references/scroll-adapters.md) | one adapter, the pin rule, device checks |
+| A fixed move pre-rendered and scrubbed ("scrub video", frames on scroll); a scrub that feels like mud | [scroll-video](references/scroll-video.md) | short-GOP encodes, poster, `currentTime` from the conductor |
+| Feeding the conductor from native, Motion, GSAP, Lenis, `ScrollControls`; pin jumps on iPhone | [scroll-adapters](references/scroll-adapters.md) | one adapter, pin rule, device checks |
 | What the 3D should be: world, chapters, composition; "looks flat or CG" | [design-art-direction](references/design-art-direction.md) | world sentence, scene ledger, shot plan, critique |
 | Pick a look; brand colour renders wrong; Blender and three disagree | [design-lookdev-presets](references/design-lookdev-presets.md) | one preset, one view transform, recorded |
 | No model yet: stock, generative 3D, image-to-procedural | [asset-acquire](references/asset-acquire.md) | source per object, licence line, paid-job rules |
-| A GLB must ship; about to type `gltf-transform`, `gltfpack`, `ktx`, `gltfjsx` | [asset-pipeline](references/asset-pipeline.md) | explicit passes (never bare `optimize`), master kept, size line |
+| A GLB must ship; about to type `gltf-transform`, `gltfpack`, `ktx` | [asset-pipeline](references/asset-pipeline.md) | explicit passes (never bare `optimize`), master kept |
 
 ### Blender
 
+A Blender task reads [blender-channels](references/blender-channels.md) + [blender-scripting](references/blender-scripting.md) + one row below.
+
 | Condition | Read | Contribution |
 |---|---|---|
-| Any Blender task; MCP or headless; a bridge timed out | [blender-channels](references/blender-channels.md) | channel, connection, consent for arbitrary Python |
-| Blockout, hard-surface, Geometry Nodes, repairing an import | [blender-modeling](references/blender-modeling.md) | a `.blend` that passes the numeric gate |
-| Materials, bakes, lighting, stills, turntables, loops | [blender-lookdev-render](references/blender-lookdev-render.md) | web-safe materials, baked maps, frames |
-| Export GLB or USDZ; "materials lost", "flat in three.js" | [blender-export](references/blender-export.md) | uncompressed GLB into `.3d/versions/vNNN/` |
-| Writing or debugging any `bpy` | [blender-version-traps](references/blender-version-traps.md) | Blender 5.x old → new calls |
+| MCP or headless; official Blender Lab MCP; a bridge timed out | [blender-channels](references/blender-channels.md) | channel, connection, consent |
+| Writing or debugging `bpy`; batch, farm, assets, file hygiene | [blender-scripting](references/blender-scripting.md) | idempotent verified script, JSON result |
+| An API error from older docs | [blender-version-traps](references/blender-version-traps.md) | 5.x old → new call |
+| Blockout, hard-surface, sculpt, retopo, decimate, clean a generated mesh | [blender-modeling](references/blender-modeling.md) | mesh in budget, render-checked |
+| Scatter, arrays, procedural, simulation zones, hair curves | [blender-geometry-nodes](references/blender-geometry-nodes.md) | GN asset that exports |
+| Shader nodes, procedural materials, PBR values, toon | [blender-shading](references/blender-shading.md) | web-safe material |
+| Textures: CC0 sets, AI-generated, tileable, PBR maps | [blender-texturing](references/blender-texturing.md) | tiled map set → material, licence line |
+| UVs, texel density, any bake, lightmaps | [blender-uv-bake](references/blender-uv-bake.md) | UVs and baked maps that pass pixel gates |
+| Rig, Rigify, weights, shape keys | [blender-rigging](references/blender-rigging.md) | a rig that passes `rig_check` |
+| Keyframes, NLA, drivers, constraints, mocap, Grease Pencil, VSE | [blender-animation](references/blender-animation.md) | clips that export |
+| Cloth, rigid body, fluid, smoke, particles | [blender-physics](references/blender-physics.md) | baked sim delivered for web |
+| Lighting, cameras, Cycles/EEVEE, passes, compositing, stills, turntables | [blender-lookdev-render](references/blender-lookdev-render.md) | frames, EXRs |
+| Export GLB or USDZ; "materials lost", "flat in three.js" | [blender-export](references/blender-export.md) | uncompressed GLB |
 
 ### Optional
 
 | Condition | Read | Contribution |
 |---|---|---|
-| Which engine: three.js or Babylon.js, PlayCanvas, Needle, model-viewer; `react-babylonjs`?; `@babylonjs/*` in the project | [engine-choice](references/engine-choice.md) | engine decision line; Babylon notes |
+| Which engine: three.js, Babylon.js, PlayCanvas, Needle, model-viewer; `react-babylonjs`? | [engine-choice](references/engine-choice.md) | engine decision; Babylon notes |
 | Spline named; a designer maintains the scene | [spline](references/spline.md) | Spline runtime, Spline GLB or R3F, decided |
 | Splats (`.ply`, `.spz`), WebXR, AR, Quick Look | [splats-xr](references/splats-xr.md) | splat or XR integration with budgets |
 | Printable or mechanical part, STL/STEP, CAD in a web scene | [cad-print](references/cad-print.md) | routing to CAD skills, verification laws |
@@ -119,7 +129,7 @@ project. Never run them from the skill directory.
 | `<skill>/scripts/glb-report` | `FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | tris, draw calls, textures, size; PASS/WARN/FAIL, exit 1 on FAIL |
 | `<skill>/scripts/spec-check` | `FILE...` | validates `refspec`, `shots`, `look`, `feasibility`, `rounds` (v1); exit 1 names bad fields |
 | `<skill>/scripts/preview` | `serve` · `new-version --note [--technique T#]` · `capture [--version] [--url] [--pathtrace]` · `diff A B` · `board` · `rounds` · `feedback` · `stop`; all take `--dir` (default `.3d`) | viewer, versions, captures (path-traced twin), SSIM/PSNR, contact sheet, stop verdict, notes ([shared-preview](references/shared-preview.md)) |
-| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir [--import x.glb --world env.hdr]` |
+| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …`; flags in each `--help` | `inspect_scene` · `export_web` · `render_shots` · `bake_maps` · `material_from_maps` · `texture_prep` · `uv_check` · `rig_check` |
 | `<skill>/assets/web/` | copy and own; read each header first | `conductor.ts`, `adapters/*`, `r3f/SceneCanvas.tsx`, `bridge.ts` (dev-only; ask before adding) |
 | `<skill>/assets/templates/` | copy into the project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` |
 
@@ -131,8 +141,8 @@ project. Never run them from the skill directory.
 3. **Never install without explicit approval.** Propose with cost (free, free account, PAID); run
    only after the user's yes. Paid generative jobs need approval per job and are never resubmitted
    on timeout.
-4. **The dev server is the user's.** Never start, kill or restart it; ask for the URL. `preview
-   serve` serves `.3d/` only, on its own port; `preview stop` ends it with the session.
+4. **The dev server is the user's.** Never start, kill or restart it; ask for the URL. Our
+   `preview serve` uses its own port; `preview stop` ends it.
 5. **Evidence before claims.** Every "done", "matches" or "fast" cites a capture, a
    `glb-report` or a measurement of that exact claim; say what could not be measured.
 6. **One canonical home.** Decisions, budgets, colour policy and scroll owner live in `3D.md`;
