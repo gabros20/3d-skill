@@ -1,6 +1,6 @@
 # Areas
 
-The `3d` pack is one skill with 36 flat, area-prefixed references in
+The `3d` pack is one skill with 48 flat, area-prefixed references in
 [`skills/3d/references/`](../skills/3d/references). The router
 ([`SKILL.md`](../skills/3d/SKILL.md)) links every one directly; nothing depends on directory
 discovery, and a reference is read only when its condition matches. This page lists each area, what
@@ -23,6 +23,21 @@ Turns a request and references into an approved brief. Read in this order for a 
 | [brief-spec](../skills/3d/references/brief-spec.md) | writing the brief, storyboard, shot list, scroll map, camera path, sign-off gates | `.3d/brief.md`, `.3d/shots.json` |
 | [brief-lexicon](../skills/3d/references/brief-lexicon.md) | a term like "dramatic" or "glossy" must become checkable | precise wording; no artifact |
 | [brief-approach](../skills/3d/references/brief-approach.md) | choosing how to build it: real-time or pre-render, fallback ladder | the brief's Pipeline section, recorded in `3D.md` |
+
+## Engine and realism
+
+Settles the engine and says, before building, how close live three.js can get to a reference.
+
+| Reference | Routes when | Produces |
+|---|---|---|
+| [engine-choice](../skills/3d/references/engine-choice.md) | approach is being chosen and the project hints at Babylon.js, PlayCanvas, Needle, model-viewer or Spline; `@babylonjs/*` in `package.json` | one engine decision line in `3D.md` (engine, reason, rejected alternatives) |
+| [realism-gap](../skills/3d/references/realism-gap.md) | a reference is a Cycles or Redshift render, photo or AI image or video and the brief says "match"; a critic defect must be labelled FIXABLE, CEILING or ARTEFACT | per-feature tier (live, bake-only, offline-only, reference artefact), a per-category ceiling |
+| [realism-toolbox](../skills/3d/references/realism-toolbox.md) | a FIXABLE defect names a technique; "make three.js look like the Blender render" | an ordered technique list with ids for `preview new-version --technique` |
+| [realism-gate](../skills/3d/references/realism-gate.md) | the brief matches or styles a reference, or asks for realism; a critic round returns defects or scores stall; "keep going" | `.3d/feasibility.json`, per-round `rounds.v1` lines, a `preview rounds` verdict, a MAX REACHED report on stop |
+
+The gate runs before the build and needs your yes on the stated ceiling and ship bar. After every
+critic round `preview rounds` returns pass or stop (S1 nothing fixable, S2 plateau, S3 diminishing
+returns, S4 budget) or continue, and "iterate until it passes" never overrides it.
 
 ## Shared
 
@@ -53,21 +68,6 @@ Defaults behind these (recorded decisions D4, D16): three r186+, R3F 9 with drei
 unless TSL or compute is needed, `Timer` rather than `Clock`, `RenderPipeline` rather than
 `PostProcessing`, and the Canvas always in a Client Component under the Next App Router.
 
-## Scroll-driven 3D
-
-The pack is stack-agnostic and owns what is *inside* the pin. When the `scroll-animation` skill is
-installed it owns scroll authority, the pin, reduced-motion collapse and scroll verification; `3d`
-recommends it and never invokes it. Project rules always win.
-
-| Reference | Routes when | Produces |
-|---|---|---|
-| [scroll-conductor](../skills/3d/references/scroll-conductor.md) | a live scene moves with scroll: camera path, chapters, pinned 3D | one conductor, a camera path keyed by chapter, a reduced-motion and poster plan |
-| [scroll-video](../skills/3d/references/scroll-video.md) | a fixed move is pre-rendered and scrubbed; a scrub feels like mud or freezes on iPhone | frames or a render, desktop and mobile encodes, a poster, a player on the conductor |
-| [scroll-adapters](../skills/3d/references/scroll-adapters.md) | feeding the conductor from native, Motion, GSAP, Lenis or `ScrollControls`; pin jumps on iPhone | one adapter on one range wrapper, a pin that holds, a device-check list |
-
-All adapters compute progress over `wrapperHeight - 100lvh`, the distance the pin actually travels,
-so iOS toolbar changes cannot hold the last frame.
-
 ## Design
 
 | Reference | Routes when | Produces |
@@ -90,14 +90,37 @@ compresses once, prefers meshopt, and ends on a `glb-report` verdict plus a pixe
 | Reference | Routes when | Produces |
 |---|---|---|
 | [blender-channels](../skills/3d/references/blender-channels.md) | any Blender task; MCP or headless; a bridge timed out | a chosen channel, a working connection, recorded consent for arbitrary Python |
+| [blender-scripting](../skills/3d/references/blender-scripting.md) | writing, debugging or reviewing any bpy snippet; a call returned FINISHED but nothing changed; a script exits 0 after failing | a short idempotent script that prints one JSON line, plus a verified result |
 | [blender-modeling](../skills/3d/references/blender-modeling.md) | blockout, hard-surface, Geometry Nodes, repairing an import | a `.blend` that passes the numeric gate |
+| [blender-shading](../skills/3d/references/blender-shading.md) | authoring or fixing a node material, procedural look, glass, skin, hair or toon shader; "flat in three.js" | a Principled-based material, every non-exportable node flagged for baking |
+| [blender-uv-bake](../skills/3d/references/blender-uv-bake.md) | unwrapping, packing UVs, baking procedurals to maps, hi-to-lo normals, baking lighting | unwrapped UVs, baked images that passed the pixel gates, a material rebuilt from them |
+| [blender-texturing](../skills/3d/references/blender-texturing.md) | image textures not yet on disk; seams, repeating lattice, baked-in light, wrong scale; "texture this mesh from a prompt" | a map set (albedo sRGB, others Non-Color), a material, a looked-at render, a licence line in the `3D.md` ledger |
+| [blender-geometry-nodes](../skills/3d/references/blender-geometry-nodes.md) | scattering, arraying along curves, greebling, hair curves, repeat zones; a GN asset exports as its base mesh | a node group with named inputs, a verified evaluated count, an applied mesh or kept instances |
+| [blender-rigging](../skills/3d/references/blender-rigging.md) | a mesh needs a skeleton, weights, Rigify, IK/FK or shape keys; a skinned GLB deforms wrongly | an armature that passes `rig_check.py`, with a pose-test render |
+| [blender-animation](../skills/3d/references/blender-animation.md) | keyframes, loops or clips on objects, cameras, shape keys or armatures; a camera move from `shots.v1` needs a Blender twin | one named action per clip, constraints baked into keys, a numeric pose check |
+| [blender-physics](../skills/3d/references/blender-physics.md) | anything must fall, drape, splash or grow hair; "bake the simulation"; a sim differs between runs | an approved cache on disk, then keys, shape keys or pre-rendered frames; verification JSON |
 | [blender-lookdev-render](../skills/3d/references/blender-lookdev-render.md) | materials, bakes, lighting, stills, turntables, loops | web-safe materials, baked maps, numbered frames or a video |
 | [blender-export](../skills/3d/references/blender-export.md) | export GLB or USDZ; "materials lost", "flat in three.js" | `.3d/versions/vNNN/<name>.glb`, uncompressed |
 | [blender-version-traps](../skills/3d/references/blender-version-traps.md) | writing or debugging any `bpy` | a corrected call from the Blender 5.x old-to-new list |
 
-Headless CLI is the channel for anything that must reproduce (inspect, export, bake, render); an MCP
+The checkers `uv_check.py`, `rig_check.py`, `bake_maps.py`, `material_from_maps.py` and `texture_prep.py` run inside Blender like the other `assets/blender` scripts. Headless CLI is the channel for anything that must reproduce (inspect, export, bake, render); an MCP
 bridge is for a user watching a live scene, and always asks consent because both servers execute
 arbitrary Python. The skill never launches a second GUI Blender.
+
+## Scroll-driven 3D
+
+The pack is stack-agnostic and owns what is *inside* the pin. When the `scroll-animation` skill is
+installed it owns scroll authority, the pin, reduced-motion collapse and scroll verification; `3d`
+recommends it and never invokes it. Project rules always win.
+
+| Reference | Routes when | Produces |
+|---|---|---|
+| [scroll-conductor](../skills/3d/references/scroll-conductor.md) | a live scene moves with scroll: camera path, chapters, pinned 3D | one conductor, a camera path keyed by chapter, a reduced-motion and poster plan |
+| [scroll-video](../skills/3d/references/scroll-video.md) | a fixed move is pre-rendered and scrubbed; a scrub feels like mud or freezes on iPhone | frames or a render, desktop and mobile encodes, a poster, a player on the conductor |
+| [scroll-adapters](../skills/3d/references/scroll-adapters.md) | feeding the conductor from native, Motion, GSAP, Lenis or `ScrollControls`; pin jumps on iPhone | one adapter on one range wrapper, a pin that holds, a device-check list |
+
+All adapters compute progress over `wrapperHeight - 100lvh`, the distance the pin actually travels,
+so iOS toolbar changes cannot hold the last frame.
 
 ## Optional
 
@@ -111,11 +134,12 @@ arbitrary Python. The skill never launches a second GUI Blender.
 ## Routing by target use
 
 [brief-approach](../skills/3d/references/brief-approach.md) picks the pipeline from the use and names
-the files to read next. Always added: design-art-direction for the look, asset-acquire when geometry
+the files to read next; pick OBJECT live when the object is the point (inspect, compare, configure, a product page). Always added: design-art-direction for the look, asset-acquire when geometry
 or textures must be sourced, shared-verification for the exit criteria.
 
 | Use | Strategy | Read next |
 |---|---|---|
+| OBJECT live | real-time GLB the visitor spins, zooms or configures; compressed, poster first | threejs-interaction, threejs-lookdev, threejs-loading, asset-pipeline, threejs-r3f-next (Next or React) |
 | Hero, live | real-time three.js or R3F, compressed GLB, poster first | threejs-renderer, threejs-r3f-next, threejs-lookdev, threejs-loading, asset-pipeline |
 | Hero simple, video loop | pre-rendered WebM or MP4 (or frame sequence) from Blender, with a poster | blender-lookdev-render, blender-channels, shared-performance |
 | Scroll world | real-time scene driven by normalised scroll; camera path from `shots.json` | scroll-conductor, scroll-adapters, threejs-r3f-next or threejs-renderer |

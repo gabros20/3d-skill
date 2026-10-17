@@ -1,13 +1,15 @@
 # 3d
 
-**Describe the 3D you want, or point at a reference. Get a measured spec, an approved brief, a build,
-and versioned previews you iterate on until you sign off.**
+**Turn a prompt, a photo or a video into a 3D reproduction, and ship it where it lives: an
+interactive element on your page, a Blender asset, a render or a web-ready GLB.**
 
-`3d` is an agent skill for production 3D on the web and in Blender. It decomposes your intent and any
-image or video references into the most detailed spec it can measure, grills only the gaps, turns the
-answers into a brief and a shot list you approve, picks the pipeline for where the piece will live,
-builds it, shows you numbered versions in a local viewer, has a fresh critic judge the evidence
-before you see it, and records every decision in `3D.md`.
+`3d` is an agent skill for production 3D on the web and in Blender. Point it at a reference ("rebuild
+the speaker in this clip in 3D, visitors spin it on our product page") or describe what you want. It
+measures the reference into the most detailed spec it can, grills only the gaps, turns the answers
+into a brief and a shot list you approve, picks the pipeline for where the piece will live (a model
+visitors spin, zoom or configure, a live hero, a render, a game asset), builds it, shows you numbered
+versions in a local viewer, has a fresh critic judge the evidence before you see it, and records every
+decision in `3D.md`. Scroll-driven 3D is one placement among these.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -61,34 +63,37 @@ straight to [shared-debug](skills/3d/references/shared-debug.md), a single chang
    and `.3d/shots.json` (`shots.v1`); [brief-lexicon](skills/3d/references/brief-lexicon.md) turns
    "dramatic" and "glossy" into checkable words; the chosen look goes to `.3d/look.json`. Work then
    passes five gates in order, each on your yes: brief → style frames → blockout → lookdev → final.
-4. **Approach by target use.** [brief-approach](skills/3d/references/brief-approach.md) maps hero,
-   scroll world, scrub video, render, Spline, splat, AR, game asset, print or CAD to a pipeline and a
-   four-rung fallback ladder, and names the area files to read next.
+4. **Approach by target use.** [brief-approach](skills/3d/references/brief-approach.md) maps a live
+   object, hero, scroll world, scrub video, render, Spline, splat, AR, game asset, print or CAD to a
+   pipeline and a four-rung fallback ladder, and names the area files to read next. A brief that
+   matches a reference first passes the feasibility gate in
+   [realism-gate](skills/3d/references/realism-gate.md): ceilings, ship bars and planned techniques.
 5. **Build.** Only the files the pipeline names, one change-set per version
    (`preview new-version`).
 6. **Preview and iterate.** [shared-preview](skills/3d/references/shared-preview.md) captures every
    shot and diffs it against the reference and the previous version;
    [shared-verification](skills/3d/references/shared-verification.md) hands the evidence to a fresh
    critic that is not told what was just fixed; then you get the URL, the version, what changed and a
-   `preview board`. Your notes become the next version.
+   `preview board`. Your notes become the next version, until `preview rounds` says pass or stop.
 7. **Record.** Claim-scoped verdicts, `glb-report` against the recorded budget, a version-log line
    in `3D.md`, `preview stop`, and a handoff receipt of at most 400 tokens.
 
 ## Areas
 
-36 references in `skills/3d/references/`, read on demand, never preloaded
+48 references in `skills/3d/references/`, read on demand, never preloaded
 ([docs/areas.md](docs/areas.md) says when each one routes).
 
 | Area | References | Covers |
 |---|---|---|
 | Front door (7) | [intake-grill](skills/3d/references/intake-grill.md), [intake-references](skills/3d/references/intake-references.md), [refspec](skills/3d/references/refspec.md), [refspec-mapping](skills/3d/references/refspec-mapping.md), [brief-spec](skills/3d/references/brief-spec.md), [brief-lexicon](skills/3d/references/brief-lexicon.md), [brief-approach](skills/3d/references/brief-approach.md) | grilling, reference decomposition, brief, storyboard, shots, gates, pipeline choice |
+| Engine and realism (4) | [engine-choice](skills/3d/references/engine-choice.md), [realism-gap](skills/3d/references/realism-gap.md), [realism-toolbox](skills/3d/references/realism-toolbox.md), [realism-gate](skills/3d/references/realism-gate.md) | three.js vs another engine; what real-time can match (live, bake-only, offline-only, artefact); ranked techniques; feasibility gate and deterministic stop rules |
 | Shared (5) | [shared-preflight](skills/3d/references/shared-preflight.md), [shared-debug](skills/3d/references/shared-debug.md), [shared-performance](skills/3d/references/shared-performance.md), [shared-preview](skills/3d/references/shared-preview.md), [shared-verification](skills/3d/references/shared-verification.md) | tooling, symptom triage, budgets, versions and captures, evidence and critic |
 | three.js and R3F (6) | [threejs-renderer](skills/3d/references/threejs-renderer.md), [threejs-r3f-next](skills/3d/references/threejs-r3f-next.md), [threejs-lookdev](skills/3d/references/threejs-lookdev.md), [threejs-loading](skills/3d/references/threejs-loading.md), [threejs-postfx](skills/3d/references/threejs-postfx.md), [threejs-interaction](skills/3d/references/threejs-interaction.md) | renderer, Next App Router, light and materials, loaders, post, picking and clips |
 | Shaders (2) | [shader-glsl](skills/3d/references/shader-glsl.md), [shader-tsl](skills/3d/references/shader-tsl.md) | GLSL on `WebGLRenderer`; TSL and `WebGPURenderer` when needed |
-| Scroll-driven 3D (3) | [scroll-conductor](skills/3d/references/scroll-conductor.md), [scroll-adapters](skills/3d/references/scroll-adapters.md), [scroll-video](skills/3d/references/scroll-video.md) | one conductor, native / Motion / GSAP / Lenis adapters, pre-rendered scrub |
 | Design (2) | [design-art-direction](skills/3d/references/design-art-direction.md), [design-lookdev-presets](skills/3d/references/design-lookdev-presets.md) | world sentence, scene ledger, presets, one colour policy |
 | Assets (2) | [asset-acquire](skills/3d/references/asset-acquire.md), [asset-pipeline](skills/3d/references/asset-pipeline.md) | stock and generative sourcing with licences; meshopt, KTX2, budgets |
-| Blender (5) | [blender-channels](skills/3d/references/blender-channels.md), [blender-modeling](skills/3d/references/blender-modeling.md), [blender-lookdev-render](skills/3d/references/blender-lookdev-render.md), [blender-export](skills/3d/references/blender-export.md), [blender-version-traps](skills/3d/references/blender-version-traps.md) | headless and MCP, modeling, look-dev and render, GLB export, 5.x traps |
+| Blender (13) | [blender-channels](skills/3d/references/blender-channels.md), [blender-scripting](skills/3d/references/blender-scripting.md), [blender-modeling](skills/3d/references/blender-modeling.md), [blender-shading](skills/3d/references/blender-shading.md), [blender-uv-bake](skills/3d/references/blender-uv-bake.md), [blender-texturing](skills/3d/references/blender-texturing.md), [blender-geometry-nodes](skills/3d/references/blender-geometry-nodes.md), [blender-rigging](skills/3d/references/blender-rigging.md), [blender-animation](skills/3d/references/blender-animation.md), [blender-physics](skills/3d/references/blender-physics.md), [blender-lookdev-render](skills/3d/references/blender-lookdev-render.md), [blender-export](skills/3d/references/blender-export.md), [blender-version-traps](skills/3d/references/blender-version-traps.md) | headless and MCP, bpy scripting, modeling, materials, UVs and baking, textures, Geometry Nodes, rigging, animation, physics, look-dev and render, GLB export, 5.x traps |
+| Scroll-driven 3D (3) | [scroll-conductor](skills/3d/references/scroll-conductor.md), [scroll-adapters](skills/3d/references/scroll-adapters.md), [scroll-video](skills/3d/references/scroll-video.md) | one conductor, native / Motion / GSAP / Lenis adapters, pre-rendered scrub |
 | Optional (3) | [spline](skills/3d/references/spline.md), [splats-xr](skills/3d/references/splats-xr.md), [cad-print](skills/3d/references/cad-print.md) | Spline, Gaussian splats, WebXR and AR, CAD routing |
 | Provenance (1) | [SOURCES](skills/3d/references/SOURCES.md) | where each technique came from, under which licence |
 
@@ -101,17 +106,22 @@ never run them from the skill directory. `preview` takes `--dir` (default `.3d`)
 | Tool | Command | Gives |
 |---|---|---|
 | `capabilities` | `<skill>/scripts/capabilities [--root PROJECT] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender and MCP hints, proposals. Never installs |
-| `ref-extract` | `<skill>/scripts/ref-extract INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3]` | per reference `meta.json`, `frames/`, `contact.jpg`, `palette.json`, `luma.json`; video adds `cuts.json`, `motion.json`. Needs ffmpeg |
-| `spec-check` | `<skill>/scripts/spec-check FILE...` | validates `refspec.v1`, `shots.v1`, `look.v1`; exit 1 names the bad fields |
+| `ref-extract` | `<skill>/scripts/ref-extract INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3] [--regions N] [--motion-json] [--kymo]` | per reference `meta.json`, `frames/`, `contact.jpg`, `palette.json`, `luma.json`; video adds `cuts.json`, `motion.json`, and with the flags `regions.json`, `motion-summary.json`, kymograph images. Needs ffmpeg |
+| `fit-camera` | `<skill>/scripts/fit-camera POINTS.json [--size W H] [--id S01] [--json]` | solves camera focal length and pose from at least 6 non-coplanar 2D-3D anchors (DLT) and emits a `shots.v1` shot |
+| `spec-check` | `<skill>/scripts/spec-check FILE...` | validates `refspec.v1`, `shots.v1`, `look.v1`, `feasibility.v1`, `rounds.v1`; exit 1 names the bad fields |
 | `glb-report` | `<skill>/scripts/glb-report FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | triangles, draw calls, textures, extensions, size; PASS / WARN / FAIL, exit 1 on FAIL |
 | `preview serve` | `<skill>/scripts/preview serve [--dir .3d] [--port 4173] [--allow-origin URL]` | loopback viewer for `.3d/` on its own port; reads `.3d/look.json` |
-| `preview new-version` | `… new-version [--note "what changes"]` | `.3d/versions/vNNN/` with `manifest.json`; shown versions are never edited |
-| `preview capture` | `… capture [--version vNNN] [--url URL] [--shots …] [--size WxH] [--end] [--headed] [--settle 120]` | `.3d/evidence/vNNN/<shot>.png` for every shot, through your installed Chrome |
-| `preview diff` | `… diff A B` | SSIM and PSNR as JSON; side-by-side, blend and difference images in `.3d/diffs/` |
+| `preview new-version` | `… new-version [--note "what changes"] [--technique T1,T8]` | `.3d/versions/vNNN/` with `manifest.json`; shown versions are never edited |
+| `preview capture` | `… capture [--version vNNN] [--url URL] [--shots …] [--size WxH] [--end] [--clip SECONDS] [--pathtrace] [--headed] [--settle 120]` | `.3d/evidence/vNNN/<shot>.png` for every shot, through your installed Chrome; `--clip` also records an mp4 per shot, `--pathtrace` a path-traced `<shot>_pt.png` twin (WebGPU) |
+| `preview diff` | `… diff A B [--edges]` | SSIM and PSNR as JSON; side-by-side, blend and difference images in `.3d/diffs/` |
+| `preview match` | `… match [--version vNNN] --ref IMAGE\|DIR [--json]` | per shot vs a reference: SSIM, edge SSIM, mask IoU, luma grid, delta E, each PASS / WARN / FAIL |
+| `preview sweep` | `… sweep --param name=a,b,c [--shot ID] [--ref IMAGE\|DIR]` | parameter variants of one shot (max 24) in `.3d/sweeps/vNNN/`, a contact sheet and `rank.json` |
+| `preview compare` | `… compare A B [--stack v\|h] [--loops N]` | synced stacked mp4 of two clips or two versions |
+| `preview rounds` | `… rounds [--json]` | reads `feasibility.json`, `rounds.jsonl` and manifests; prints the stop verdict (pass, stop S1-S4, continue) |
 | `preview board` | `… board [--version vNNN]` | contact sheet `.3d/boards/vNNN.png` with shot ids and open notes |
 | `preview feedback` | `… feedback [--version vNNN] [--json]` | your notes grouped by version and shot |
 | `preview stop` | `… stop` | ends the server named in `.3d/preview.pid` |
-| Blender scripts | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir` |
+| Blender scripts | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir [--import GLB]` · `bake_maps.py --object O --maps … --out-dir D` · `material_from_maps.py --dir D` · `texture_prep.py --seam\|--tile\|--delight\|--derive IMG` · `uv_check.py --res N` · `rig_check.py` |
 | TypeScript blocks | copy into your project and own them; read each header first | `assets/web/conductor.ts`, `adapters/{native,motion,gsap}.ts`, `r3f/SceneCanvas.tsx`, `bridge.ts` |
 | Templates | copy into your project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` in `assets/templates/` |
 
@@ -173,11 +183,13 @@ previous one if replacement fails. Repository-only docs, evals, tests and site a
 ## Quick start
 
 ```text
-Use $3d to plan and build a scroll-driven 3D hero for my homepage from these references.
+/3d rebuild the speaker in this clip in 3D, visitors spin it on our product page [attach ref.mp4]
+Use $3d to turn this product photo into a model people can rotate on the page.
 Use $3d to make this look like the attached screenshot.
 Use $3d to optimize hero.glb for the web and tell me whether it fits the budget.
 /3d export product.blend as a web-ready GLB and render a turntable
 /3d my R3F scene renders black
+Use $3d to build a scroll-driven 3D section for /products from these references.
 ```
 
 A new request gets a few rounds of questions (each with a recommended answer), then a restated brief

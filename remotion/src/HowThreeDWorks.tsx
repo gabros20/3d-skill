@@ -362,15 +362,15 @@ type Inner = React.FC<{ t: Theme }>;
 
 // ---------- S01 request ----------
 
-const PROMPT = "/3d make our homepage hero feel like this — scroll-driven";
+const PROMPT = "/3d rebuild the speaker in this clip in 3D — visitors spin it on our product page";
 
 const Request: Inner = ({ t }) => {
   const f = useCurrentFrame();
   return (
     <>
       <Box t={t} x={64} y={200} w={560} pad="18px 22px" style={{ borderRadius: 14, scale: String(io(f, [0, 14], [0.96, 1])) }}>
-        <div style={mono(19, t.ink, { whiteSpace: "pre-wrap", minHeight: 58 })}>{typed(f, 4, 30, PROMPT)}</div>
-        <div style={{ marginTop: 12, opacity: io(f, [24, 32], [0, 1]) }}>
+        <div style={mono(19, t.ink, { whiteSpace: "pre-wrap", minHeight: 58 })}>{typed(f, 4, 40, PROMPT)}</div>
+        <div style={{ marginTop: 12, opacity: io(f, [40, 48], [0, 1]) }}>
           <Chip t={t} fill size={15}>
             <span style={{ color: t.amber }}>▤ </span>ref.mp4
           </Chip>
@@ -430,7 +430,7 @@ const Measure: Inner = ({ t }) => {
 // ---------- S03 grill ----------
 
 const QS: [string, string][] = [
-  ["Pinned in the hero, scrubbed by scroll?", "yes · SCROLL"],
+  ["On the page: drag to spin, or just play?", "drag · OBJECT live"],
   ["The look is open: A, B or C?", "B"],
 ];
 const DIRS: [string, Look][] = [
@@ -537,9 +537,9 @@ const Brief: Inner = ({ t }) => {
 // ---------- S05 approach ----------
 
 const MATRIX: [string, string][] = [
-  ["HERO", "live three.js or R3F"],
-  ["SCROLL", "live scene on scroll"],
-  ["SCRUB", "pre-rendered · scroll-video.md"],
+  ["HERO", "live scene, poster first"],
+  ["OBJECT", "live model the visitor spins"],
+  ["VIDEO", "pre-rendered loop from Blender"],
 ];
 const LADDER = ["live", "reduced", "poster + video", "static"];
 
@@ -587,7 +587,44 @@ const Approach: Inner = ({ t }) => {
   );
 };
 
-// ---------- S06 build ----------
+// ---------- S06 ceiling: the feasibility gate, before any build ----------
+
+type Tone = "good" | "accent" | "bad";
+const FEAS: [string, string, string, Tone, string][] = [
+  ["G3", "shaped highlights", "LIVE-NATIVE", "good", "T1"],
+  ["G6", "contact AO", "LIVE-WITH-TECHNIQUE", "accent", "T7"],
+  ["G18", "brushed grain", "LIVE-WITH-TECHNIQUE", "accent", "T3"],
+  ["G1", "colour bleed", "OFFLINE-ONLY", "bad", "reported"],
+];
+const BAR = ["2.2 / 3"];
+
+const Ceiling: Inner = ({ t }) => {
+  const f = useCurrentFrame();
+  return (
+    <>
+      <Box t={t} x={64} y={96} w={760} h={250} code pad="18px 24px" opacity={io(f, [4, 14], [0, 1])}>
+        <div style={{ ...mono(16, t.ink), marginBottom: 12 }}>
+          <span style={{ color: t.amber }}>▤ </span>.3d/feasibility.json
+        </div>
+        {FEAS.map(([g, what, tier, tone, tech], r) => (
+          <div key={g} style={{ display: "flex", alignItems: "center", height: 42, opacity: io(f, [12 + r * 6, 20 + r * 6], [0, 1]) }}>
+            <span style={mono(17, t.muted, { width: 64 })}>{g}</span>
+            <span style={sans(18, t.ink, { width: 220 })}>{what}</span>
+            <span style={mono(17, t[tone], { width: 250, fontWeight: 600 })}>{tier}</span>
+            <span style={mono(17, tone === "bad" ? t.bad : t.ink)}>{tech}</span>
+          </div>
+        ))}
+      </Box>
+      <Box t={t} x={852} y={96} w={284} h={250} pad="34px 24px" opacity={io(f, [40, 50], [0, 1])}>
+        <div style={kicker(t)}>ship bar</div>
+        <div style={mono(34, t.accent, { fontWeight: 700, marginTop: 6 })}>{BAR[0]}</div>
+        <div style={sans(17, t.muted, { marginTop: 8 })}>the achievable ceiling, not the reference</div>
+      </Box>
+    </>
+  );
+};
+
+// ---------- S07 build ----------
 
 const CHAIN = ["master", "dedup", "weld", "prune", "meshopt"];
 
@@ -651,7 +688,7 @@ const Build: Inner = ({ t }) => {
   );
 };
 
-// ---------- viewer mock (S07, S09) ----------
+// ---------- viewer mock (S08, S10) ----------
 
 const CANVAS_DARK = `radial-gradient(ellipse at 60% 30%, ${REF.bg1} 0%, ${REF.bg0} 75%)`;
 
@@ -665,7 +702,7 @@ const ShotTabs: React.FC<{ t: Theme; active: number }> = ({ t, active }) => (
   </div>
 );
 
-// ---------- S07 preview ----------
+// ---------- S08 preview ----------
 
 const Preview: Inner = ({ t }) => {
   const f = useCurrentFrame();
@@ -704,7 +741,7 @@ const Preview: Inner = ({ t }) => {
   );
 };
 
-// ---------- S08 critic (round 1 fails, the fix is a new version, round 2 passes) ----------
+// ---------- S09 critic (round 1 fails, the fix is a new version, round 2 passes) ----------
 
 const SCORES: [string, number, number][] = [
   ["composition", 1, 3],
@@ -781,7 +818,7 @@ const Critic: Inner = ({ t }) => {
   );
 };
 
-// ---------- S09 approve (the user's note becomes v003) ----------
+// ---------- S10 approve (the user's note becomes v003) ----------
 
 const NOTE = "rim too thin — match the clip";
 
@@ -858,7 +895,7 @@ const Approve: Inner = ({ t }) => {
   );
 };
 
-// ---------- S10 record ----------
+// ---------- S11 record ----------
 
 const LOG: [string, string, string][] = [
   ["v001", "critic fail", "changes"],
@@ -874,7 +911,7 @@ const Record: Inner = ({ t }) => {
       <div style={mono(22, t.ink, { marginBottom: 14 })}>
         <span style={{ color: t.amber, fontSize: 18 }}>▤ </span>3D.md
       </div>
-      <div style={{ ...mono(17, t.ink), opacity: row(0), height: 34 }}>pipeline: SCROLL world</div>
+      <div style={{ ...mono(17, t.ink), opacity: row(0), height: 34 }}>pipeline: OBJECT live</div>
       <div style={{ ...mono(17, t.ink), opacity: row(1), height: 34 }}>
         budget: <span style={{ color: t.good }}>PASS</span> <span style={{ color: t.muted }}>84,210 tris · 1.90 MB</span>
       </div>
@@ -890,21 +927,21 @@ const Record: Inner = ({ t }) => {
   );
 };
 
-// ---------- S11 router ----------
+// ---------- S12 router ----------
 
 const LANES = ["debug", "one change", "new piece", "Blender", "review"];
 const GROUPS: [string, number][] = [
   ["front door", 7],
-  ["shared", 5],
-  ["three.js", 8],
-  ["scroll + assets", 7],
-  ["Blender", 5],
+  ["shared + realism", 8],
+  ["engine + three.js", 9],
+  ["design · assets · scroll", 7],
+  ["Blender", 13],
   ["optional", 4],
 ];
 // where the debug lane's three files sit in the grid: [group, index]
 const ROUTED: [number, number][] = [
   [1, 1],
-  [2, 0],
+  [2, 1],
   [1, 4],
 ];
 
@@ -942,7 +979,7 @@ const Router: Inner = ({ t }) => {
                 <div
                   key={k}
                   style={{
-                    width: 46,
+                    width: 40,
                     height: 20,
                     borderRadius: 5,
                     border: `1.5px solid ${interpolateColors(lit, [0, 1], [t.line, t.accent])}`,
@@ -955,15 +992,16 @@ const Router: Inner = ({ t }) => {
         </Box>
       ))}
       <At x={64} y={378} o={io(f, [74, 82], [0, 1])}>
-        <span style={mono(20, t.accent, { fontWeight: 600 })}>3 of 36 loaded</span>
+        <span style={mono(20, t.accent, { fontWeight: 600 })}>3 of 48 loaded</span>
       </At>
     </>
   );
 };
 
-// ---------- S12 preflight ----------
+// ---------- S13 preflight ----------
 
-const SCRIPTS = "capabilities · ref-extract · spec-check · glb-report · preview";
+const SCRIPTS = "capabilities · ref-extract · spec-check · fit-camera · glb-report · preview";
+const BTOOLS = "+ 8 headless Blender tools: export, render, bake, textures, UV, rig";
 
 const Preflight: Inner = ({ t }) => {
   const f = useCurrentFrame();
@@ -988,65 +1026,82 @@ const Preflight: Inner = ({ t }) => {
       <At x={64} y={340} o={io(f, [50, 58], [0, 1])}>
         <div style={kicker(t)}>the pack&apos;s scripts</div>
         <div style={mono(17, t.ink, { marginTop: 8 })}>{SCRIPTS}</div>
+        <div style={mono(17, t.muted, { marginTop: 6 })}>{BTOOLS}</div>
       </At>
     </>
   );
 };
 
-// ---------- S13 scroll ----------
+// ---------- S14 stop: no real gain, no new round ----------
 
-const FLOW = ["scroll", "adapter", "conductor", "scene"];
+const ROUNDS: [string, number][] = [
+  ["r1", 1.7],
+  ["r2", 2.0],
+  ["r3", 2.08],
+  ["r4", 2.12],
+];
+const STOPS = ["S1 nothing fixable", "S2 plateau", "S3 diminishing returns", "S4 budget"];
+const PLATEAU = "< 0.15 gained in 2 rounds";
+const MAXR = "MAX REACHED → report, then your call";
 
-const Scroll: Inner = ({ t }) => {
+const Stop: Inner = ({ t }) => {
   const f = useCurrentFrame();
-  const barX = 140;
-  const barW = 920;
+  const base = 360;
+  const y = (v: number) => base - (v - 1.5) * 300;
+  const lit = io(f, [52, 62], [0, 1]);
   return (
     <>
-      <At x={0} y={112} style={{ width: 1200 }}>
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 14 }}>
-          {FLOW.map((n, i) => (
-            <React.Fragment key={n}>
-              {i ? <span style={{ ...mono(20, t.glyph), opacity: io(f, [6 + i * 8, 14 + i * 8], [0, 1]) }}>→</span> : null}
-              <span style={{ opacity: io(f, [6 + i * 8, 14 + i * 8], [0, 1]) }}>
-                <Chip t={t} size={18} color={n === "conductor" ? t.accent : undefined} style={{ padding: "8px 18px", fontWeight: n === "conductor" ? 600 : 400 }}>
-                  {n}
-                </Chip>
-              </span>
-            </React.Fragment>
-          ))}
-        </div>
+      <div style={{ position: "absolute", left: 80, top: base, width: 500, height: 2, background: t.line, opacity: io(f, [4, 12], [0, 1]) }} />
+      {ROUNDS.map(([r, v], i) => {
+        const at = 8 + i * 6;
+        const x = 110 + i * 110;
+        return (
+          <React.Fragment key={r}>
+            <div style={{ position: "absolute", left: x, top: y(v), width: 66, height: base - y(v), borderRadius: "6px 6px 0 0", background: i === 3 ? t.accent : t.wire, opacity: io(f, [at, at + 8], [0, 1]) }} />
+            <div style={{ position: "absolute", left: x, width: 66, top: y(v) + 10, textAlign: "center", ...mono(16, i === 3 ? t.bg : t.ink, { fontWeight: 600 }), opacity: io(f, [at, at + 8], [0, 1]) }}>{v.toFixed(2)}</div>
+            <div style={{ position: "absolute", left: x, width: 66, top: base + 8, textAlign: "center", ...mono(16, t.muted), opacity: io(f, [at, at + 8], [0, 1]) }}>{r}</div>
+          </React.Fragment>
+        );
+      })}
+      <div style={{ position: "absolute", left: 80, top: y(2.2), width: 500, borderTop: `2px dashed ${t.good}`, opacity: io(f, [34, 42], [0, 1]) }} />
+      <div style={{ position: "absolute", left: 80, top: y(2.2) - 26, ...mono(15, t.good), opacity: io(f, [34, 42], [0, 1]) }}>ship bar 2.2</div>
+      {STOPS.map((rule, i) => {
+        const me = i === 1;
+        return (
+          <Box
+            key={rule}
+            t={t}
+            x={660}
+            y={110 + i * 50}
+            w={476}
+            h={40}
+            pad="7px 14px"
+            border={me ? interpolateColors(lit, [0, 1], [t.line, t.accent]) : t.line}
+            opacity={io(f, [40 + i * 3, 48 + i * 3], [0, 1])}
+          >
+            <span style={mono(16, me ? interpolateColors(lit, [0, 1], [t.ink, t.accent]) : t.muted, { fontWeight: me && lit > 0.5 ? 600 : 400 })}>{rule}</span>
+            {me ? <span style={{ ...sans(15, t.muted), marginLeft: 14, opacity: lit }}>{PLATEAU}</span> : null}
+          </Box>
+        );
+      })}
+      <At x={660} y={330} o={io(f, [62, 70], [0, 1])}>
+        <span style={{ ...mono(17, t.amber, { fontWeight: 600 }), border: `1.5px solid ${t.amber}`, borderRadius: 999, padding: "6px 18px" }}>{MAXR}</span>
       </At>
-      <At x={0} y={186} o={io(f, [40, 48], [0, 1])} style={{ width: 1200, textAlign: "center" }}>
-        <span style={sans(18, t.muted)}>one scroll source, smoothed once, drives the 3D</span>
-      </At>
-      <div style={{ position: "absolute", left: barX, top: 300, width: barW, height: 8, borderRadius: 4, background: t.codeBg, border: `1px solid ${t.line}`, opacity: io(f, [50, 58], [0, 1]) }} />
-      {(
-        [
-          ["exact → logic", 0.62, t.ink, -1],
-          ["smooth → visuals", 0.58, t.accent, 1],
-        ] as [string, number, string, number][]
-      ).map(([label, v, c, side]) => (
-        <div key={label} style={{ position: "absolute", left: barX + v * barW - 1, top: 284, opacity: io(f, [54, 64], [0, 1]) }}>
-          <div style={{ width: 3, height: 40, background: c, borderRadius: 2 }} />
-          <div style={{ position: "absolute", top: 46, ...(side < 0 ? { left: 8 } : { right: 8 }), whiteSpace: "nowrap", ...mono(17, c) }}>{label}</div>
-        </div>
-      ))}
     </>
   );
 };
 
-// ---------- S14 outputs + adjacent skills ----------
+// ---------- S15 outputs + adjacent skills ----------
 
 const TREE = ["3D.md", ".3d/"];
-const DOT3D = ["brief.md", "shots.json", "reference-spec.json", "versions/", "evidence/", "feedback.jsonl"];
+const DOT3D = ["brief.md", "shots.json", "reference-spec.json", "feasibility.json", "versions/", "evidence/", "feedback.jsonl", "rounds.jsonl"];
 const ADJ = ["scroll-animation", "fluid-design", "generate-image", "generate-video", "manufacturing-workflow", "frontend"];
 
 const Outputs: Inner = ({ t }) => {
   const f = useCurrentFrame();
   return (
     <>
-      <Box t={t} x={64} y={96} w={480} h={270} code pad="22px 28px">
+      <Box t={t} x={64} y={96} w={520} h={270} code pad="22px 28px">
         <div style={{ ...mono(22, t.ink, { fontWeight: 600 }), opacity: io(f, [6, 14], [0, 1]) }}>
           <span style={{ color: t.amber }}>▤ </span>
           {TREE[0]}
@@ -1064,7 +1119,7 @@ const Outputs: Inner = ({ t }) => {
           ))}
         </div>
       </Box>
-      <Box t={t} x={572} y={96} w={564} h={270} pad="24px 26px" opacity={io(f, [30, 38], [0, 1])}>
+      <Box t={t} x={612} y={96} w={524} h={270} pad="24px 26px" opacity={io(f, [30, 38], [0, 1])}>
         <div style={{ ...kicker(t), marginBottom: 20 }}>adjacent skills</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           {ADJ.map((s, i) => (
@@ -1080,7 +1135,7 @@ const Outputs: Inner = ({ t }) => {
   );
 };
 
-// ---------- S15 close ----------
+// ---------- S16 close ----------
 
 const Close: Inner = ({ t }) => {
   const f = useCurrentFrame();
@@ -1119,8 +1174,8 @@ type Def = {
 
 const DEFS: Def[] = [
   {
-    id: "request", act: 1, chapter: "The request", C: Request, IN: 36, G: 2, dy: 26,
-    title: "a vague prompt, one reference",
+    id: "request", act: 1, chapter: "The request", C: Request, IN: 48, G: 2, dy: 26,
+    title: "one prompt, one reference clip",
     caption: "Most 3D work starts **guessing** from here.",
     mono: [PROMPT, "ref.mp4"], sans: [],
   },
@@ -1151,6 +1206,13 @@ const DEFS: Def[] = [
     caption: "Every pipeline has a **fallback ladder**.",
     mono: MATRIX.map(([u]) => u),
     sans: [...MATRIX.map(([, s]) => s), "fallback", ...LADDER],
+  },
+  {
+    id: "ceiling", act: 1, chapter: "Know the ceiling", C: Ceiling, IN: 50, G: 2, dy: 26,
+    title: "know the ceiling first",
+    caption: "What the web can't do is **reported, never faked**.",
+    mono: [".3d/feasibility.json", ...FEAS.map(([g, , tier, , tech]) => `${g} ${tier} ${tech}`), ...BAR],
+    sans: [...FEAS.map(([, w]) => w), "ship bar", "the achievable ceiling, not the reference"],
   },
   {
     id: "build", act: 1, chapter: "Build", C: Build, IN: 56, G: 1, dy: 20,
@@ -1184,29 +1246,29 @@ const DEFS: Def[] = [
     id: "record", act: 1, chapter: "The record", C: Record, IN: 54, G: 1, dy: 26,
     title: "the record: 3D.md",
     caption: "Approved means **recorded**.",
-    mono: ["pipeline: SCROLL world", "budget: PASS 84,210 tris · 1.90 MB", ...LOG.map((r) => r.join(" "))],
+    mono: ["pipeline: OBJECT live", "budget: PASS 84,210 tris · 1.90 MB", ...LOG.map((r) => r.join(" "))],
     sans: [],
   },
   {
     id: "router", act: 2, chapter: "A router, not a library", C: Router, IN: 82, G: 2, dy: 22,
     title: "a router, not a library",
-    caption: "A lane loads **only its files**: 36 references, none preloaded.",
-    mono: [...LANES, "3 of 36 loaded"],
+    caption: "A lane loads **only its files**: 48 references, none preloaded.",
+    mono: [...LANES, "3 of 48 loaded"],
     sans: [],
   },
   {
     id: "preflight", act: 2, chapter: "Preflight", C: Preflight, IN: 58, G: 1, dy: 26,
     title: "preflight",
     caption: "It proposes installs with their cost and **never installs unasked**.",
-    mono: ["capabilities", "ktx missing", "install ktx? (free)", "nothing installed without your yes", SCRIPTS],
+    mono: ["capabilities", "ktx missing", "install ktx? (free)", "nothing installed without your yes", SCRIPTS, BTOOLS],
     sans: ["the pack's scripts"],
   },
   {
-    id: "scroll", act: 2, chapter: "Scroll inside the pin", C: Scroll, IN: 64, G: 2, dy: 42,
-    title: "scroll inside the pin",
-    caption: "Logic reads **exact**; visuals read **smooth**.",
-    mono: [...FLOW, "exact → logic", "smooth → visuals"],
-    sans: ["one scroll source, smoothed once, drives the 3D"],
+    id: "stop", act: 2, chapter: "Know when to stop", C: Stop, IN: 70, G: 2, dy: 34,
+    title: "know when to stop",
+    caption: "No real gain, **no new round**: it reports and asks.",
+    mono: [...ROUNDS.map(([r, v]) => `${r} ${v}`), "ship bar 2.2", ...STOPS, MAXR],
+    sans: [PLATEAU],
   },
   {
     id: "outputs", act: 2, chapter: "Where everything lands", C: Outputs, IN: 62, G: 2, dy: 40,
@@ -1262,6 +1324,7 @@ export const SCENES = DEFS.map((d) => {
 });
 export const DURATION = SCENES[SCENES.length - 1].start + SCENES[SCENES.length - 1].dur;
 const CLOSE_START = SCENES.find((s) => s.act === 0)!.start;
+const LAST1 = SCENES.findIndex((s) => s.act === 2) - 1;
 // the rail is gone once the close has faded in
 export const RAIL_END = CLOSE_START + 8;
 
@@ -1304,8 +1367,8 @@ const RailInner: React.FC<{ theme: ThemeName; style?: React.CSSProperties }> = (
   const all = io(frame, [0, 10], [0, 1]) * io(frame, [CLOSE_START - 8, CLOSE_START + 8], [1, 0]);
   return (
     <div style={{ position: "absolute", left: 0, top: 0, width: 1200, height: 40, ...style }}>
-      {a2 < 1 ? <ActRail t={t} act={1} cur={Math.min(cur, 9)} prev={Math.min(prev, 9)} k={cur > 9 ? 1 : k} opacity={all * (1 - a2)} /> : null}
-      {a2 > 0 ? <ActRail t={t} act={2} cur={Math.max(cur, 10)} prev={Math.max(prev, 10)} k={cur === 10 ? 1 : k} opacity={all * a2} /> : null}
+      {a2 < 1 ? <ActRail t={t} act={1} cur={Math.min(cur, LAST1)} prev={Math.min(prev, LAST1)} k={cur > LAST1 ? 1 : k} opacity={all * (1 - a2)} /> : null}
+      {a2 > 0 ? <ActRail t={t} act={2} cur={Math.max(cur, LAST1 + 1)} prev={Math.max(prev, LAST1 + 1)} k={cur === LAST1 + 1 ? 1 : k} opacity={all * a2} /> : null}
     </div>
   );
 };

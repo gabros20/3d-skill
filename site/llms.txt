@@ -1,10 +1,10 @@
 # 3d
 
-> Plan, build, preview and iterate production 3D for the web and Blender. Installs as an agent skill.
+> Turn a prompt, a photo or a video into a 3D reproduction and ship it as an interactive model on a web page, a Blender asset or render, or a web-ready GLB. Installs as an agent skill.
 
-3d replaces the usual one-shot "make me a 3D hero" (a default scene, washed-out colour, an oversized GLB, an unchecked "looks good") with a loop: decompose intent and image/video references into a measured spec (`.3d/reference-spec.json`, schema `refspec.v1`), write an approved brief, shots and look (`.3d/brief.md`, `.3d/shots.json`, `.3d/look.json`) that pass five sign-off gates (brief, style frames, blockout, lookdev, final), choose an approach and fallback ladder, build three.js/R3F scenes, shaders, scroll-driven 3D, GLB pipelines, Blender assets, Spline, splats and AR, then show versioned previews with a captured PNG for every shot until the user approves. The SKILL.md router reads only the references the current lane names. Claude Code is the reference host; it is plain Agent Skills format (agentskills.io), so it installs on Codex, Cursor, Antigravity, opencode, Grok Build, and Hermes too.
+3d turns a prompt, a photo or a video reference into a 3D reproduction, instead of the usual one-shot result (a default scene, washed-out colour, an oversized GLB, an unchecked "looks good"). It decomposes intent and image/video references into a measured spec (`.3d/reference-spec.json`, schema `refspec.v1`), writes an approved brief, shots and look (`.3d/brief.md`, `.3d/shots.json`, `.3d/look.json`) that pass five sign-off gates (brief, style frames, blockout, lookdev, final), chooses an approach and fallback ladder, builds, then shows versioned previews with a captured PNG for every shot until the user approves. It ships as an interactive three.js/R3F model on a web page (a model visitors spin, zoom or configure; a live hero), a Blender asset or render, or a web-ready GLB; shaders, Spline, splats, AR and scroll-driven 3D are further placements. Example: `/3d rebuild the speaker in this clip in 3D — visitors spin it on our product page` with a reference clip. Eight universal rules govern it, including that the brief's core is binding and a ceiling gap is reported, never faked. The SKILL.md router reads only the references the current lane names. Claude Code is the reference host; it is plain Agent Skills format (agentskills.io), so it installs on Codex, Cursor, Antigravity, opencode, Grok Build, and Hermes too.
 
-Triggers: "3D hero", "make it look like this", "scroll-driven 3D", "optimize this GLB", "export from Blender", "black R3F scene". Commands run as `<skill>/scripts/<x>` from the project root. Not for 2D scroll/DOM animation (scroll-animation), image/video generation (generate-image, generate-video) or CAD-to-print (manufacturing-workflow).
+Triggers: "recreate this in 3D", "make it look like this", "3D hero", "optimize this GLB", "export from Blender", "black R3F scene". Commands run as `<skill>/scripts/<x>` from the project root. Not for 2D scroll/DOM animation (scroll-animation), image/video generation (generate-image, generate-video) or CAD-to-print (manufacturing-workflow).
 
 ## Install
 
@@ -25,10 +25,11 @@ Triggers: "3D hero", "make it look like this", "scroll-driven 3D", "optimize thi
 - `capabilities`: read-only preflight; writes `.3d/capabilities.md` with tools, stack, Blender and MCP hints, install proposals. Never installs.
 - `ref-extract`: per reference `meta.json`, `frames/`, `contact.jpg`, `palette.json`, `luma.json`; video adds `cuts.json`, `motion.json`. Needs ffmpeg.
 - `glb-report`: triangles, draw calls, textures, extensions, size against a budget (hero, world, ar); PASS/WARN/FAIL.
-- `spec-check`: validates `refspec.v1`, `shots.v1` and `look.v1`; exit 1 names the bad fields.
-- `preview`: `serve`, `stop`, `new-version`, `capture`, `diff A B`, `board`, `feedback` (all take `--dir`, default `.3d`); viewer with A/B and reference compare, shot captures, SSIM/PSNR, storyboard contact sheet, notes. A fresh-critic gate judges the evidence before the user sees a version.
+- `fit-camera`: solves camera focal length and pose from at least 6 non-coplanar 2D-3D anchors and emits a `shots.v1` shot.
+- `spec-check`: validates `refspec.v1`, `shots.v1`, `look.v1`, `feasibility.v1` and `rounds.v1`; exit 1 names the bad fields.
+- `preview`: `serve`, `stop`, `new-version`, `capture` (`--clip`, `--pathtrace`), `diff A B`, `match`, `sweep`, `compare`, `rounds` (stop verdict), `board`, `feedback` (most take `--dir`, default `.3d`); viewer with A/B and reference compare, shot captures, SSIM/PSNR, storyboard contact sheet, notes. A fresh-critic gate judges the evidence before the user sees a version.
 
-## Reference inventory (`skills/3d/references/`, 36 files)
+## Reference inventory (`skills/3d/references/`, 48 files)
 
 Front door
 - `intake-grill.md` — vague request to an approved brief: rounds of at most 6 questions with recommended answers.
@@ -38,6 +39,9 @@ Front door
 - `brief-spec.md` — `.3d/brief.md` and `.3d/shots.json` (`shots.v1`).
 - `brief-lexicon.md` — vague terms made checkable.
 - `brief-approach.md` — real-time or pre-render, fallback ladder, Pipeline section.
+
+Engine and realism
+- `engine-choice.md`, `realism-gap.md`, `realism-toolbox.md`, `realism-gate.md` (feasibility gate, `MAX REACHED` stop report)
 
 Shared
 - `shared-preflight.md` — capabilities, defaults, one batched install proposal.
@@ -50,13 +54,15 @@ three.js, R3F and shaders
 - `threejs-renderer.md`, `threejs-r3f-next.md`, `threejs-lookdev.md`, `threejs-loading.md`, `threejs-postfx.md`, `threejs-interaction.md`
 - `shader-glsl.md`, `shader-tsl.md`
 
-Scroll, design and assets
+Scroll-driven 3D (optional placement)
 - `scroll-conductor.md`, `scroll-adapters.md`, `scroll-video.md` (pre-rendered scrub video)
+
+Design and assets
 - `design-art-direction.md`, `design-lookdev-presets.md`
 - `asset-acquire.md`, `asset-pipeline.md`
 
 Blender
-- `blender-channels.md`, `blender-modeling.md`, `blender-lookdev-render.md`, `blender-export.md`, `blender-version-traps.md`
+- `blender-channels.md`, `blender-scripting.md`, `blender-modeling.md`, `blender-shading.md`, `blender-uv-bake.md`, `blender-texturing.md`, `blender-geometry-nodes.md`, `blender-rigging.md`, `blender-animation.md`, `blender-physics.md`, `blender-lookdev-render.md`, `blender-export.md`, `blender-version-traps.md`
 
 Optional
 - `spline.md`, `splats-xr.md`, `cad-print.md`, `SOURCES.md`

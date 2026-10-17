@@ -13,8 +13,8 @@ tool or natural language. The docs use `/3d` as host-neutral shorthand.
 /3d <request | reference file or URL | path/to/model.glb | path/to/scene.blend>
 ```
 
-Implicit triggers: "3D hero", "make it look like this", "scroll-driven 3D", "optimize this GLB",
-"export from Blender", "black R3F scene", a GLB or `.blend` path.
+Implicit triggers: "recreate this in 3D", "make it look like this", "3D hero", "scroll-driven 3D",
+"optimize this GLB", "export from Blender", "black R3F scene", a GLB or `.blend` path.
 
 Not for: 2D scroll or DOM animation (`scroll-animation`), layout scaling (`fluid-design`), image or
 video generation (`generate-image`, `generate-video`), CAD-to-print (`manufacturing-workflow`). `3d`
@@ -83,9 +83,9 @@ blender -b scene.blend --factory-startup --python-exit-code 1 \
 
 ## Worked examples
 
-### 1. Vague hero prompt with a reference image
+### 1. Reference image to an interactive model
 
-> `/3d a premium 3D hero for our landing page, like this [image]`
+> `/3d a premium 3D model of this for our landing page, like this [image]`
 
 1. **Prepare.** No `3D.md`, so `capabilities` runs. It finds Next 16 with R3F and no Blender; the one
    proposal asks for ffmpeg and Playwright (both free). You approve.
@@ -94,7 +94,7 @@ blender -b scene.blend --factory-startup --python-exit-code 1 \
    (silhouette, a hard rim light, a muted teal-to-orange palette), lens as a range with `low`
    confidence, and a `hidden_or_unknown` list: back of the object, absolute scale.
 3. **Grill the gaps.** One question about intent (match the image or borrow its style?), then round 1:
-   is it an object or an abstract form, static or scroll-driven, mobile behaviour, brand colour. Each
+   is it an object or an abstract form, whether the visitor can rotate it or it only sits there, mobile behaviour, brand colour. Each
    comes with a recommended answer; "yes" accepts it. Brand colours and the stack are looked up, not
    asked.
 4. **Gate 0.** The restated brief ends the turn with `[assumed]` tags and an Out of scope line. You
@@ -105,33 +105,48 @@ blender -b scene.blend --factory-startup --python-exit-code 1 \
    against the reference, `preview board`. A fresh critic reads the PNGs, the brief and the refspec
    and finds the rim light too soft; that is fixed before you ever see it. Your notes drive v002.
 
-### 2. Video reference to measured motion to a scroll world in a Next app with Motion
+### 2. Video reference to an interactive model on a product page
 
-> `/3d build a scroll-driven 3D section for /products. Match the camera move in this clip [ref.mp4]; we use Motion.`
+> `/3d rebuild the speaker in this clip in 3D, visitors spin it on our product page [ref.mp4]`
 
-1. **Detect.** The project's scroll owner, stack and rules are read from `package.json`, `CLAUDE.md`
-   and any motion doc. A motion doc or an installed `scroll-animation` skill owns scroll authority and
-   the pin; `3d` owns what is inside it. You are asked for your dev-server URL; the skill never starts
-   it.
-2. **Measure the clip.** `ref-extract ref.mp4` writes `frames/`, `contact.jpg`, `palette.json`,
-   `luma.json`, `cuts.json` (scene changes) and `motion.json`. The `video` block of the refspec
-   records each shot's `camera_move` (type, direction, amount, a `sampled` easing curve), its cuts per
-   ten seconds and whether it loops. Those shots seed `.3d/shots.json`; speed and easing stay ranges
-   unless measured.
-3. **Brief with a scroll map.** Progress ranges 0-1 against beat, camera, object state and copy,
-   plus the reduced-motion composition. Gate 3 shows greybox captures of every shot before any look
-   work.
-4. **Approach: live or scrub.** The reader steers nothing, the move is fixed and mobile risk is high,
-   so the ladder starts at a pre-rendered scrub ([scroll-video](../skills/3d/references/scroll-video.md))
-   with a short-GOP encode and a poster; if the scene must react to the pointer or brand data it
-   stays live. The decision and its triggers are recorded in `3D.md`.
-5. **Build the live variant.** The Canvas sits in a Client Component behind a lazy wrapper
-   (`SceneCanvas.tsx`); `conductor.ts` turns scroll into one normalised state; the Motion adapter
-   (`useMotionScrollConductor`) feeds it with progress over `wrapperHeight - 100lvh`. Camera, world
-   and assets read that state; nothing is bound to React state per frame.
-6. **Verify.** Mode B capture proves layout and progress through `?3d-preview` (the bridge is added to
-   your repo only after you say yes). Safari and iPhone pin behaviour cannot be proven headless, so
-   the receipt lists them under checks not run.
+1. **Measure the clip.** `ref-extract ref.mp4` writes `frames/`, `contact.jpg`, `palette.json`,
+   `luma.json`, `cuts.json` and `motion.json`. Vision passes fill `.3d/reference-spec.json`: the
+   object's silhouette and proportions as ranges, materials (fabric grille, matte shell, a metal ring)
+   with confidence and evidence tags, the lighting as seen, and a `hidden_or_unknown` list: the back
+   panel, the underside, absolute size. If the clip shows a known dimension, `fit-camera` can solve
+   focal length and pose from at least six 2D-3D anchors.
+2. **Grill the gaps.** The facts it can read it does not ask. It asks what the clip cannot answer,
+   each with a recommended answer: drag to spin, or just play? (drag), allow zoom? (limited),
+   configurable colours? (no), what sits behind it on the page, mobile behaviour. You approve the
+   restated brief.
+3. **Approach: OBJECT live.** The object is the point and the visitor drives the camera, so
+   [brief-approach](../skills/3d/references/brief-approach.md) picks a real-time compressed GLB, poster
+   first. The recorded ladder falls back to a reduced live scene, then a poster plus clip, then a static
+   frame. The files named next: threejs-interaction, threejs-lookdev, threejs-loading, asset-pipeline
+   and threejs-r3f-next for a Next app.
+4. **Feasibility gate.** A clip is a matched reference, so
+   [realism-gate](../skills/3d/references/realism-gate.md) runs before any build. Each feature is tiered
+   ([realism-gap](../skills/3d/references/realism-gap.md)): the matte shell and grille live, soft
+   contact shadow baked, a studio-lit reflection on the metal ring possibly offline-only. It states a
+   ceiling per category, a ship bar (per category the lower of 2 and the ceiling; average the lower of
+   2.3 and the mean ceiling minus 0.2), the planned techniques in order and an iteration budget, and
+   writes `.3d/feasibility.json`. Nothing is built until you accept it.
+5. **Build.** The speaker is modelled in Blender headless
+   ([blender-modeling](../skills/3d/references/blender-modeling.md), then shading and UVs) or built from
+   code if it is simple. `export_web.py` writes an uncompressed GLB from a copy, the master stays, and
+   [asset-pipeline](../skills/3d/references/asset-pipeline.md) compresses once. `glb-report --budget
+   hero` checks triangles, draw calls and size.
+6. **Preview versions.** `preview new-version`, build, `preview capture` for every shot,
+   `preview match --ref` and `preview diff` against the clip frames, `preview board`. Each critic
+   round adds a line to `.3d/rounds.jsonl`; defects are labelled FIXABLE, CEILING or ARTEFACT.
+7. **Critic and stop.** A fresh critic reads the PNGs, the brief and the refspec and is not told what
+   was fixed. `preview rounds` then says continue, pass or stop; a stop ends in a MAX REACHED report
+   with the best version and untried directions, not another round. Your notes drive the next version.
+8. **Approval and the page.** You approve a version. The component lands on the product page: a
+   client-only Canvas behind a lazy wrapper, the poster shown first and the reveal gated on rendered
+   frames, orbit controls with damping, clamped polar angle and distance and no pan (zoom off if the
+   page must keep scrolling), rendering paused off-screen. Safari and iPhone behaviour are listed
+   under checks not run unless a real device was used.
 
 ### 3. Blender product turntable
 

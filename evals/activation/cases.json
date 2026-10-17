@@ -1,5 +1,10 @@
 [
   {
+    "id": "explicit-reference-to-interactive-model",
+    "prompt": "/3d rebuild the speaker in this clip (attached) in 3D so visitors can drag to spin it on our product page.",
+    "should_trigger": true
+  },
+  {
     "id": "explicit-scroll-hero",
     "prompt": "/3d build a scroll-driven 3D hero for the homepage: the chip assembles as you scroll through four chapters.",
     "should_trigger": true

@@ -1,9 +1,10 @@
 # remotion — "How 3d works" explainer
 
 The explainer for the **3d** skill's site (`site/index.html` → `#idea` player): 1200×520, 30 fps,
-7307 frames (243.6 s), loops. Two acts: one 3D task end to end (request → measured refspec →
-grill → brief and gates → pipeline → build → previews → fresh critic → the user's note → approved
-→ `3D.md`), then the pack (router, preflight, scroll conductor, where outputs land). The scene
+8582 frames (286.1 s), loops. Two acts: one 3D task end to end — a reference clip rebuilt as a
+model visitors spin on a product page (request → measured refspec → grill → brief and gates →
+pipeline → feasibility ceiling → build → previews → fresh critic → the user's note → approved →
+`3D.md`), then the pack (router, preflight, stop rules, where outputs land). The scene
 timeline is the `SCENES` const in [`src/HowThreeDWorks.tsx`](src/HowThreeDWorks.tsx); the
 storyboard with every on-screen fact's source is `.orchestrate/video/storyboard.md`.
 
@@ -28,12 +29,12 @@ Render the two theme variants + poster stills into the site (paths are relative 
 ```bash
 npx remotion render how-3d-works-light ../site/assets/how-3d-works-light.mp4 --codec=h264 --crf=23
 npx remotion render how-3d-works-dark  ../site/assets/how-3d-works-dark.mp4  --codec=h264 --crf=23
-npx remotion still  how-3d-works-light ../site/assets/how-3d-works-light-poster.png --frame=2979
-npx remotion still  how-3d-works-dark  ../site/assets/how-3d-works-dark-poster.png  --frame=2979
+npx remotion still  how-3d-works-light ../site/assets/how-3d-works-light-poster.png --frame=3823
+npx remotion still  how-3d-works-dark  ../site/assets/how-3d-works-dark-poster.png  --frame=3823
 ```
 
 The page swaps `how-3d-works-{light,dark}.mp4` on theme change and falls back to the poster PNG
-(and to the static diagram) when video or motion is unavailable. The poster is frame 2979, the
+(and to the static diagram) when video or motion is unavailable. The poster is frame 3823, the
 preview viewer with the reference overlay — a hold, not frame 0. When `SCENES` changes, update the
 page's PLAYER-META (`data-duration`, `data-chapters` = scene start / 30) to match.
 

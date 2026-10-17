@@ -30,6 +30,7 @@ Engine: default is three.js + R3F; run the engine gate in [engine-choice](engine
 
 | Use | Strategy | Choose when | Read next |
 |---|---|---|---|
+| OBJECT live | Real-time GLB the visitor spins, zooms or configures; compressed, poster first | the object is the point: inspect, compare, configure, a product page | [threejs-interaction](threejs-interaction.md), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React) |
 | HERO live | Real-time three.js or R3F scene, compressed GLB, poster first | interactivity, brand-reactive, crisp at any size | [threejs-renderer](threejs-renderer.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md) |
 | HERO simple, VIDEO loop | Pre-rendered WebM/MP4 (or frame sequence) from Blender, poster image | no interaction, photoreal wanted, zero GPU risk | [blender-lookdev-render](blender-lookdev-render.md), [blender-channels](blender-channels.md), [shared-performance](shared-performance.md) (weight) |
 | SCROLL world | Real-time scene driven by normalised scroll progress; camera path from `shots.json` | camera freedom, interactivity, copy synced to state | [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md), [threejs-r3f-next](threejs-r3f-next.md) or [threejs-renderer](threejs-renderer.md) |

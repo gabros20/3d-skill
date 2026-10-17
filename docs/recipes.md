@@ -9,6 +9,18 @@ The examples use `/3d` as shorthand. Use `$3d` in Codex, or the form your client
 
 ## Build from references
 
+### Interactive model from a photo or clip
+```text
+/3d rebuild the speaker in this clip [attach ref.mp4] in 3D. Visitors spin it on our product page; we use Next and R3F. Tell me what you measured vs what you guessed, and how close live three.js can get.
+```
+**What happens**: `ref-extract` and vision passes write the refspec; intake asks only the gaps (drag
+to spin or just play, zoom, configurable colours); approach picks OBJECT live, a compressed GLB with a
+poster first; [realism-gate](../skills/3d/references/realism-gate.md) states the ceiling and ship bar
+before any build; the model is built, previewed in versions and judged by a fresh critic; the
+component ships as a client-only Canvas with orbit controls.
+**Reach for it when**: you have a photo, a clip or a description of a real object and want visitors to
+inspect it on the page. For a photo, attach it in place of the clip.
+
 ### Scene from a reference image
 ```text
 Use $3d to make a hero scene that looks like this screenshot [attach]. Measure it first and show me the brief.
@@ -33,26 +45,6 @@ the clip cannot show stays a range tagged `inferred`.
 **What happens**: after at most two rounds, the open look becomes three labelled directions (three
 looks on a greybox of the subject) and you answer "A, B or C plus one change". If `generate-image` is
 installed it is recommended for the stills; you run it, `3d` never does.
-
-## Scroll
-
-### Scroll-driven 3D in an existing app
-```text
-/3d add a scroll-driven product reveal to /products in this Next app. Motion is our scroll library.
-```
-**What happens**: the project's scroll owner and rules are detected and win; the Canvas goes in a
-Client Component behind a lazy wrapper; one conductor turns scroll into a normalised state; the Motion
-adapter feeds it. `3d` owns what is inside the pin. You give the dev-server URL; it never starts one.
-
-### Pre-rendered scroll scrub
-```text
-/3d turn this exploded-view animation into a scroll-scrubbed video that works on iPhone. Blender file attached.
-```
-**What happens**: [scroll-video](../skills/3d/references/scroll-video.md): frames from `render_shots.py`,
-an all-intra or short-GOP H.264 encode (a default GOP is the cause of "mud" and "frame one, then
-jump"), a poster cut from the encoded file, and a player that seeks at most once per frame. A short
-move may use an image sequence instead. iPhone behaviour is listed under checks not run unless a real
-device was used.
 
 ## Fix
 
@@ -104,6 +96,26 @@ once.
 ```
 **What happens**: [blender-export](../skills/3d/references/blender-export.md) and the debug table
 check export options, packed textures and the view transform before touching the scene.
+
+## Scroll
+
+### Scroll-driven 3D in an existing app
+```text
+/3d add a scroll-driven product reveal to /products in this Next app. Motion is our scroll library.
+```
+**What happens**: the project's scroll owner and rules are detected and win; the Canvas goes in a
+Client Component behind a lazy wrapper; one conductor turns scroll into a normalised state; the Motion
+adapter feeds it. `3d` owns what is inside the pin. You give the dev-server URL; it never starts one.
+
+### Pre-rendered scroll scrub
+```text
+/3d turn this exploded-view animation into a scroll-scrubbed video that works on iPhone. Blender file attached.
+```
+**What happens**: [scroll-video](../skills/3d/references/scroll-video.md): frames from `render_shots.py`,
+an all-intra or short-GOP H.264 encode (a default GOP is the cause of "mud" and "frame one, then
+jump"), a poster cut from the encoded file, and a player that seeks at most once per frame. A short
+move may use an image sequence instead. iPhone behaviour is listed under checks not run unless a real
+device was used.
 
 ## Optional paths
 

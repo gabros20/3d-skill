@@ -12,6 +12,30 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-17
+
+### Changed
+
+- **Framing: reference → 3D reproduction → where it lives.** The skill is presented as turning a
+  prompt, a photo or a clip into a 3D reproduction shipped as an interactive element on a page, a
+  Blender asset, a render or a web-ready GLB; scroll-driven 3D is one placement among these. The
+  `SKILL.md` description leads with it and adds the trigger "recreate this in 3D"; plugin metadata,
+  README, docs, site and `llms.txt` follow, with one canonical example (a speaker in a clip rebuilt
+  as a model visitors spin on a product page).
+- **brief-approach:** new **OBJECT live** pipeline row — a real-time GLB the visitor spins, zooms
+  or configures, poster first — routing to `threejs-interaction`, `threejs-lookdev`,
+  `threejs-loading`, `asset-pipeline`.
+- **Explainer video (4:46):** act one follows the canonical example and adds a "Know the ceiling"
+  scene (the feasibility gate); act two replaces the scroll-conductor scene with "Know when to
+  stop" (S1–S4, MAX REACHED). Counts updated (48 references, six scripts plus eight Blender tools).
+- **Stale public counts fixed:** README, `docs/areas.md`, the site and `llms.txt` now list 48
+  references in eleven packs (Engine and realism; Blender 13), eight universal rules, the current
+  `preview` subcommands and `capabilities` rows.
+
+### Added
+
+- Activation eval: reference clip → interactive model on a product page.
+
 ## [0.7.0] — 2026-10-17
 
 Blender for agents, verified on Blender 5.2.2 headless: about 130 API names checked, plus headless proofs for

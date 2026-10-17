@@ -1,13 +1,13 @@
 ---
 name: 3d
 description: >-
-  Plan, build, preview and iterate production 3D for the web and Blender: decompose intent and
-  references into a measured spec, brief and shots, then build three.js/R3F scenes, shaders,
-  scroll-driven 3D, GLB pipelines, Blender modelling, rigging, texturing, renders, Spline, splats
-  and AR, with versioned previews. Triggers: "3D hero", "make it look like this", "scroll-driven
-  3D", "optimize this GLB", "export from Blender", "black R3F scene". Not for 2D scroll/DOM
-  animation (→ scroll-animation), image/video generation (→ generate-image, generate-video) or
-  CAD-to-print (→ manufacturing-workflow).
+  Turn a prompt, image or video into web 3D and Blender assets: decompose intent and references
+  into a measured spec, brief and shots, then build interactive three.js/R3F models and scenes,
+  shaders, GLB pipelines, Blender models, rigs, textures, renders, scroll 3D, Spline, splats,
+  AR, previewed in versions. Triggers: "recreate this in 3D", "make it look like this", "3D
+  hero", "optimize this GLB", "export from Blender", "black R3F scene". Not for 2D scroll/DOM
+  motion (→ scroll-animation), image/video generation (→ generate-*) or CAD-to-print (→
+  manufacturing-workflow).
 ---
 
 # 3D

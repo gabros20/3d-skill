@@ -8,7 +8,7 @@ answers your question.
 |---|---|---|
 | [installation.md](installation.md) | How-to | How do I install it, which tools does it want, and how do I verify, update and remove it? |
 | [loop.md](loop.md) | Explanation / reference | What are the seven stages, which artifacts and schemas does each write, and where are the gates? |
-| [areas.md](areas.md) | Reference | What are the 36 references, what does each produce, and when does each route? |
+| [areas.md](areas.md) | Reference | What are the 48 references, what does each produce, and when does each route? |
 | [usage.md](usage.md) | Reference / worked examples | How do I invoke it, which lane does a request take, and what does it look like on real jobs? |
 | [recipes.md](recipes.md) | How-to | What is the exact prompt for `<scenario>`? |
 

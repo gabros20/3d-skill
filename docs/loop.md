@@ -154,6 +154,14 @@ ladder**, each with a trigger:
 
 Poster, reduced-motion frame and live first frame must match; the poster carries first paint.
 
+**Feasibility gate.** When the brief matches or styles a reference (a photo, a Cycles render, an AI
+image or video) or asks for realism, [realism-gate](../skills/3d/references/realism-gate.md) runs
+first, with no renders. Each refspec feature is tiered live, bake-only, offline-only or artefact
+([realism-gap](../skills/3d/references/realism-gap.md)); the result is a ceiling and a ship bar per
+category, the planned techniques in build order ([realism-toolbox](../skills/3d/references/realism-toolbox.md))
+and an iteration budget. A 150-word statement goes to you with the approach, `.3d/feasibility.json`
+is written, and nothing is built before `accepted: true`.
+
 ## 5. Build
 
 Read only the files the pipeline names ([areas.md](areas.md)). One change-set per version:
@@ -190,6 +198,13 @@ resolves to [shared-performance](../skills/3d/references/shared-performance.md);
    building; a note that cannot be mapped to a parameter gets a question, not a guess.
 7. Back to step 1. Three rounds on one shot without converging pauses for a before/after strip and the
    question of whether the reference or the brief should change.
+
+Stop rules replace "iterate until it passes". After every critic round, label each defect FIXABLE,
+CEILING or ARTEFACT, append a `rounds.v1` line to `.3d/rounds.jsonl` and run
+`<skill>/scripts/preview rounds`. It prints pass (S0, present to you) or stops on S1 nothing fixable,
+S2 plateau, S3 diminishing returns or S4 budget (three non-converging rounds by default). A stop ends
+the turn with a MAX REACHED report: the best version, scores against the bar, what is ceiling-bound
+and a short menu of untried directions for you to pick from.
 
 Iteration works at low resolution (`--size 854x480`); the approval candidate is judged at full size.
 Stop when you mark a version `approved` or say so.

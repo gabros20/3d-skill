@@ -1,6 +1,6 @@
 {
   "name": "3d-skill",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Plan, build, preview and iterate production 3D for the web and Blender: references to spec to brief to build, with versioned previews.",
   "author": {
     "name": "gabros20",
@@ -14,13 +14,13 @@
   "interface": {
     "displayName": "3D",
     "shortDescription": "Plan, build, preview and iterate web 3D and Blender",
-    "longDescription": "Turn a request and reference images or video into a measured spec, brief and shot list, then build three.js/R3F scenes, shaders, scroll-driven 3D, GLB pipelines and Blender assets, with versioned previews you review and iterate on.",
+    "longDescription": "Turn a prompt, a photo or a video into 3D: a measured spec, brief and shot list, then an interactive three.js/R3F model or scene, a Blender asset or render, or a web-ready GLB, with versioned previews you review and iterate on.",
     "developerName": "gabros20",
     "category": "Productivity",
     "capabilities": [],
     "websiteURL": "https://3d-skill.vercel.app",
     "defaultPrompt": [
-      "Use $3d to plan and build a scroll-driven 3D hero for my homepage from these references.",
+      "Use $3d to rebuild the product in this photo as a 3D model visitors can spin on our product page.",
       "Use $3d to optimize this GLB for the web and report the budget.",
       "Use $3d to build a Blender product turntable and export a web-ready GLB."
     ],
