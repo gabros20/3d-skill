@@ -28,7 +28,7 @@ Project rules first (a MOTION doc, CLAUDE.md): if they ban an engine, never prop
 | nothing | `<skill>/assets/web/adapters/native.ts` | default |
 | drei `ScrollControls` wanted | only on a full-screen 3D page with no other scroll | it owns a scroll container in front of the canvas |
 
-**Same travel everywhere**: every adapter computes progress over `wrapperHeight - 100lvh` (shared `createLvhProbe`), the distance the `lvh` pin actually travels. Never `bottom bottom`, `['start start','end end']` or `innerHeight`: they follow the visual viewport and, with the iOS toolbar shown, hit 1 up to one toolbar height after the pin releases, holding the last frame while the scene scrolls away. `scroll-animation`'s scenes measure the same ruler, the pin's own box, so inside their pin the scene feeds the conductor and no adapter is attached.
+**Same travel everywhere**: every adapter computes progress over `wrapperHeight - 100lvh` (shared `createLvhProbe`), the distance the `lvh` pin actually travels. Never `bottom bottom`, `['start start','end end']` or `innerHeight`: they follow the visual viewport and, with the iOS toolbar shown, hit 1 up to one toolbar height after the pin releases, holding the last frame while the scene scrolls away. `scroll-animation`'s scenes measure the same ruler, the pin's own box.
 
 Every adapter returns `{ refresh, destroy }` (Motion: a hook) and calls `setExact` then `settle()` on mount. One authority per route; stamp it (`<html data-scroll-authority>`). Never two: no Lenis with ScrollSmoother, no `ScrollTrigger.normalizeScroll()` with Lenis, no CSS `scroll-behavior: smooth` with ScrollTrigger.
 

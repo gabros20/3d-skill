@@ -72,11 +72,11 @@ Optional: prototype the choreography in 2D (CSS or Motion timeline against the r
 
 Recommend it when installed; never invoke it. Without it, apply the pin rule in [scroll-adapters](scroll-adapters.md). Project rules (a MOTION doc) win over both.
 
-**Inside a `scroll-animation` pin, its scene feeds the conductor.** Its `render-bridge` passes the scene's exact progress to `setExact` and its tick calls the render; attach no 3d adapter there. A second measurement of the same wrapper drifts from the scene on resize and after a layout shift above the range. Both skills measure one ruler, the pin's own box (`wrapperHeight - 100lvh`, [scroll-adapters](scroll-adapters.md) "Same travel everywhere"). The 3d adapters are for pages without `scroll-animation`. Its side: `scroll-animation` `webgl.md` "Who owns what" and "The bridge: one measurement".
+**Inside a `scroll-animation` pin, its scene feeds the conductor.** Its `render-bridge` passes the scene's exact progress to `setExact` and its tick calls the render; attach no 3d adapter there. A second measurement of the same wrapper drifts from the scene on resize and after a layout shift above the range. Both skills measure one ruler, the pin's own box (`wrapperHeight - 100lvh`, [scroll-adapters](scroll-adapters.md) "Same travel everywhere"). The 3d adapters are for pages, or pins, without a `scroll-animation` scene. Its side: `scroll-animation` `webgl.md` "Who owns what" and "The bridge: one measurement".
 
 | `scroll-animation` owns | `3d` owns |
 |---|---|
-| Scroll authority per route, Lenis/ScrollSmoother, one tick; inside its pin, the feed (`render-bridge` into `setExact`) | The conductor contract; the adapters, for pages without `scroll-animation` |
+| Scroll authority per route, Lenis/ScrollSmoother, one tick; inside its pin, the feed (`render-bridge` into `setExact`) | The conductor contract; the adapters, for pages or pins without a `scroll-animation` scene |
 | Range wrapper, sticky `lvh` pin, acts, holds, `inert` | What is inside the pin: renderer, camera path, world-state channels |
 | Reduced-motion collapse of the pin, live query, pause controls | Poster/no-WebGL alternate for the canvas; skipping the 3D bundle |
 | `ANIMATION.md` scene ledger | World bible + chapter ledger; link one row of `ANIMATION.md` to it |

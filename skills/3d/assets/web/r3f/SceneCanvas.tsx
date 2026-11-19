@@ -30,8 +30,11 @@ export interface SceneCanvasProps {
   children: ReactNode
   /** Rendered first and again on failure: the designed still of the scene's hero frame. */
   poster?: ReactNode
-  /** 'demand' renders only on input or while smoothing (pair with ConductorDriver). Default 'demand'. */
-  frameloop?: 'always' | 'demand'
+  /**
+   * 'demand' renders only on input or while smoothing (pair with ConductorDriver). Default 'demand'.
+   * 'never' when an outside tick renders through `advance()`, e.g. inside a `scroll-animation` pin.
+   */
+  frameloop?: 'always' | 'demand' | 'never'
   /** [min, max] device pixel ratio. Default [1, 1.5]; 2 only for a close-up hero that earns it. */
   dpr?: readonly [number, number]
   look?: 'neutral' | 'agx'
