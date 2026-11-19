@@ -58,13 +58,15 @@ Skipping `init()` gives a blank canvas and no error. Guard against unmount racin
 ## Resize and DPR
 
 1. Clamp DPR to `Math.min(devicePixelRatio, 2)`; lower on mobile per [shared-performance](shared-performance.md).
-2. On resize: `camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false)` (CSS owns the size), plus `composer.setSize` if present. Drive it from `ResizeObserver` on the canvas parent, not `window` alone.
-3. Re-apply DPR on `devicePixelRatio` change (zoom, monitor move).
+2. On resize: `camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false)` (CSS owns the size). Drive it from `ResizeObserver` on the canvas parent, not `window` alone; skip a zero-size hidden view and retry when visible.
+3. The three addons `EffectComposer` keeps its own pixel ratio: `composer.setPixelRatio(dpr)` + `setSize(cssW, cssH)`. Pre-multiplied sizes allocate 4× at DPR 2; a forgotten ratio stretches a low-res intermediate. Check `renderer.capabilities.maxTextureSize` before huge targets.
+4. Re-apply DPR on `devicePixelRatio` change (zoom, monitor move).
 
 ## Lifecycle
 
 - One loop, one final-render owner. Stop with `setAnimationLoop(null)`.
-- On teardown dispose geometry, materials, every texture slot, render targets, PMREM generator, controls (`controls.dispose()`), then `renderer.dispose()` (async on WebGPU in r186 — await it). Hiding is `visible = false`, never dispose.
+- On teardown dispose geometry, materials, every texture slot, render targets, PMREM generator, controls (`controls.dispose()`), then `renderer.dispose()` (async on WebGPU in r186 — await it). `dispose()` keeps the WebGL context (r186): on a vanilla route change follow it with `renderer.forceContextLoss()`, or live contexts pile up until the browser drops the oldest (R3F does this on unmount). Hiding is `visible = false`, never dispose.
+- A shot or scene that changes FOV, near, far or background snapshots them and restores them on teardown; a warm-up that re-aims the camera restores its pose in `finally`.
 - Context loss: listen for `webglcontextlost` (`preventDefault()`) and `webglcontextrestored`; on restore rebuild GPU content from source, not from disposed objects. Test with `renderer.forceContextLoss()`.
 - `timer.connect(document)` stops huge deltas after a hidden tab; `timer.dispose()` on teardown.
 

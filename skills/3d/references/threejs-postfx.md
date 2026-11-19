@@ -27,10 +27,11 @@ Never mix the pmndrs composer with `WebGPURenderer`.
 
 ## Order and ownership
 
-1. One owner renders the final frame. A composer takes priority over auto-render; extra `gl.render` calls duplicate or overwrite it.
+1. One owner renders the final frame. A composer takes priority over auto-render; extra `gl.render` calls duplicate or overwrite it. Trace the render-loop call path before claiming a composer owns output: a dead composer beside the live path is common.
 2. Signal order: scene HDR (+ depth/normal) → AO → atmosphere → bloom (HDR) → exposure → tone map once → grade/LUT → lens effects → output.
 3. Use `HalfFloatType` buffers for HDR bloom. Tone mapping happens inside the chain (`ToneMapping` effect or `OutputPass`); set renderer `toneMapping` to `NoToneMapping` when the chain does it, or it applies twice.
 4. Call `composer.setSize` with `renderer.setSize`; `multisampling` 0–4 only if needed.
+5. Multi-pass pipelines: one row per signal (producer · consumers · space and format · resolution · history), one producer per signal; a pass is accepted only with a named input, output, owner, resolution and disable path.
 
 ## Bloom
 
@@ -38,6 +39,7 @@ Never mix the pmndrs composer with `WebGPURenderer`.
 1. Start with HDR threshold: `luminanceThreshold` near 1, make glow sources emissive above 1 (`emissiveIntensity` > 1). If nothing glows the threshold is working; raise emission, not bloom intensity.
 2. When bright non-emissive surfaces (specular, white UI) bleed: switch to MRT emissive channel read by bloom (WebGPU `mrt`), or selective layers. Dual-pass material-swap selective bloom costs several full renders; restore materials in `finally`.
 3. Bloom resolution scale ≤ 0.5 on mobile.
+4. Emission by relation, not numbers: flash > projectile core > persistent beam > lit surface (one scene: ×80 / ×30 / ×10), relative to exposure, so re-check after an exposure change. Bulbs and filaments `toneMapped = false`. Emitter families that need a different threshold or radius get separate bloom owners (base + Σ bloom, then `OutputPass`). A material-swap pass stores the whole `mesh.material` (arrays too) and covers meshes added later and LOD copies.
 
 ## Realism passes
 
@@ -52,17 +54,20 @@ Ranking: [realism-toolbox](realism-toolbox.md). Measure every pass at DPR 2.
 | T14 | GI | none first-party | `ssgi()` (temporal filtering, recommended, requires `traa`); `vxgi()` from `three/addons/lighting/vxgi/VXGINode.js`; `LightProbeGrid` |
 | T15 | motion blur | custom | `motionBlur(input, velocity, samples)` function |
 
-Order: AO on indirect only, never stacked on baked AO. Grading (T2/T10): AgX has no punchy variant in r186 or pmndrs 6.39, so add contrast with a LUT (`LUT3DEffect`, or `lut3D` node) after tone mapping, then film grain (`film`) and dither last.
+Order: AO on indirect only, never stacked on baked AO. AO radius is world units projected to UV and clamped (~0.004–0.08 UV; start 0.5 m radius, 0.35 m thickness): near surfaces stop searching half the screen, far ones stop vanishing. Halos: reject samples beyond the thickness, depth-weighted upsample; raise denoise before slices. Grading (T2/T10): AgX has no punchy variant in r186 or pmndrs 6.39, so add contrast with a LUT (`LUT3DEffect`, or `lut3D` node) after tone mapping, then film grain (`film`) and dither last.
 
 ## Grade and lens
 
-- LUT after tone map; 32³ is enough. Vignette/grain are cheap; chromatic aberration only if the brief names it.
-- Adaptive exposure only if the brief needs it; fixed exposure is the marketing default.
+- LUT after tone map; 32³ is enough. A LUT authored after tone mapping is display-domain (clamped 0–1): never move it before tone mapping without rebuilding it. Sample with a half-texel inset, `uv = saturate(c) * (N - 1) / N + 0.5 / N`.
+- Vignette/grain are cheap; chromatic aberration only if the brief names it. A vignette after the tone curve must be exactly 1.0 over the focal area or it caps peak white (brightest 0.1 % landed at 211–226, not 247–255); a lens falloff belongs in linear HDR before tone mapping.
+- Adaptive exposure only if the brief needs it; fixed exposure is the marketing default. When needed: meter a tiny target (64×36), weighted log-average (down-weight near-black), read back async every ~12 frames, `target = clamp(0.18 / avg * 2^EC, 0.45, 1.85)`, adapt with `1 - exp(-dt * speed)`, faster up than down; mask sky and UI; a failed readback holds its value.
 - DOF: `target` is a world position, not a ref; SSAO in the wrapper needs `enableNormalPass`. DOF and SSAO are the expensive ones: budget one.
 
 ## Cost rules
 
-- Each full-screen pass scales with pixel count: lowering DPR is the first fix.
+- Each full-screen pass scales with pixel count: lowering DPR is the first fix. Reduced-resolution passes upsample with depth/normal-aware weights, not bilinear.
+- A pass at strength or intensity 0 still runs: bypass it at construction.
+- UI or text drawn into the same target blooms and grades with the scene: draw it after tone map and bloom, or mask it.
 - NEVER pass an inline-rebuilt `children` array to `<EffectComposer>`: identity change rebuilds every pass and render target (100–386 ms per frame measured in Safari). `useMemo` the effects; keep conditional children stable (pass `null` slots or toggle `enabled`/`blendFunction`).
 - WebGPU: toggle a feature by relinking `outputNode` and setting `material.needsUpdate`/pipeline `needsUpdate = true`, not rebuilding the pipeline.
 - Mobile: 0–1 passes.

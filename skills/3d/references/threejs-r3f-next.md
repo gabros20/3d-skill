@@ -35,7 +35,9 @@ Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount
 
 ## Mount
 
-- Mount the Canvas lazily: render the poster or static fallback first, mount when the section nears the viewport (`IntersectionObserver` with `rootMargin` ≈ one viewport) or after idle.
+- A tiny gate module decides before the heavy chunk is requested: backend support, a fine hover pointer when the effect is pointer-driven, `prefers-reduced-motion`, `prefers-reduced-transparency`, `forced-colors`, document visible, section intersecting.
+- Mount the Canvas lazily: render the poster or static fallback first, mount when the section nears the viewport (`IntersectionObserver` with `rootMargin` ≈ one viewport) or after idle. Keep the poster until the canvas reports its first rendered frame, never on mount, so a failed init leaves the page complete; same crop for poster and scene.
+- A canvas shared across routes lives in a layout that survives navigation (one context, scenes swapped per route).
 - Heavy scene = separate chunk; `loading` shows the poster, not a spinner.
 - Reduced motion and no-WebGL: render the fallback image, never an empty box.
 
@@ -51,7 +53,7 @@ Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount
 - R3F disposes JSX-owned geometry/materials on unmount. `<primitive object>` and cached loader assets are not disposed; give them an owner. `dispose={null}` only for deliberately shared resources.
 - Imperative resources made in effects (PMREM, render targets, controls) need cleanup returns; dev double-mount will expose leaks.
 - Never `key`-flip a material family to switch looks: it disposes and recompiles everything in one frame (936 ms measured with ~24 transmission materials). Swap uniforms or toggle visibility.
-- Allocate nothing per frame (`new Vector3()`), never `setState` in `useFrame`; mutate refs, use `delta`.
+- Allocate nothing per frame (`new Vector3()`), never `setState` in `useFrame`; mutate refs, use `delta`. Random buffers built during render use a seeded PRNG: React's purity lint flags `Math.random` in render, and a seed makes captures reproducible.
 
 ## Canvas defaults to override on purpose
 

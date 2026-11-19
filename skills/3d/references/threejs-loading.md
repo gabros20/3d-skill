@@ -58,6 +58,12 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 4. Gate the reveal on rendered frames, not asset progress or timers: count frames in `useFrame(..., -999)` and fire at about frame 8. Then wait two `requestAnimationFrame`s before fading. Two timer-based gates failed in production.
 5. Chunk one-shot procedural work (noise textures, buffers) across frames and start at creation, not first use.
 
+## Texture residency
+
+- `loading="lazy"` does nothing for WebGL textures: schedule loads by chapter or camera distance ([scroll-conductor](scroll-conductor.md) rule 11).
+- Cache variants by full identity plus sampling and colour settings, never a filename suffix; a placeholder → hero upgrade keeps UV scale and material identity.
+- GPU memory is per context: the same texture in two canvases allocates twice. `visible = false` frees nothing: reference-count shared textures and materials and dispose at world teardown, never from one mesh; revoke object URLs once the loader has consumed them.
+
 ## Validation
 
 - Throttled network + cold cache: no decoder 404, no frame over ~100 ms after reveal.
