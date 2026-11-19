@@ -32,7 +32,7 @@ Triggers: "recreate this in 3D", "make it look like this", "3D hero", "optimize 
 ## Reference inventory (`skills/3d/references/`, 49 files)
 
 Front door
-- `intake-grill.md` — vague request to an approved brief: rounds of at most 6 questions with recommended answers.
+- `intake-grill.md` — vague request to an approved brief: rounds of at most 4 questions (two rounds at most) with recommended answers; headless runs proceed on `[assumed]` answers.
 - `intake-references.md` — image/video references to a spec: mechanical pass plus nine vision passes.
 - `refspec.md` — the `refspec.v1` schema and leaf rule.
 - `refspec-mapping.md` — refspec fields to camera, light, tone, materials and post starting values.

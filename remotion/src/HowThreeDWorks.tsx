@@ -1189,7 +1189,7 @@ const DEFS: Def[] = [
   {
     id: "grill", act: 1, chapter: "Grill only the gaps", C: Grill, IN: 62, G: 2, dy: 20,
     title: "ask only the gaps",
-    caption: "**At most six questions per round**, each with an answer.",
+    caption: "**At most four questions per round**, each with an answer.",
     mono: [...QS.map(([, a]) => a), "Round 1"],
     sans: QS.map(([q]) => q),
   },

@@ -45,9 +45,9 @@ The request decides what is read; you never name a lane. Detail in [loop.md](loo
 | Review | open the URL, leave notes in the viewer (keys 1-9 jump shots, `[` and `]` change versions), mark `approved` or `changes` | notes land in append-only `.3d/feedback.jsonl` |
 | Dev server | run it yourself and give the URL | the skill never starts, kills or restarts it |
 
-Headless runs (no live user) write `.3d/questions.md` and stop; they build only if you said to assume
-defaults, and then every assumption is tagged `[assumed]` and the brief is marked
-`needs-confirmation`.
+Headless runs (no live user) never block: they write `.3d/questions.md`, proceed on the recommended
+answers with every assumption tagged `[assumed]`, and mark the brief `needs-confirmation`. Installs
+and paid jobs still wait for your yes.
 
 ## Tools by hand
 

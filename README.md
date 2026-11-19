@@ -56,9 +56,10 @@ straight to [shared-debug](skills/3d/references/shared-debug.md), a single chang
      listed, not invented. [refspec-mapping](skills/3d/references/refspec-mapping.md) turns it into
      starting camera, light, tone and material values.
    - [intake-grill](skills/3d/references/intake-grill.md): looks up facts itself, then asks only the
-     gaps, in rounds of at most six questions, each with a recommended answer that "yes" accepts. The
-     turn ends on a restated brief and your explicit yes. No live user: it writes `.3d/questions.md`
-     and stops.
+     gaps, in rounds of at most four questions (two rounds at most), each with a recommended answer
+     that "yes" accepts. The turn ends on a restated brief and your explicit yes. No live user: it
+     never blocks; it writes `.3d/questions.md` and proceeds on the recommended answers, tagged
+     `[assumed]` in a brief marked `needs-confirmation`.
 3. **Brief, shots, sign-off.** [brief-spec](skills/3d/references/brief-spec.md) writes `.3d/brief.md`
    and `.3d/shots.json` (`shots.v1`); [brief-lexicon](skills/3d/references/brief-lexicon.md) turns
    "dramatic" and "glossy" into checkable words; the chosen look goes to `.3d/look.json`. Work then

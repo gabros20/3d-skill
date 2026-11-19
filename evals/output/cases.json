@@ -5,7 +5,7 @@
     "assertions": [
       "Looks up facts first (package.json, 3D.md, .3d/capabilities.md or <skill>/scripts/capabilities) and states them as findings instead of asking them",
       "States a hypothesis line with a confidence percentage",
-      "Asks at most 6 questions in the first round, each with a recommended answer worded so 'yes' accepts it",
+      "Asks at most 4 questions in the first round, each with a recommended answer worded so 'yes' accepts it",
       "Writes no scene code, runs no Blender and creates no .3d/versions/ entry in the same turn",
       "Ends the turn on a question, not on build work"
     ]
@@ -21,12 +21,13 @@
     ]
   },
   {
-    "id": "headless-stops-at-questions",
+    "id": "headless-proceeds-on-assumptions",
     "prompt": "(automation run, no user available) /3d build a 3D hero for the pricing page.",
     "assertions": [
       "Looks up repo facts and writes .3d/questions.md with each open decision and its recommended answer",
-      "Stops after writing .3d/questions.md: no scene code, no Blender run, no .3d/versions/ entry",
-      "Does not treat the absence of a reply as approval"
+      "Never blocks: proceeds on the recommended answers, each tagged [assumed] in .3d/brief.md, with the brief marked status: needs-confirmation",
+      "Opens its receipt with the assumptions that would change the result most",
+      "Does not treat the absence of a reply as approval: proposes but runs no install or paid job"
     ]
   },
   {
@@ -227,6 +228,16 @@
       "Uses normal premultiplied blending on the light page, never screen",
       "Builds the glow from saturation and contrast (saturated body, pale core, coloured rim) with an alpha floor, solving the ink for the colour seen",
       "Judges the result on the composed page, not the raw canvas"
+    ]
+  },
+  {
+    "id": "standalone-context-check",
+    "prompt": "/3d make a 3D version of our product for the landing page.",
+    "assertions": [
+      "Reads 3D.md, .3d/, package.json and any digital-product/LEDGER.md Context first, and states what it found instead of asking it",
+      "Asks at most four questions in the first round, highest leverage first (where it lives, reference match or style, real or invented subject, weakest device), each with a recommended answer worded so 'yes' accepts it",
+      "Defaults the rest as [assumed] and lists them for veto; records decisions in 3D.md and shared context in the LEDGER's Context block",
+      "Ends the turn on the restated brief and a question, with no build work"
     ]
   }
 ]

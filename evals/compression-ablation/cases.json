@@ -25,10 +25,10 @@
     ],
     "preserve": [
       "facts looked up, not asked",
-      "≤ 6 questions per round with recommended answers",
+      "≤ 4 questions per round, two rounds at most, with recommended answers",
       "explicit yes before build",
       "brief written to .3d/brief.md",
-      "headless: stop after .3d/questions.md unless told to assume defaults"
+      "headless: never block; proceed on [assumed] answers, brief status needs-confirmation"
     ]
   },
   {

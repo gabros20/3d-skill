@@ -84,9 +84,9 @@ Without `ffmpeg` the script says so and the pass continues on vision only, with 
   3D files, budgets. **Ask:** where it lives, the feeling wanted in five seconds, real vs stylised,
   quality-vs-weight trade-offs, claims about a real product.
 - Eighteen dimensions are sorted into given / inferable / open. A hypothesis line states a guess and a
-  confidence. Round 1 is the gating frontier, round 2 what round 1 unlocked; **at most six questions a
+  confidence. Round 1 is the gating frontier, round 2 what round 1 unlocked; **at most four questions a
   round**, each with a recommended answer worded so "yes" accepts it. A vague prompt gets at most two
-  rounds (12 questions); a mostly specified one gets one.
+  rounds (8 questions); a mostly specified one gets one.
 - An open or inarticulate look stops the questions: three labelled directions that differ in concept,
   light, palette or camera logic, and you answer "A, B or C plus one change".
 - 3D-specific items are asked or defaulted, never skipped: device class, asset budget, scroll length,
@@ -98,9 +98,10 @@ Deliverables, every guess tagged `[assumed]`, and an Out of scope line, plus the
 "Whatever you think" is delegation, not approval; the riskiest assumptions are re-asked as A/B. No
 build work starts in that message.
 
-**No live user (headless).** The questions and recommended answers go to `.3d/questions.md` and the run
-stops. Only if you explicitly said to assume defaults does it proceed, on the recommended answers
-tagged `[assumed]`, recorded in the brief with `status: needs-confirmation`.
+**No live user (headless).** The run never blocks. The questions and recommended answers go to
+`.3d/questions.md`, and the run proceeds on those answers tagged `[assumed]`, recorded in the brief
+with `status: needs-confirmation`; the receipt opens with the assumptions that would change the result
+most. Installs and paid jobs still wait for your explicit yes.
 
 ## 3. Brief, shots and sign-off
 

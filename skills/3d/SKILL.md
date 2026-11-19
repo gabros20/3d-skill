@@ -16,20 +16,44 @@ description: >-
 
 Own a 3D piece end to end: request or reference → measured spec → approved brief and shots →
 pipeline → build → versioned previews the user reviews → the record in `3D.md`. Not the page
-around it (2D motion, layout, image or video generation, printing). Works alone; project rules
-and decisions already in `3D.md` win over every default here.
+around it. Works alone; project rules and decisions already in `3D.md` win over every default here.
 
-Invoke as `/3d` or `$3d` with a request, a reference, or a GLB/`.blend` path.
 `<skill>` is this installed skill's directory. Run every script by path, `<skill>/scripts/<x>`,
 with the user's project root as the working directory, so defaults such as `.3d` land in the
 project. Never run them from the skill directory.
 
+## Standalone context check
+
+Before producing anything the user will have to live with:
+1. **Look first.** Read `digital-product/LEDGER.md` (Context), `digital-product/<pack>/`, upstream
+   artifacts, the repo and this conversation. A fact found is never asked; a fact recorded is never
+   re-asked.
+2. **Size it.** Reversible and small → proceed, stating assumptions. New, costly or hard to undo →
+   check.
+3. **Ask only what the owner alone knows**, in their words: one round, at most four, highest
+   leverage first, each with a recommended answer ("ok" accepts all). Two rounds at most.
+4. **No or thin answers → decide as the expert.** Record each assumption with its basis and cost to
+   reverse; prefer the reversible option; show the cheapest proof early.
+5. **No way to ask → never block.** Proceed, and open the artifact with the assumptions and the
+   answers that would change it most.
+6. **Write it down.** Answers and assumptions go to the LEDGER's Context block.
+
+This pack's questions:
+1. Where does it live and how is it seen: a hero, a scroll story, a product render, AR?
+   (Recommended: a hero with a poster for first paint.)
+2. Is there a reference image or video: match it, or only its style? (Recommended: style.)
+3. A real product or invented; do CAD files, a model or photos exist?
+4. The weakest device it must run on, and any deadline? (Budgets come from `3D.md`, never guessed.)
+
+Round one of [Intake grill](references/intake-grill.md) "Protocol"; a reference goes through
+[intake-references](references/intake-references.md) first. Decisions stay in `3D.md`; shared
+context goes to the LEDGER.
+
 ## Route before acting
 
 1. Pick the lane, then read only the files it names. Never preload the reference library.
-2. Detect before routing: `3D.md`, `.3d/`, `package.json`, `.3d/capabilities.md`. An existing
-   decision stands; changing one goes through [shared-preflight](references/shared-preflight.md).
-3. A symptom goes to [shared-debug](references/shared-debug.md) before any area file, cheapest check first.
+2. Detect before routing (`3D.md`, `.3d/`, `package.json`, `.3d/capabilities.md`); an existing
+   decision stands ([shared-preflight](references/shared-preflight.md) to change one).
 
 | Lane | Read | Skip |
 |---|---|---|
@@ -43,7 +67,7 @@ project. Never run them from the skill directory.
 
 | Condition | Read | Contribution |
 |---|---|---|
-| New request without an approved `.3d/brief.md`; vague prompt | [intake-grill](references/intake-grill.md) | ≤ 6 questions per round with recommended answers; explicit yes |
+| New request without an approved `.3d/brief.md`; vague prompt | [intake-grill](references/intake-grill.md) | ≤ 4 questions per round, two rounds at most, with recommended answers; explicit yes |
 | An image, video, screenshot, site capture, "make it look like this" | [intake-references](references/intake-references.md) | `<skill>/scripts/ref-extract` plus vision passes → `.3d/reference-spec.json` |
 | Writing or validating `.3d/reference-spec.json` | [refspec](references/refspec.md) | the `refspec.v1` schema |
 | Refspec or brief must become camera, lights, tone, materials | [refspec-mapping](references/refspec-mapping.md) | starting values, the parameter to move first |
@@ -123,19 +147,18 @@ project. Never run them from the skill directory.
 | Tool | Usage | Gives |
 |---|---|---|
 | `<skill>/scripts/capabilities` | `[--root PROJECT] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender, MCP hints; never installs |
-| `<skill>/scripts/ref-extract` | `INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3]` | per ref metadata, frames, contact sheet, palette, luma; video cuts and motion; needs ffmpeg |
-| `<skill>/scripts/glb-report` | `FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | tris, draw calls, textures, size; PASS/WARN/FAIL, exit 1 on FAIL |
+| `<skill>/scripts/ref-extract` | `INPUT... [--out .3d/refs]`; flags in [intake-references](references/intake-references.md) | per ref metadata, frames, contact sheet, palette, luma; video cuts and motion; needs ffmpeg |
+| `<skill>/scripts/glb-report` | `FILE [--budget …] [--target …] [--json]` ([shared-performance](references/shared-performance.md)) | tris, draw calls, textures, size; PASS/WARN/FAIL, exit 1 on FAIL |
 | `<skill>/scripts/spec-check` | `FILE...` | validates `refspec`, `shots`, `look`, `feasibility`, `rounds` (v1); exit 1 names bad fields |
-| `<skill>/scripts/preview` | `serve` · `new-version --note [--technique T#]` · `capture [--version] [--url] [--pathtrace]` · `diff A B` · `board` · `rounds` · `feedback` · `stop`; all take `--dir` (default `.3d`) | viewer, versions, captures (path-traced twin), SSIM/PSNR, contact sheet, stop verdict, notes ([shared-preview](references/shared-preview.md)) |
-| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …`; flags in each `--help` | `inspect_scene` · `export_web` · `render_shots` · `bake_maps` · `material_from_maps` · `texture_prep` · `uv_check` · `rig_check` |
+| `<skill>/scripts/preview` | `serve` · `new-version` · `capture` · `diff A B` · `board` · `rounds` · `feedback` · `stop`; flags in [shared-preview](references/shared-preview.md) | viewer, versions, captures (path-traced twin), SSIM/PSNR, contact sheet, stop verdict, notes |
+| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` ([blender-scripting](references/blender-scripting.md)) | `inspect_scene` · `export_web` · `render_shots` · `bake_maps` · `material_from_maps` · `texture_prep` · `uv_check` · `rig_check` |
 | `<skill>/assets/web/` | copy and own; read each header first | `conductor.ts`, `adapters/*`, `r3f/SceneCanvas.tsx`, `bridge.ts` (dev-only; ask before adding) |
 | `<skill>/assets/templates/` | copy into the project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` |
 
 ## Universal rules
 
 1. **Read only the routed files.**
-2. **Detect before asking.** Facts come from the repo, `3D.md` and `.3d/capabilities.md`; ask only
-   the user's decisions, each with a recommended answer.
+2. **Detect before asking** (the context check above).
 3. **Never install without explicit approval.** Propose with cost (free, free account, PAID); run
    only after the user's yes. Paid generative jobs need approval per job and are never resubmitted
    on timeout.
@@ -155,29 +178,26 @@ project. Never run them from the skill directory.
 
 1. **Prepare.** No `3D.md`: [shared-preflight](references/shared-preflight.md) runs
    `<skill>/scripts/capabilities` and fills `3D.md` from `<skill>/assets/templates/3D.md`.
-2. **Intake.** Decompose intent and every reference into the most detailed spec: references
-   through `<skill>/scripts/ref-extract` and [intake-references](references/intake-references.md)
-   into `.3d/reference-spec.json`; missing detail grilled per [intake-grill](references/intake-grill.md).
-   End the turn on the restated brief and an explicit yes. No live user: write `.3d/questions.md`
-   and stop, unless told to assume defaults (then tag them `[assumed]` in the brief).
-3. **Brief and shots.** [brief-spec](references/brief-spec.md) writes `.3d/brief.md` and
-   `.3d/shots.json`; the look comes from the design files and is written to `.3d/look.json`.
-   Validate with `<skill>/scripts/spec-check`. Then pass the [sign-off gates](references/brief-spec.md)
-   in order, each on the user's yes: brief → style frames → blockout → lookdev → final.
-4. **Approach.** [brief-approach](references/brief-approach.md) maps target use to a pipeline and
-   fallback ladder, settles the engine ([engine-choice](references/engine-choice.md); default
-   three.js + R3F), records both in `3D.md`, and names the area files. A matched reference or a
-   realism ask first passes the [feasibility gate](references/realism-gate.md) (ceilings, ship
-   bars, techniques), accepted by the user before build.
-5. **Build.** Read only those files. One change-set per version (`<skill>/scripts/preview new-version`).
-6. **Preview and iterate.** Capture every shot, diff against the reference and previous version;
-   a [fresh critic](references/shared-verification.md), not told what was fixed, judges it first.
-   Show the user URL, version, change and `preview board`; map each note to the next version
-   ([shared-preview](references/shared-preview.md)). Stop when `preview rounds` says so
-   ([realism-gate](references/realism-gate.md)): pass goes to the user, a stop gives the MAX
+2. **Intake.** References through `ref-extract` and
+   [intake-references](references/intake-references.md) into `.3d/reference-spec.json`; open
+   decisions per [intake-grill](references/intake-grill.md), ending the turn on the restated brief
+   and an explicit yes. No live user: never block; proceed on `[assumed]` answers, the brief marked
+   `status: needs-confirmation`.
+3. **Brief and shots.** [brief-spec](references/brief-spec.md) writes `.3d/brief.md`,
+   `.3d/shots.json` and the look from the design files to `.3d/look.json`, checked by `spec-check`;
+   then the sign-off gates in order, each on the user's yes: brief → style frames → blockout →
+   lookdev → final.
+4. **Approach.** [brief-approach](references/brief-approach.md) picks pipeline, fallback ladder
+   and engine (default three.js + R3F), records them in `3D.md` and names the area files; a matched
+   reference or a realism ask first passes the [feasibility gate](references/realism-gate.md),
+   accepted by the user before build.
+5. **Build.** One change-set per version (`preview new-version`).
+6. **Preview and iterate** ([shared-preview](references/shared-preview.md)). Capture and diff
+   every shot; a fresh critic, not told what was fixed, judges first; each user note maps to the
+   next version. Stop when `preview rounds` says so: pass goes to the user, a stop gives the MAX
    REACHED report.
-7. **Record.** Verdicts per [shared-verification](references/shared-verification.md),
-   `<skill>/scripts/glb-report` against the recorded budget, a version-log line in `3D.md`.
+7. **Record.** Verdicts per [shared-verification](references/shared-verification.md), `glb-report`
+   against the recorded budget, a version-log line in `3D.md`.
 
 ## Artifact contract
 
@@ -195,7 +215,7 @@ project. Never run them from the skill directory.
 | `.3d/feedback.jsonl` | append-only notes; corrections are new lines | viewer, `preview feedback` reads |
 | `.3d/feasibility.json`, `.3d/rounds.jsonl` | `feasibility.v1` targets and ship bars; one `rounds.v1` line per critic round | realism-gate |
 
-`3D.md` is the live record: update it at every gate, version and critic round, not only at the end. Suggest gitignoring `.3d/versions` and `.3d/refs`.
+Update `3D.md` at every gate, version and critic round. Suggest gitignoring `.3d/versions` and `.3d/refs`.
 
 ## Completion and handoff
 

@@ -14,6 +14,13 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ### Added
 
+- SKILL.md **Standalone context check** (before routing): the family's common core (look first,
+  size it, ask at most four owner-only questions with recommended answers, decide as the expert,
+  never block, record in the LEDGER) and four 3d questions (where it lives, reference match or
+  style, real or invented subject, weakest device and deadline), as round one of `intake-grill.md`
+  "Protocol"; decisions stay in `3D.md`, shared context goes to the LEDGER. Output eval
+  `standalone-context-check`.
+
 - **shader-effects** (new, router-wired): recipes for particles, holograms and shape handovers,
   scan, build-up and scene-to-scene reveals, raymarched volumes and god rays, water, parallax
   relief, stars, holographic foil, fire ramps, rooted wind and backdrop terrain, accumulation on a
@@ -30,6 +37,23 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 - Material values for metals (linear F0), fabric, soap film, wood and wet surfaces; texture residency;
   PMREM sigma, sky and look-state rules; bloom, AO, LUT, vignette and adaptive-exposure detail; joins,
   bevel classes and pre-merge audits in Blender modeling; image-to-3D concept prep.
+
+### Changed
+
+- **Intake conforms to the family core** (decision D10): `intake-grill.md` rounds hold at most four
+  questions, two rounds at most (8 in all; one round of 4 when most is given), the rest defaulted
+  `[assumed]` and listed for veto. A headless run never blocks: it writes `.3d/questions.md`,
+  proceeds on the recommended answers tagged `[assumed]` with the brief at
+  `status: needs-confirmation`, and opens the receipt with the assumptions that would change the
+  result most; installs and paid jobs still wait for a yes. SKILL.md workflow step 2 and front-door
+  row, the output eval (`headless-stops-at-questions` is now `headless-proceeds-on-assumptions`),
+  the compression-ablation preserve list, README, `docs/loop.md`, `docs/usage.md`, the site intake
+  card, `llms.txt` and the Remotion grill caption follow; the rendered hero video still says six
+  until it is re-rendered.
+- SKILL.md offset for the new section (3498 → 3662 tokens): rule 2 and route step 3 now point at
+  the context check and the debug lane that already say them; the invocation line, the mission's
+  out-of-scope list, script flags restated in references (`ref-extract`, `preview`, `glb-report`),
+  and core-workflow steps 2–7 tightened, each step still naming its reference.
 
 ### Fixed
 
