@@ -1,6 +1,6 @@
 # Areas
 
-The `3d` pack is one skill with 48 flat, area-prefixed references in
+The `3d` pack is one skill with 49 flat, area-prefixed references in
 [`skills/3d/references/`](../skills/3d/references). The router
 ([`SKILL.md`](../skills/3d/SKILL.md)) links every one directly; nothing depends on directory
 discovery, and a reference is read only when its condition matches. This page lists each area, what
@@ -60,8 +60,9 @@ Used by every lane.
 | [threejs-lookdev](../skills/3d/references/threejs-lookdev.md) | lighting rig, environment, materials, shadows; metals render black | environment, one to three lights, material roles, shadow cost |
 | [threejs-loading](../skills/3d/references/threejs-loading.md) | loaders and decoders (meshopt, Draco, KTX2); freeze after the preloader | one loader module, a gated reveal |
 | [threejs-postfx](../skills/3d/references/threejs-postfx.md) | bloom, LUT, DOF, SSAO; double tone mapping | one pipeline, a no-post baseline toggle |
-| [threejs-interaction](../skills/3d/references/threejs-interaction.md) | picking, orbit or transform controls, glTF clips, physics proposals | event wiring, one mixer owner |
-| [shader-glsl](../skills/3d/references/shader-glsl.md) | custom GLSL or patched materials on `WebGLRenderer` | stable uniforms, a cache key, a tested mobile fallback |
+| [threejs-interaction](../skills/3d/references/threejs-interaction.md) | picking, inspect and exploded views, orbit or transform controls, glTF clips, procedural motion, physics proposals | event wiring, one camera writer, one mixer owner |
+| [shader-glsl](../skills/3d/references/shader-glsl.md) | custom GLSL or patched materials on `WebGLRenderer`; shimmer, pops, a canvas over a light page | stable uniforms, a cache key, footprint-filtered detail, a tested mobile fallback |
+| [shader-effects](../skills/3d/references/shader-effects.md) | particles, hologram, reveal, fog or god rays, water, stars, foil, wind, terrain, accumulation, 2D shader backgrounds | per effect: technique, starting values, failure modes |
 | [shader-tsl](../skills/3d/references/shader-tsl.md) | TSL, node materials, compute, `WebGPURenderer` | node graphs built once, a verified WebGL2 fallback, a pinned three version |
 
 Defaults behind these (recorded decisions D4, D16): three r186+, R3F 9 with drei 10, `WebGLRenderer`

@@ -3,7 +3,7 @@ name: 3d
 description: >-
   Turn a prompt, image or video into web 3D and Blender assets: decompose intent and references
   into a measured spec, brief and shots, then build interactive three.js/R3F models and scenes,
-  shaders, GLB pipelines, Blender models, rigs, textures, renders, scroll 3D, Spline, splats,
+  shader effects (particles, water), GLB pipelines, Blender models, rigs, textures, renders, scroll 3D, Spline, splats,
   AR, previewed in versions. Triggers: "recreate this in 3D", "make it look like this", "3D
   hero", "optimize this GLB", "export from Blender", "black R3F scene". Not for 2D scroll/DOM
   motion (→ scroll-animation), image/video generation (→ generate-*) or CAD-to-print (→
@@ -29,8 +29,7 @@ project. Never run them from the skill directory.
 1. Pick the lane, then read only the files it names. Never preload the reference library.
 2. Detect before routing: `3D.md`, `.3d/`, `package.json`, `.3d/capabilities.md`. An existing
    decision stands; changing one goes through [shared-preflight](references/shared-preflight.md).
-3. A symptom goes to [shared-debug](references/shared-debug.md) before any area file; a scrub that
-   holds frame one, then snaps has several causes there, cheapest check first.
+3. A symptom goes to [shared-debug](references/shared-debug.md) before any area file, cheapest check first.
 
 | Lane | Read | Skip |
 |---|---|---|
@@ -75,7 +74,8 @@ project. Never run them from the skill directory.
 | Bloom, LUT, DOF, SSAO; double tone mapping | [threejs-postfx](references/threejs-postfx.md) | one pipeline, no-post baseline |
 | Picking, orbit or transform controls, glTF clips, physics proposals | [threejs-interaction](references/threejs-interaction.md) | event wiring, one mixer owner |
 | Which effect closes this gap; the realism stack | [realism-toolbox](references/realism-toolbox.md) | ranked techniques (T ids) with cost, gain and recipe home |
-| Custom GLSL or patched materials on `WebGLRenderer` | [shader-glsl](references/shader-glsl.md) | stable uniforms, cache key, mobile fallback |
+| Custom GLSL or patched materials on `WebGLRenderer`; shimmer, pops, canvas over a light page | [shader-glsl](references/shader-glsl.md) | uniforms, cache key, footprint filtering, precision |
+| Particles, hologram, reveal, fog or god rays, water, stars, foil, wind, terrain, 2D shader background | [shader-effects](references/shader-effects.md) | per effect: technique, values, failure modes |
 | TSL, node materials, compute, `WebGPURenderer` | [shader-tsl](references/shader-tsl.md) | node graphs built once, verified WebGL2 fallback |
 
 ### Scroll, design and assets
@@ -91,8 +91,6 @@ project. Never run them from the skill directory.
 | A GLB must ship; about to type `gltf-transform`, `gltfpack`, `ktx` | [asset-pipeline](references/asset-pipeline.md) | explicit passes (never bare `optimize`), master kept |
 
 ### Blender
-
-A Blender task reads [blender-channels](references/blender-channels.md) + [blender-scripting](references/blender-scripting.md) + one row below.
 
 | Condition | Read | Contribution |
 |---|---|---|
@@ -169,8 +167,8 @@ A Blender task reads [blender-channels](references/blender-channels.md) + [blend
 4. **Approach.** [brief-approach](references/brief-approach.md) maps target use to a pipeline and
    fallback ladder, settles the engine ([engine-choice](references/engine-choice.md); default
    three.js + R3F), records both in `3D.md`, and names the area files. A matched reference or a
-   realism ask first passes the [feasibility gate](references/realism-gate.md): ceilings, ship
-   bars and planned techniques, accepted by the user before build.
+   realism ask first passes the [feasibility gate](references/realism-gate.md) (ceilings, ship
+   bars, techniques), accepted by the user before build.
 5. **Build.** Read only those files. One change-set per version (`<skill>/scripts/preview new-version`).
 6. **Preview and iterate.** Capture every shot, diff against the reference and previous version;
    a [fresh critic](references/shared-verification.md), not told what was fixed, judges it first.
@@ -197,8 +195,7 @@ A Blender task reads [blender-channels](references/blender-channels.md) + [blend
 | `.3d/feedback.jsonl` | append-only notes; corrections are new lines | viewer, `preview feedback` reads |
 | `.3d/feasibility.json`, `.3d/rounds.jsonl` | `feasibility.v1` targets and ship bars; one `rounds.v1` line per critic round | realism-gate |
 
-`3D.md` is the live record: update it at every gate (questions resolved, gate passed, version and
-critic round), not only at the end. Suggest gitignoring `.3d/versions` and `.3d/refs`.
+`3D.md` is the live record: update it at every gate, version and critic round, not only at the end. Suggest gitignoring `.3d/versions` and `.3d/refs`.
 
 ## Completion and handoff
 

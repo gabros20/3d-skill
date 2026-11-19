@@ -1,20 +1,26 @@
 # GLSL Shaders in three
 
-Purpose: Write custom GLSL for the WebGL renderer (ShaderMaterial or patched built-in materials) that survives version bumps, caching and mobile GPUs.
+Purpose: Write custom GLSL for the WebGL renderer (ShaderMaterial or patched built-in materials) that survives version bumps, caching, mobile GPUs and the page it sits on.
 
 Read when:
 - Adding a custom effect (fresnel, dissolve, gradient, noise, vertex deformation) on `WebGLRenderer`.
 - A patched material recompiles wrongly, shows the wrong variant, or breaks on a phone.
+- Procedural detail shimmers or swims; an effect pops or cuts off; a canvas sits over a light page or inside 2D art.
 
 Skip when:
 - Renderer is `WebGPURenderer` or the scene needs compute → [shader-tsl](shader-tsl.md).
 - A built-in material property already does it → [threejs-lookdev](threejs-lookdev.md).
+- A named effect (particles, water, volumes, hologram, reveal) → [shader-effects](shader-effects.md), which links back here.
 
 Inputs:
 - Effect description, whether PBR lighting must be kept, target tier.
 
 Produces:
-- A material with stable uniforms, cache key, and a tested mobile fallback.
+- A material with stable uniforms, cache key, footprint-filtered detail, and a tested mobile fallback.
+
+## Contents
+
+- Choose the path · ShaderMaterial · onBeforeCompile · Recipes · Aliasing and footprint · Procedural fields · Envelopes and edges · Canvas over a page · Mobile and precision · Traps
 
 ## Choose the path
 
@@ -29,7 +35,7 @@ Produces:
 1. Declare uniforms once (`useMemo` in R3F); change `.value` per frame. Never set `needsUpdate` for a value-only change.
 2. `ShaderMaterial` injects `projectionMatrix`, `modelViewMatrix`, `normalMatrix`, `position`, `uv`, `cameraPosition` — do not redeclare (that is `RawShaderMaterial`'s job).
 3. Colour output: add `#include <colorspace_fragment>` (after tone mapping chunk if used) so output colour space is applied once; use `<tonemapping_fragment>` only if the material should be tone-mapped. Hex colours into uniforms: `new Color(hex)` converts to linear; raw vectors are already linear.
-4. Time uniform from the `Timer` delta accumulation, not `Date.now()`.
+4. Time: `uTime = frameOffset + Σ dt·speed` from the `Timer` delta, never `Date.now()`: the offset makes first frames and captures deterministic; speed 0 (static, off-screen, hidden) stops the loop, and a still shader redraws once, immediately, on resize.
 
 ## onBeforeCompile
 
@@ -42,20 +48,58 @@ Produces:
 ## Recipes
 
 - Fresnel: `float f = pow(1.0 - saturate(dot(normalize(vNormal), normalize(vViewPosition))), 3.0);` — both in view space. `normalMatrix * normal` is view space: never dot it with a world-space camera vector.
-- Dissolve: `float n = noise(vWorldPos * scale); if (n < uProgress) discard;` + emissive edge `smoothstep(uProgress, uProgress + 0.05, n)`. Mirror in `customDepthMaterial` or shadows ignore the cut.
-- Gradient: mix on `vUv.y` or local `position.y`; colours in linear.
-- Vertex deformation: raise subdivisions, recompute normals, mirror in `customDepthMaterial`/`customDistanceMaterial`. Culling and raycast bounds do not follow GPU displacement: set `frustumCulled = false` or enlarge `geometry.boundingSphere`.
+- Dissolve: `float n = noise(vWorldPos * scale); if (n < uProgress) discard;` + emissive edge `smoothstep(uProgress, uProgress + 0.05, n)`. Mirror in `customDepthMaterial` or shadows ignore the cut. Many objects: per-instance attributes (seed, start time) on one material, never a cloned material each.
+- Gradient: mix on `vUv.y` or local `position.y`; colours in linear (OKLab mixing for 2D fields: [shader-effects](shader-effects.md)).
+- Vertex deformation: raise subdivisions, recompute normals, mirror in `customDepthMaterial`/`customDistanceMaterial`. Culling and raycast bounds do not follow GPU displacement: set `frustumCulled = false` or enlarge `geometry.boundingSphere`. Hard-surface normals: `BufferGeometryUtils.toCreasedNormals(geo, angle)` (~32-50°), never a plain `computeVertexNormals()` (rounds edges). Deforming textured surfaces keep rest UVs, or the weave swims.
+
+## Aliasing and footprint
+
+Procedural detail has no mip chain: filter every band yourself. MSAA fixes none of this.
+
+1. Edges: `smoothstep(e - s, e + s + fwidth(v), v)`, so a designed softness of 0 still gets a one-pixel floor. Never `step()`.
+2. Periodic bands fade by footprint, `* (1. - smoothstep(a, b, fwidth(coord) * freq))`, toward the band's MEAN, never to zero (receding surfaces darken); frequencies stay fixed, bump fades before colour, and a period under ~2.5-5 device px is gone.
+3. Specular AA for procedural or bumpy normals: `v = max(dot(dFdx(N), dFdx(N)), dot(dFdy(N), dFdy(N)))`, `rough = clamp(sqrt(rough * rough + v), 0., 1.)`.
+4. Thin lines stay ≥ ~1 device px wide; below that, fade coverage. Never displace with frequencies the mesh cannot represent.
+5. Output of a standalone effect: tone-map, never `clamp`; then ±1 LSB animated triangular dither gated by `smoothstep(0., 1.5/255., maxChannel)` so empty pixels stay exactly 0 (premultiplied: dither rgb and alpha together). Ungated soft terms staircase into 8-bit bands.
+
+Prove it with the half-pixel shimmer check in [shared-verification](shared-verification.md).
+
+## Procedural fields
+
+- Write the bundle before code: coordinates → macro form → meso structure → causes (wear, wetness, exposure) → channels. The same named fields feed every channel; independent noise per channel reads as printed on.
+- One stable domain per cause: object or undeformed coordinates for form (noise on displaced positions stretches), one shared world plane for water and wetness, a stable per-instance seed. Warp coordinates, not results; separate bands for silhouette, regions, breakup and micro-normal; perceptual names (`ridgeWidth`, not `noise3Amount`) and a debug view per field.
+- Bake periodic noise once (1024² RGBA8, repeat, mipmapped, `NoColorSpace`) and sample it at several stretches: mips filter for free (one full-screen pass fell from 1.5-3 to 0.3-0.6 ms). Slopes of a baked field: finite differences a few px apart, never `dFdx` of one texel. Clamp bump gradients so steps never flip the normal.
+- Fire, smoke, water and mist evolve in place: drift a warp field through the noise. Scrolling or spinning the noise reads as sliding cloth or a printed ball.
+
+## Envelopes and edges
+
+- **Nothing pops.** Every animated uniform rides an envelope: an event keeps its start time, a `smoothstep` attack (40-120 ms, zero slope at onset), then exponential decay; overlapping events sum (a list, never one overwritten start). Phase changes crossfade on the physical quantity; hue settles separately and slower (~0.3-0.5 s); brightness only falls in a fade-out. Frame-rate-independent decay: [threejs-interaction](threejs-interaction.md) Procedural motion.
+- **No hard cut-offs.** Every term reaches 0 before any `if`, bound or canvas edge. Cell noise keeps offset + radius + tail under half a cell or samples the 3×3 neighbours; radial noise uses the direction vector, not `atan` (seam at ±π).
+- Build effects in world space with the scene camera: a screen-space glow runs through floors and columns.
+
+## Canvas over a page
+
+- **Light page:** normal blending, premultiplied, never `screen` (over white it stays white). Nothing is brighter than the paper, so light reads through saturation and contrast: saturated body, pale core, coloured rim, an alpha floor at the hot end (else the core reads as a hole). Design the colour seen, then solve the ink: `absorbed = 1. - seen; a = max(maxChannel(absorbed), cover); rgb = a - absorbed` (composites to exactly `seen` over white). A darkened dark-theme glow reads as red ink smoke.
+- One accumulator per kind of light (emission alpha ≤ ~.97; light on a surface as a tint, ≤ .5-.8; haze `1. - exp(-density * k)`; sparks on top), composited back to front with `top + under * (1. - top.a)`; inking the summed energy loses the core. Clamp `rgb ≤ a` after sums; no halos in empty air; the cavity holding the light gets a darker physical ground, never a black box.
+- `AdditiveBlending` also adds alpha: on an `alpha: true` canvas over the page use `CustomBlending` (src `One`, dst `One`, srcAlpha `Zero`, dstAlpha `One`).
+- **Inside 2D art** nothing depth-tests: stack back art, canvas (`pointer-events: none`), front art in one box and viewBox; a part on both sides is split or modelled in the shader as a simple occluder. Ink ends at a stroke's inner edge.
+- Judge brightness on the composed page: [shared-verification](shared-verification.md).
 
 ## Mobile and precision
 
-- Declare precision explicitly in `RawShaderMaterial`; `ShaderMaterial` sets it from `material.precision`. Use `mediump` only for colour math that needs no range; keep `highp` for positions, UV math and time.
-- A growing `uTime` loses precision on long-running pages: wrap with `mod(t, 1000.0)` or drive loops with `fract`.
-- Avoid dynamic loops with unbounded counts, dependent texture reads in loops, and per-pixel `pow` chains; use a lookup texture.
+- three compiles at `highp` unless unsupported. An explicit `mediump` (`material.precision`, `RawShaderMaterial`, a raw WebGL canvas) is 23-bit on desktops but 10-bit on many phones, so it passes on a laptop and breaks on Android: read `gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).precision` and promote below 23. Positions, UVs and time stay `highp`.
+- A growing `uTime` loses float32 precision, and `mod(uTime, 1000.)` jumps at every wrap unless each frequency × 1000 is a whole multiple of 2π. Wrap each oscillator's phase `ω·t` to [0, 2π) on the CPU (float64) and upload the phase: large `sin()` arguments jitter (a 3 m water wave passes 16,000 rad within an hour).
+- `fract(sin(x) * 43758.5)` repeats or biases on Apple Metal and some Android GPUs: use an integer or sine-free arithmetic hash, or a small noise texture.
+- Loops compile a constant maximum (e.g. 64) and `break` on an integer quality uniform. Texture reads in loops or non-uniform branches have undefined derivatives: use explicit LOD or gradients. Replace per-pixel `pow` chains with a lookup texture.
 - Test noise-heavy shaders with DPR 3 on a phone: fill rate is the cost.
 
 ## Traps
 
-- A backtick or `${` anywhere in GLSL (even a comment) inside a JS template literal ends the string early.
-- Uniform names clash with built-ins (`time`, `color`) if declared twice; prefix `u`.
+- A backtick or `${` anywhere in GLSL (even a comment) inside a JS template literal ends the string early; a `//` comment in a one-line template string comments out the rest of the shader (nothing draws, no error): use `/* */`.
+- three compiles GLSL ES 3.00: `texture`, `sample`, `filter`, `input`, `output`, `flat`, `smooth` are reserved or built-in and fail as identifiers. Uniform names clash with built-ins (`time`, `color`) if declared twice; prefix `u`.
+- `smoothstep(e0, e1, x)` is undefined when `e0 >= e1` (works on one driver, garbage on another): write `1. - smoothstep(lo, hi, x)`. `pow` of a negative base is undefined: clamp it. Guard every normalisation (`sum / max(wsum, 1e-5)`; rgb and alpha separately).
+- `PointsMaterial.size` is already multiplied by the renderer pixel ratio (r186): scaling by `devicePixelRatio` doubles it. A custom `gl_PointSize` must multiply by it itself.
+- `Float32BufferAttribute` copies its array (r186): mutate `attr.array`, then `needsUpdate = true`, or nothing moves; animated attributes `setUsage(DynamicDrawUsage)`.
+- Data targets (distance, normal) are half-float, nearest-filtered (linear filtering at a silhouette invents distances), `samples: 0`. Data masks upload as a `DataTexture` from `getImageData`, never a canvas texture with alpha (premultiplication loses RGB). Stochastic taps use stable per-pixel noise, or identical frames shimmer.
 - GLSL does not run on `WebGPURenderer`; the same effect must be re-expressed in TSL.
 - A shader that compiles proves nothing about the look: compare with a no-shader baseline screenshot ([shared-verification](shared-verification.md)).

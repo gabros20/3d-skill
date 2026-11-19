@@ -52,6 +52,7 @@ R3F 9: async `gl` factory that awaits `init()`, plus `extend(THREE)` from `three
 
 ## Fallback behaviour
 
+- Gate before loading a WebGPU-only bundle: `'gpu' in navigator` AND a non-null `await navigator.gpu.requestAdapter()` (blocklisted and headless GPUs return null).
 - WebGPURenderer falls back to WebGL2 backend automatically; node materials still work, compute features may be absent or slower. Verify the fallback separately with `forceWebGL: true`.
 - Where WebGPU/WebGL2 are both unavailable show the static fallback (poster), see [threejs-r3f-next](threejs-r3f-next.md).
 - Verify on the real backend: read `renderer.backend.isWebGPUBackend` and record it in evidence ([shared-verification](shared-verification.md)).
