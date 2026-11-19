@@ -16,13 +16,20 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 - Scroll feed ownership, by the family seam ruling: inside a `scroll-animation` pin, its scene
   feeds the conductor through `render-bridge` and no 3d scroll adapter is attached; the 3d adapters
-  are for pages, or pins, without a `scroll-animation` scene. Both skills measure one ruler, the pin's own box
-  (`wrapperHeight - 100lvh`). `scroll-conductor.md` "Ownership with `scroll-animation`" (the rule
-  and the table's first row) and `scroll-adapters.md` (Skip when, "Same travel everywhere") record
-  it, pointing at `scroll-animation` `webgl.md` "Who owns what" and "The bridge: one measurement".
+  are for pages, or pins, without a `scroll-animation` scene. Both skills measure one ruler, the
+  pin's own box (`wrapperHeight - 100lvh`). `scroll-conductor.md` "Ownership with
+  `scroll-animation`" (the rule and the table's first row) and `scroll-adapters.md` (Skip when,
+  "Same travel everywhere") record it, pointing at `scroll-animation` `webgl.md` "Who owns what"
+  and "The bridge: one measurement".
 - `r3f/SceneCanvas.tsx` accepts `frameloop: 'never'` (the internals already handled it) for a canvas
   an outside tick renders through `advance()`, e.g. inside a `scroll-animation` pin; that pack's
   `webgl.md` can drop its `'never' as 'demand'` cast once this ships.
+- Touch resizes, aligned with `scroll-animation` `scenes.md` "The range wrapper and the sticky pin":
+  a resize with the same width and the height moved by under a quarter is a toolbar step and is
+  ignored (ScrollTrigger's `ignoreMobileResize` rule); a bigger height change (keyboard, split view)
+  re-measures. `adapters/native.ts` applies the quarter cap (it used to ignore every height-only
+  touch resize); `scroll-adapters.md` "iOS Safari" states the rule, and `scroll-conductor.md` rule 7
+  and `scroll-video.md` point to it.
 
 ## [0.9.0] — 2026-11-19
 

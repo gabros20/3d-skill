@@ -24,6 +24,7 @@ export function attachNativeScroll(conductor: ConductorInput, options: NativeAda
   let top = 0
   let range = 1
   let lastWidth = window.innerWidth
+  let lastHeight = window.innerHeight
   let measureFrame = 0
 
   const measure = (): void => {
@@ -53,9 +54,13 @@ export function attachNativeScroll(conductor: ConductorInput, options: NativeAda
   const onResize = (): void => {
     const coarse = window.matchMedia('(pointer: coarse)').matches
     const widthChanged = window.innerWidth !== lastWidth
+    const heightStep = Math.abs(window.innerHeight - lastHeight)
     lastWidth = window.innerWidth
-    // A height-only resize on touch is the toolbar showing or hiding, not a layout change.
-    if (coarse && !widthChanged) return
+    // On touch, the same width and a height moved by under a quarter is a toolbar step, not a
+    // layout change (ScrollTrigger's ignoreMobileResize rule). A bigger move (keyboard, split view)
+    // re-measures.
+    if (coarse && !widthChanged && heightStep < lastHeight * 0.25) return
+    lastHeight = window.innerHeight
     scheduleMeasure()
   }
 

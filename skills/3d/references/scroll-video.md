@@ -47,7 +47,7 @@ Verify the tags (expect `tv,bt709,bt709,bt709`): `ffprobe -v error -select_strea
 2. Write at most once per frame, in rAF: skip if `|t - video.currentTime| < 0.5 / fps`, and **never seek while `video.seeking`**; remember the newest wanted time and send it on `seeked`. Gecko aborts a replaced seek, so queue one in flight.
 3. Where available, `requestVideoFrameCallback` confirms the presented frame (QA and sync of overlays); do not drive scrubbing from it.
 4. Video paused, `muted`, `playsinline`, `preload="none"` then raise to `auto` at a wide warm margin. Never `fastSeek()` (Chromium lacks it, WebKit lands anywhere).
-5. **iOS Safari**: loads only metadata until a video has played, so prime once (muted `play()`, pause at once) before the first seek, else seeks paint nothing and clear the poster. Low Power Mode refuses `play()`: keep the poster and fall back to stills. Ignore height-only resizes. Test on a real device.
+5. **iOS Safari**: loads only metadata until a video has played, so prime once (muted `play()`, pause at once) before the first seek, else seeks paint nothing and clear the poster. Low Power Mode refuses `play()`: keep the poster and fall back to stills. Ignore a toolbar step on touch ([scroll-adapters](scroll-adapters.md) "iOS Safari"). Test on a real device.
 6. Do not `load()` on the warm tier; one soft `load()` only for an evicted decoder after tab sleep. On `pageshow`, visibility return and resume, re-derive time from progress (`conductor.settle()`), never scroll the reader back.
 7. Hidden tab or off-screen: stop the loop. Smooth once, in the conductor, not again on the playhead.
 

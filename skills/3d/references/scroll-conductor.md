@@ -45,7 +45,7 @@ camCurve.getPoint(u, camera.position)
 lookCurve.getPoint(u, target)
 camera.lookAt(target)
 ```
-7. **Responsive.** Author endpoints per breakpoint and rebuild the curves on width or orientation change; never blend a desktop curve into a mobile one. Mobile is a second composition (pull back, own copy zones). Frame by viewport height. Ignore height-only resizes on touch.
+7. **Responsive.** Author endpoints per breakpoint and rebuild the curves on width or orientation change; never blend a desktop curve into a mobile one. Mobile is a second composition (pull back, own copy zones). Frame by viewport height. Ignore a toolbar step on touch (same width, height moved by under a quarter: [scroll-adapters](scroll-adapters.md) "iOS Safari").
 8. **Pointer parallax** lives in a child `inputRig` of the path rig, clamped, damped, faded out near transitions; never in waypoint data. Opposing, unequal layers make the scene pivot instead of sliding like a poster: the look-at carries ~40 % of the camera offset (aiming at a fixed origin drags the subject off its composition), near objects turn more than far ones, DOM copy least. Touch keeps the authored pose; pointerleave eases home; stop publishing once rounded values settle so the loop can rest; cache rects via ResizeObserver.
 9. **Discrete states change per transition**: `conductor.onChapter` (hysteresis built in), not per frame.
 10. **Frame order**: read input, `conductor.tick(dt)`, resolve camera + world, mixers/sims, DOM proxies, render, sample perf. One clock: `ConductorDriver` in R3F, `driveFromGsapTicker` on GSAP pages, `startRafClock` otherwise.

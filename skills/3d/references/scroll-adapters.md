@@ -84,7 +84,7 @@ Only with no other scroll authority: `pages`, `damping` (default 0.25 s), `useSc
 
 ## iOS Safari
 
-- Defer geometry reads one `requestAnimationFrame` on `resize`; ignore height-only resizes on touch (toolbar). `native.ts` does both.
+- Defer geometry reads one `requestAnimationFrame` on `resize`. On touch, a resize with the same width and the height moved by under a quarter is a toolbar step, not a resize: ignore it (ScrollTrigger's `ignoreMobileResize` rule; `scroll-animation` states the same in `scenes.md` "The range wrapper and the sticky pin"). `native.ts` does both.
 - `overscroll-behavior: none` on the root of a scroll scene.
 - iOS restores scroll after scripts run: re-derive from the wrapper on mount, `pageshow`, focus.
 - A result from one iOS version is not verified on another; note the exact version tested.
