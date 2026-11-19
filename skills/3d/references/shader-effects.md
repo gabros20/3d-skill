@@ -22,10 +22,11 @@ Produces:
 
 ## Particles
 
-- Renderer first: a few branded fragments are DOM or SVG, dozens of simple motes a 2D canvas (the `scroll-animation` skill's layer); WebGL earns its cost at thousands, depth or shading.
-- Allocate a worst-case pool once (typed arrays: origin, velocity, birth, seed) and spawn into a ring (`head = (head + 1) % N`). Flight is analytic in the vertex shader from `age = uTime - aBirth`; dead points get size 0 outside clip; upload only respawned ranges.
+- Pick the tier: a few branded fragments are DOM or SVG, dozens of simple motes a 2D canvas, WebGL only at thousands, depth or shading. The layer's place on a scrolling page (tick, budget, reduced motion) is the `scroll-animation` skill's `references/layered-visuals.md` "13. Particles".
+- DOM, SVG or 2D canvas: density by container area (clamped on mobile, never viewport width), a quiet zone behind long copy, `pointer-events: none` with one section-level listener, explicit end modes (recycle, exit, settle with a height cap, static). 2D leaves tumble as a horizontal scale crossing zero with lateral slip driven by the same angle, and a duller baked back face.
+- WebGL: allocate a worst-case pool once (typed arrays: origin, velocity, birth, seed) and spawn into a ring (`head = (head + 1) % N`). Flight is analytic in the vertex shader from `age = uTime - aBirth`; dead points get size 0 outside clip; upload only respawned ranges.
 - Density = `setDrawRange(0, n * density)`, never a reallocation (it hitches), and count ÷ band area: tighten the band before raising count; scale authored counts by `clamp(sqrt(W * H / (1440 * 900)), .5, 1.3)`.
-- Seeded per-instance parameters, uploaded once; vary every parameter or it reads as a scrolling texture.
+- Any tier: seeded per-instance parameters, set once; vary every parameter or it reads as a scrolling texture.
 - Pointer emitters emit by distance travelled, placed along the segment, capped (~14 per frame: a resumed tab hands over one huge move), plus a rare idle trickle.
 - Spawn and recycle where the camera looks, prewarm so nothing is born on frame 1, fade at the band edge. Remove by swapping the last live instance into the hole with its matrix and every custom attribute.
 - Cost is overdraw and uploads, not flight maths: small round sprites.
