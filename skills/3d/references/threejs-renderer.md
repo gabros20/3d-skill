@@ -65,7 +65,7 @@ Skipping `init()` gives a blank canvas and no error. Guard against unmount racin
 ## Lifecycle
 
 - One loop, one final-render owner. Stop with `setAnimationLoop(null)`.
-- On teardown dispose geometry, materials, every texture slot, render targets, PMREM generator, controls (`controls.dispose()`), then `renderer.dispose()` (async on WebGPU in r186 — await it). `dispose()` keeps the WebGL context (r186): on a vanilla route change follow it with `renderer.forceContextLoss()`, or live contexts pile up until the browser drops the oldest (R3F does this on unmount). Hiding is `visible = false`, never dispose.
+- On teardown dispose geometry, materials, every texture slot, render targets, PMREM generator, controls (`controls.dispose()`), then `renderer.dispose()` (async on WebGPU in r186 — await it). `dispose()` keeps the WebGL context (r186): on a vanilla route change follow it with `renderer.forceContextLoss()` once the transition settles (idle callback) or on `pagehide`, never mid-transition while on screen (it stalls the main thread ~100 ms), or live contexts pile up until the browser drops the oldest (R3F does this on unmount). Hiding is `visible = false`, never dispose.
 - A shot or scene that changes FOV, near, far or background snapshots them and restores them on teardown; a warm-up that re-aims the camera restores its pose in `finally`.
 - Context loss: listen for `webglcontextlost` (`preventDefault()`) and `webglcontextrestored`; on restore rebuild GPU content from source, not from disposed objects. Test with `renderer.forceContextLoss()`.
 - `timer.connect(document)` stops huge deltas after a hidden tab; `timer.dispose()` on teardown.

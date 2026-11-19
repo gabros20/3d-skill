@@ -36,7 +36,7 @@ Produces:
 
 ## Inspect and pick-up
 
-- Click and drag share one pointerdown: under 6 px and 600 ms opens, anything else is a drag and never opens. Hover state comes from the last `pointerType`, not `(hover: hover)` (wrong on hybrid laptops and headless).
+- Click and drag share one pointerdown: under 6 px and 600 ms opens, anything else is a drag and never opens. Tighter than DOM drag hysteresis (`frontend` `ui-motion.md` "Gestures and drag", ~10 px) because the canvas also orbits: a 6 px move already turns the camera, so the piece under the pointer has moved. Hover state comes from the last `pointerType`, not `(hover: hover)` (wrong on hybrid laptops and headless).
 - Freeze camera lean on pointerdown and while inspecting; raycast again at pointerup.
 - Lift by layer, not clone: room on layer 0, a dim full-screen quad, `clearDepth()`, then layer 1, with `autoClear = false`, `setClearColor` and no `scene.background` (it re-clears the second pass); lights need `layers.enable(1)` or the piece renders black. Draw both states once at load (first-click compile hitch); flag shadows `needsUpdate` when the piece leaves (ghost shadow).
 - Interpolate the hand-off in camera space (x/z and y/z first, then depth) so it moves sideways at once; close runs on its own clock from the current eased value. Lean bounded and damped, zoom clamped around the fit distance (one demo: ±0.30 / ±0.09 rad, 0.70-1.45 of fit), pitch bounds that ease home.
