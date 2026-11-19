@@ -83,6 +83,7 @@ Prove it with the half-pixel shimmer check in [shared-verification](shared-verif
 - One accumulator per kind of light (emission alpha ≤ ~.97; light on a surface as a tint, ≤ .5-.8; haze `1. - exp(-density * k)`; sparks on top), composited back to front with `top + under * (1. - top.a)`; inking the summed energy loses the core. Clamp `rgb ≤ a` after sums; no halos in empty air; the cavity holding the light gets a darker physical ground, never a black box.
 - `AdditiveBlending` also adds alpha: on an `alpha: true` canvas over the page use `CustomBlending` (src `One`, dst `One`, srcAlpha `Zero`, dstAlpha `One`).
 - **Inside 2D art** nothing depth-tests: stack back art, canvas (`pointer-events: none`), front art in one box and viewBox; a part on both sides is split or modelled in the shader as a simple occluder. Ink ends at a stroke's inner edge.
+- Judge brightness on the composed page ([shared-verification](shared-verification.md)).
 
 ## Mobile and precision
 
