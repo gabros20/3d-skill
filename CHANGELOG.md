@@ -42,7 +42,8 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 - **Intake conforms to the family core** (decision D10): `intake-grill.md` rounds hold at most four
   questions, two rounds at most (8 in all; one round of 4 when most is given), the rest defaulted
-  `[assumed]` and listed for veto. A headless run never blocks: it writes `.3d/questions.md`,
+  `[assumed]` and listed for veto; the 18-row question bank is the menu each round picks its four
+  highest-leverage rows from. A headless run never blocks: it writes `.3d/questions.md`,
   proceeds on the recommended answers tagged `[assumed]` with the brief at
   `status: needs-confirmation`, and opens the receipt with the assumptions that would change the
   result most; installs and paid jobs still wait for a yes. SKILL.md workflow step 2 and front-door

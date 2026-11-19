@@ -27,7 +27,7 @@ Produces:
 2. **Look up facts, then decompose references.** If any reference is attached or linked, run [intake-references](intake-references.md) first (`<skill>/scripts/ref-extract` plus vision passes) and mark the dimensions it fills `given`, evidence-tagged; ask only each reference's intent (match vs style) and the dimensions still `open`. Run `<skill>/scripts/capabilities` and read `.3d/capabilities.md`; read `package.json` (three, R3F, scroll libs, framework), brand tokens and fonts, existing `*.glb *.blend *.spline`, Figma links, `3D.md`, an existing `.3d/`. State what you found as "I found X"; never ask it.
 3. **Hypothesis line**: one sentence plus confidence %, plus what is missing when under 70%. Example: "Scroll-pinned chip reveal on the homepage; 45%; unknown: scroll vs autoplay, style, budget."
 4. **Round 1: the gating frontier, at most 4 questions.** Target use and placement, subject truth (real product or invented; CAD/photo/Figma available), the one feeling or action wanted, style anchor, hard constraints (device floor, weight, brand, deadline, reduced motion), deliverable formats. Pick the four that change the result most from bank rows 1, 2, 3, 4, 15, 16/17 (usually 2, 4, 1, 16/17); the rest take their defaults, tagged `[assumed]` and listed for veto. Every question carries a recommended answer worded so "yes" accepts it.
-5. **Round 2: what round 1 unlocked, at most 4 questions.** Camera and motion beats, lighting and colour, materials, set, FX, interaction. Only dimensions still `open` after defaults. If the user says "your call" and the default is low-regret, record `[assumed]` and move on.
+5. **Round 2: what round 1 unlocked, at most 4 questions.** The four highest-leverage of camera and motion beats, lighting and colour, materials, set, FX, interaction; only dimensions still `open` after defaults. If the user says "your call" and the default is low-regret, record `[assumed]` and move on.
 6. **Cap.** Vague prompt: at most 2 rounds / 8 questions. At least 60% of dimensions `given`: 1 round / 4 questions. After the cap, proceed on `[assumed]` defaults and list them for veto.
 7. **Open or ungrillable look.** When the look is open or the user cannot articulate it, stop asking. Offer THREE labelled directions that differ in direction (concept, light, palette, camera logic), never three polishes of one idea, and ask "A, B or C plus one change":
    - cheapest: three named presets from [design-lookdev-presets](design-lookdev-presets.md) on a greybox of the subject;
@@ -52,7 +52,7 @@ Produces:
 
 ## Question bank
 
-Default = what to recommend when the user does not care. Budgets always resolve through `3D.md` then [shared-performance](shared-performance.md); never invent numbers here.
+The bank is a menu, not a script: its 18 rows hold more than two rounds can ask, so each round picks the four open rows that change the result most and the rest take their defaults, tagged `[assumed]`. Default = what to recommend when the user does not care. Budgets always resolve through `3D.md` then [shared-performance](shared-performance.md); never invent numbers here.
 
 | # | Dimension | Ask | Default by use |
 |---|---|---|---|
