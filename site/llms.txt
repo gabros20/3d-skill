@@ -29,7 +29,7 @@ Triggers: "recreate this in 3D", "make it look like this", "3D hero", "optimize 
 - `spec-check`: validates `refspec.v1`, `shots.v1`, `look.v1`, `feasibility.v1` and `rounds.v1`; exit 1 names the bad fields.
 - `preview`: `serve`, `stop`, `new-version`, `capture` (`--clip`, `--pathtrace`), `diff A B`, `match`, `sweep`, `compare`, `rounds` (stop verdict), `board`, `feedback` (most take `--dir`, default `.3d`); viewer with A/B and reference compare, shot captures, SSIM/PSNR, storyboard contact sheet, notes. A fresh-critic gate judges the evidence before the user sees a version.
 
-## Reference inventory (`skills/3d/references/`, 48 files)
+## Reference inventory (`skills/3d/references/`, 49 files)
 
 Front door
 - `intake-grill.md` — vague request to an approved brief: rounds of at most 6 questions with recommended answers.
@@ -52,7 +52,7 @@ Shared
 
 three.js, R3F and shaders
 - `threejs-renderer.md`, `threejs-r3f-next.md`, `threejs-lookdev.md`, `threejs-loading.md`, `threejs-postfx.md`, `threejs-interaction.md`
-- `shader-glsl.md`, `shader-tsl.md`
+- `shader-glsl.md`, `shader-tsl.md`, `shader-effects.md` (particles, water, volumes, reveals and other effect recipes)
 
 Scroll-driven 3D (optional placement)
 - `scroll-conductor.md`, `scroll-adapters.md`, `scroll-video.md` (pre-rendered scrub video)
