@@ -8,7 +8,7 @@ Read when:
 
 Skip when:
 - What the conductor computes and who owns what → [scroll-conductor](scroll-conductor.md).
-- The page already has a `scroll-animation` scene: its pin, authority and verification win; adapt only the feed.
+- The page already has a `scroll-animation` scene: its pin, authority, tick and verification win, and its `render-bridge` feeds the conductor; attach no adapter here (`scroll-animation` `webgl.md` "The bridge: one measurement", ownership in [scroll-conductor](scroll-conductor.md) "Ownership with `scroll-animation`").
 
 Inputs:
 - `package.json` stack (`<skill>/scripts/capabilities` lists it), the route's scroll authority, project motion rules.
@@ -28,7 +28,7 @@ Project rules first (a MOTION doc, CLAUDE.md): if they ban an engine, never prop
 | nothing | `<skill>/assets/web/adapters/native.ts` | default |
 | drei `ScrollControls` wanted | only on a full-screen 3D page with no other scroll | it owns a scroll container in front of the canvas |
 
-**Same travel everywhere**: every adapter computes progress over `wrapperHeight - 100lvh` (shared `createLvhProbe`), the distance the `lvh` pin actually travels. Never `bottom bottom`, `['start start','end end']` or `innerHeight`: they follow the visual viewport and, with the iOS toolbar shown, hit 1 up to one toolbar height after the pin releases, holding the last frame while the scene scrolls away.
+**Same travel everywhere**: every adapter computes progress over `wrapperHeight - 100lvh` (shared `createLvhProbe`), the distance the `lvh` pin actually travels. Never `bottom bottom`, `['start start','end end']` or `innerHeight`: they follow the visual viewport and, with the iOS toolbar shown, hit 1 up to one toolbar height after the pin releases, holding the last frame while the scene scrolls away. `scroll-animation`'s scenes measure the same ruler, the pin's own box, so inside their pin the scene feeds the conductor and no adapter is attached.
 
 Every adapter returns `{ refresh, destroy }` (Motion: a hook) and calls `setExact` then `settle()` on mount. One authority per route; stamp it (`<html data-scroll-authority>`). Never two: no Lenis with ScrollSmoother, no `ScrollTrigger.normalizeScroll()` with Lenis, no CSS `scroll-behavior: smooth` with ScrollTrigger.
 

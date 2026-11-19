@@ -12,6 +12,15 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+### Changed
+
+- Scroll feed ownership, by the family seam ruling: inside a `scroll-animation` pin, its scene
+  feeds the conductor through `render-bridge` and no 3d scroll adapter is attached; the 3d adapters
+  are for pages without `scroll-animation`. Both skills measure one ruler, the pin's own box
+  (`wrapperHeight - 100lvh`). `scroll-conductor.md` "Ownership with `scroll-animation`" (the rule
+  and the table's first row) and `scroll-adapters.md` (Skip when, "Same travel everywhere") record
+  it, pointing at `scroll-animation` `webgl.md` "Who owns what" and "The bridge: one measurement".
+
 ## [0.9.0] — 2026-11-19
 
 ### Added
