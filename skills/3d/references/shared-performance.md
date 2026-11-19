@@ -35,10 +35,10 @@ Starting contracts, not laws: no official three.js numbers exist. Pick by target
 
 1. One render loop. No allocations or `setState` in the hot path; reuse vectors.
 2. `frameloop="demand"` (R3F) or render-on-change when the scene can rest; invalidate on scroll, input, animation.
-3. Cap DPR: `min(devicePixelRatio, 2)` desktop, 1.5 or lower on phones; drei `AdaptiveDpr` / `PerformanceMonitor` for steps.
-4. `matrixAutoUpdate = false` plus `updateMatrix()` for static objects; raycast a filtered list; `InstancedMesh` for 100+ identical meshes; merge only static, non-interactive geometry.
+3. Cap DPR: `min(devicePixelRatio, 2)` desktop, 1.5 or lower on phones; drei `AdaptiveDpr` / `PerformanceMonitor` for steps. A pixel budget beats a constant: `dpr = clamp(sqrt(budget / (cssW * cssH)), 1, max)` (one gallery: 1.0 MP and max 1.25 on mobile, 1.65 MP and max 1.5 on desktop), the same DPR for every composer; per-pass scale (blur at 0.4×) handles effect bandwidth.
+4. `matrixAutoUpdate = false` plus `updateMatrix()` for static objects; raycast a filtered list; `InstancedMesh` for 100+ identical meshes; merge only static, non-interactive geometry. LOD swaps with hysteresis (`lod.addLevel(obj, dist, 0.1-0.2)`) and one height function across levels.
 5. Time from `THREE.Timer`, clamp delta, `timer.connect(document)` so a hidden tab does not produce a giant step.
-6. Pause when off-screen (IntersectionObserver) and when `document.hidden`.
+6. Pause when off-screen (IntersectionObserver) and when `document.hidden`. Stop drawing once every envelope is below ~1e-3 (one settling at 0.54 instead of 0 keeps the loop at 60 fps forever); an effect that never rests (a pilot flame) runs alone at a reduced rate while the rest sleeps; skip costly terms behind uniform checks.
 7. Never animate material or light counts at runtime: new programs compile and stall.
 
 ## Triage order
@@ -51,7 +51,7 @@ Fix the scenario (route, viewport, DPR, state), measure p50/p95 and `renderer.in
 2. Sample a rolling window only AFTER the reveal; discard the first 2–3 windows.
 3. Discard any window containing a frame over about 100 ms (a transition, not steady state).
 4. Latch degradation one way. Cheapest lever first (DPR), then a tier drop; skip 1–2 windows after each step because the change itself hitches.
-5. Escalate only if the cheap lever measurably failed.
+5. Escalate only if the cheap lever measurably failed. Name what each drop keeps and loses (lower cloud resolution keeps density and lighting, loses wisps); GPU cost is never inferred from CPU frame time.
 6. Cache the tier classification (it flaps); suspend the monitor during benchmarks; start mobile Safari at DPR 1 with no MSAA-heavy post.
 
 A simple "120 frames over 22 ms, degrade" rule produces false positives; use the hardened form.

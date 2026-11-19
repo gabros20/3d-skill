@@ -18,17 +18,19 @@ Produces:
 
 ## Claim-scoped verdicts
 
-1. State each claim and its gate BEFORE looking: class (visual, temporal, performance, resource, lifecycle), the observable, the threshold.
+1. State each claim and its gate BEFORE looking: class (visual, temporal, performance, resource, lifecycle), the observable, the threshold. Visual claims are observable invariants ("the rim reads without bloom", "the horizon never shows the mesh edge"), never adjectives.
 2. A verdict covers only its claim. A good-looking still proves nothing about frame time or leaks.
 3. Missing evidence is `unmeasurable`, never a pass. Say what would measure it.
-4. Freeze what you can before comparing: three.js revision, renderer actually initialised, camera from the shot, fixed time step, viewport, DPR, asset version.
+4. Freeze what you can before comparing: three.js revision, renderer actually initialised, camera from the shot, fixed time step, seed, viewport, DPR, asset version. Procedural or seeded work: sweep three seeds plus a stress seed and the parameter extremes; a seed moves placement, never the model's identity.
 
 ## Evidence per shot
 
 - One PNG per shot per version in `.3d/evidence/vNNN/`, produced by `<skill>/scripts/preview capture`.
-- Also capture a no-post baseline and a far and near view for hero objects, so post effects cannot hide geometry or material faults.
-- Reject a capture that is all black, a constant colour, or from a context whose renderer string is missing.
-- Scroll scenes: judge at progress values, not pixel offsets; test slow and fast scrub, reverse, and reload mid-scene.
+- Also capture a no-post baseline and a far and near view for hero objects, so post effects cannot hide geometry or material faults. Per controlling field or pass: final · no-post · effect contribution alone · its mask · depth, normal or history where relevant. A debug toggle must change the real pipeline, not a label.
+- Reject a capture that is all black, a constant colour, from a context whose renderer string is missing, or byte-identical to a capture of a different view (the loop stalled). Freeze time and sway; render and read the canvas in the same task (`preserveDrawingBuffer` only for an explicit capture).
+- Judge brightness and gain on the composed page (canvas opacity, CSS shades and overlays, blend modes), never the raw canvas: a gain right on the canvas vanished under an 82 % layer and a CSS shade.
+- Aliasing: render, shift the camera half a pixel, render again; `shimmer = mean|A - B| / (0.5 * mean gradient)`: prefiltered ≈ 1, aliased ≥ 3. Stills cannot prove the absence of shimmer, swimming, stale history or pops: record checkpoints (reset, first response, steady state, disocclusion, recovery), view at speed and frame by frame; freeze or accumulate stochastic pixels rather than loosening thresholds.
+- Scroll scenes: judge at progress values, not pixel offsets. Exercise every segment: slow forward and reverse, a fast flick across two or more chapters, scrollbar drag and anchor jumps to non-adjacent chapters, reload mid-segment, history restore, resize or rotate between endpoints, tab hidden ≥ 10 s, scrolling away mid-interaction. Look for labels lagging, reverse-scroll pops, spikes at curve joins, state that lands differently by direction.
 
 ## Spec gate
 
@@ -52,7 +54,7 @@ For scroll-video seams, ssim between one clip's last frame and the next clip's f
 
 ## Assets
 
-`<skill>/scripts/glb-report FILE --budget hero|world|ar|none [--target desktop|mobile] [--json]` lists meshes, triangles, draw-call estimate, materials, texture dimensions and formats, extensions and size, and returns PASS / WARN / FAIL against the budgets in [shared-performance](shared-performance.md); exit 1 on FAIL. `--target mobile` tightens bytes and draw calls (and world triangles). Triangles, size and the texture ceiling can FAIL; draw calls only WARN (advisory); any metric above 80% of its limit WARNs. Sizes are MiB. Re-run after every compression step; a size win that loses node names or animation targets is a failure. Spec conformance: `gltf-validator` when installed.
+`<skill>/scripts/glb-report FILE --budget hero|world|ar|none [--target desktop|mobile] [--json]` lists meshes, triangles, draw-call estimate, materials, texture dimensions and formats, extensions and size, and returns PASS / WARN / FAIL against the budgets in [shared-performance](shared-performance.md); exit 1 on FAIL. `--target mobile` tightens bytes and draw calls (and world triangles). Triangles, size and the texture ceiling can FAIL; draw calls only WARN (advisory); any metric above 80% of its limit WARNs. Sizes are MiB. Re-run after every compression step; a size win that loses node names or animation targets is a failure. Report unique triangles apart from triangles drawn across instances and passes: every shadow map redraws its casters. Spec conformance: `gltf-validator` when installed.
 
 ## What headless numbers can and cannot prove
 
@@ -64,6 +66,8 @@ For scroll-video seams, ssim between one clip's last frame and the next clip's f
 ## Scorecard (0–3 each; score the real page state, not a showroom)
 
 Composition and hierarchy · lighting · materials · colour and tone · motion and timing · performance evidence · fidelity to the refspec.
+
+Score each category from measured sub-metrics through three anchors `[value@1, value@2, value@3]` (linear, clamped) over regions projected from world points through the live camera; score the all-off baseline first and ablate each layer (a removal that raises the score, or moves nothing it should, means the metric is wrong or the layer earns nothing). Look at a 2× crop after every metric-driven change; numbers can rise while the picture worsens. A category's score is the lower of the metric and the fresh critic's, comparable only at the same size and DPR. Lighting sub-metrics, calibrated on one dark interior [P], retune per look: clipped pixels (≥ 254) and crushed pixels (< 2) as shares of the frame, key-to-fill in stops (log2 lit/shaded, linear), frame range p99/p1, banding (gradient pixels in runs of ≥ 6 equal 8-bit values); "looks flat" is luminance standard deviation over the hero region.
 
 Ship when every category reaches its ship bar and the average reaches the average bar in `.3d/feasibility.json` (default `min(2, ceiling)` per category and `min(2.3, mean ceiling - 0.2)`; set at the feasibility gate, [realism-gate](realism-gate.md)). Without a feasibility file: every category ≥ 2 and average ≥ 2.3. Automatic fail: core violation in a live-3D brief (reference pixels as colour or lighting, 2D warps for 3D motion), placeholder primitive plus glow, bloom or fog standing in for geometry, one flat grey, text over 3D unreadable, no evidence image for a claimed shot, no renderer diagnostics for a performance claim.
 
