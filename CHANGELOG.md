@@ -50,7 +50,7 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
   row, the output eval (`headless-stops-at-questions` is now `headless-proceeds-on-assumptions`),
   the compression-ablation preserve list, README, `docs/loop.md`, `docs/usage.md`, the site intake
   card, `llms.txt` and the Remotion grill caption follow; the site video's `aria-label` and `docs/usage.md` say four;
-  the rendered hero video still says six until it is re-rendered.
+  the explainer videos (light and dark) are re-rendered and say four.
 - SKILL.md offset for the new section (3498 → 3451 tokens): the Tools table moved, whole and with
   its full flags, to `shared-preflight.md` "The pack's scripts and assets"; SKILL.md keeps the
   script and asset names and an exact-heading pointer. Rule 2 and route step 3 point at the context
