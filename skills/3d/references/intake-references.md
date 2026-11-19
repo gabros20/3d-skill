@@ -106,6 +106,7 @@ Without the source file you cannot know colour space (assume sRGB/Rec.709, say s
 - Pasting the hex of a shaded pixel as albedo.
 - Reading focal length from "feel"; use the class and a range.
 - Treating a screen recording of a web page as a clean render (UI chrome, scaling, video compression).
+- Probing a live site's canvas with `getContext` before the page has drawn: it creates a context on an unused canvas. A canvas region with no CSS layer behind it is a shader: describe it, never invent CSS.
 - Letting the model overwrite a `measured` leaf.
 - UI reflow in a recorded page reads as a cut or a pull-out: call a cut only when the camera trajectory breaks; report UI-event windows separately.
 - Compression flicker and blocky dark edges read as motion, grain or vignette: measure over windows of about 0.5 s, and cross-check a second way when a number drives a decision.

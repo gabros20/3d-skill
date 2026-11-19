@@ -46,7 +46,7 @@ lookCurve.getPoint(u, target)
 camera.lookAt(target)
 ```
 7. **Responsive.** Author endpoints per breakpoint and rebuild the curves on width or orientation change; never blend a desktop curve into a mobile one. Mobile is a second composition (pull back, own copy zones). Frame by viewport height. Ignore height-only resizes on touch.
-8. **Pointer parallax** lives in a child `inputRig` of the path rig, clamped, damped, faded out near transitions; never in waypoint data.
+8. **Pointer parallax** lives in a child `inputRig` of the path rig, clamped, damped, faded out near transitions; never in waypoint data. Opposing, unequal layers make the scene pivot instead of sliding like a poster: the look-at carries ~40 % of the camera offset (aiming at a fixed origin drags the subject off its composition), near objects turn more than far ones, DOM copy least. Touch keeps the authored pose; pointerleave eases home; stop publishing once rounded values settle so the loop can rest; cache rects via ResizeObserver.
 9. **Discrete states change per transition**: `conductor.onChapter` (hysteresis built in), not per frame.
 10. **Frame order**: read input, `conductor.tick(dt)`, resolve camera + world, mixers/sims, DOM proxies, render, sample perf. One clock: `ConductorDriver` in R3F, `driveFromGsapTicker` on GSAP pages, `startRafClock` otherwise.
 11. **Assets stream by chapter.** Prefetch window `round(position) + direction x {0,1,2}`; keep the previous chapter resident until reverse scroll is safe; report progress by required bytes. Loaders and decoders: [threejs-loading](threejs-loading.md).
@@ -66,7 +66,7 @@ Optional: prototype the choreography in 2D (CSS or Motion timeline against the r
 - Alternate scene, not removal: pin collapses (scroll authority), copy reads as normal DOM, canvas shows the poster. Check the query and WebGL once, render the poster, never load the 3D bundle (`<skill>/assets/web/r3f/SceneCanvas.tsx` does this).
 - Live toggle: `bindReducedMotion(conductor)` snaps to the nearest composed chapter and stops damping.
 - The poster is the LCP element: server-rendered, sized, designed. Context loss: `preventDefault`, show the poster, rebuild from retained sources, re-apply `exact`.
-- DOM carries meaning: real headings, copy readable with the canvas hidden, 44 px DOM proxies for hotspots. Ambient WebGL longer than 5 s needs a pause control.
+- DOM carries meaning: real headings, copy readable with the canvas hidden, 44 px DOM proxies for hotspots. Ambient WebGL longer than 5 s needs a pause control. Shader flashes and strobes follow the `scroll-animation` skill's `references/accessibility.md` "Auto-moving content and flashes"; under reduced motion they dim instead of flashing.
 
 ## Ownership with `scroll-animation`
 

@@ -17,7 +17,7 @@ Produces:
 
 ## Contents
 
-Loop · Repair · Rules · Hard-surface · Stack order · Sculpt · Retopology · Decimate · Cleaning · Fidelity gates · Traps
+Loop · Repair · Rules · Hard-surface · Joins · Stack order · Sculpt · Retopology · Decimate · Cleaning · Fidelity gates · Traps
 
 ## Loop
 
@@ -47,10 +47,14 @@ Prefer repairing an imported or generated model over modelling a common asset fr
 
 Cut first, bevel after, normals last.
 1. Booleans on the clean base. Solver `EXACT`; cutters must be closed (open cutters break Exact and silently skip in Manifold). `FAST` was renamed `FLOAT`; `MANIFOLD` is the fast solver but needs manifold inputs. Messy cutters: `use_self`, `use_hole_tolerant`. Coplanar faces: offset the cutter ~0.1 mm. Keep cutters in a `_cutters` collection, display Wire, `hide_render`.
-2. Bevel above the booleans: Harden Normals on, about 3 mm on body parts and 1 mm on small parts, 3 segments for renders, 1–2 for web.
+2. Bevel above the booleans, Harden Normals on, by scale class: hardware ~2 mm, panel edges ~4 mm, cast or plinth ~7 mm, at most ~5.5 % of the smallest side (pillowy above). Segments by visible radius for renders (≤ 2.5 cm 10-14, ≤ 10 cm 16-24, larger near the camera 28-48), 1-2 for web; spend topology on silhouette, apertures and highlights before hidden flats.
 3. Weighted Normal at the bottom of the stack; Mirror late.
 4. If Harden Normals or Weighted Normal change nothing, the faces are not flat; check in a shiny matcap.
 5. N-gons and booleans for planar machined parts; a quad cage with subdivision for continuous curvature.
+
+## Joins
+
+Every contact is one declared state: one continuous mesh, a declared structural penetration, a proud part (≥ 0.8 mm) or a reveal gap (1.5-6 mm; ≥ 4 mm to read at 2 m). Flush unrelated faces are forbidden (z-fight). Mating parts derive from one shared datum, so a late nudge is a failed dimension; rest parts exactly on their support and check the close-up for a gap. Openings are real apertures in one closed shell, never a dark plane on a solid. Before merging by material, audit each named part (loose or duplicate vertices, zero-area faces, open or non-manifold edges, inside-out closed parts, same-facing coplanar overlap), then audit again after the merge.
 
 ## Modifier stack order
 

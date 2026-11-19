@@ -55,6 +55,11 @@ Every reference is written in this skill's own words. **Adapted** = MIT, Apache-
 | linegel/threejs-complete-set-of-skill | ISC | adapted: visual-validation method |
 | EnzeD/r3f-skills, CloudAI-X/threejs-skills, dgreenheck/webgpu-claude-skill, openai/plugins | none | inspired only |
 | AThevon/genjutsu | NOASSERTION | inspired only |
+| scottstts/Threejs-Awesome-Graphics-Agent-Skills (2026-11 sweep) | MIT | adapted: footprint filtering, procedural fields, volume, water, relief, star, foil and hologram recipes, validation invariants, signal ownership |
+| paper-design/shaders | Apache-2.0 | adapted: precision probe, deterministic time, sizing modes, OKLab mixing, context release |
+| MengTo/Skills (3d, web-design, game skills) | MIT | adapted: inspect and pick-up, metal and fabric values, anchored scorecard, particles, reveals, god rays |
+| wheresryan22/anatomy | MIT | adapted: canvas over a light page, envelopes, hot ramps, exploded views, fallback crossfade |
+| gcomartins/myfskills, Leonxlnx/taste-skill, jakubkrehel/skills, nateherkai/scroll-craft; pbakaus/impeccable | MIT; Apache-2.0 | adapted: single facts (persistent canvas, GLSL ES reserved words, canvas probing, posters per breakpoint, WebGPU adapter gate) |
 
 ## Scroll and design
 

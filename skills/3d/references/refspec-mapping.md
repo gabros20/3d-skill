@@ -31,7 +31,7 @@ Treat every value as a starting range; verify by rendering the shot and comparin
 - **Distance from shot size**: `d ≈ subject_height / (2·tan(fov_v/2)·fill)`. Fill (subject height / frame height): EWS <0.05, WS 0.15-0.3, MWS 0.4-0.55, MS 0.6-0.75, MCU 0.8-0.9, CU ≥1.
 - **Angle and height** place the camera on a sphere around the target: elevation low -10…-25°, eye 0…10°, high 25-45°, top-down 80-90°. Subject left of centre means the camera yaws toward the empty side.
 - **Moves to keyframes**: push-in = dolly on the view axis (FOV change only when background scale changes uniformly and no parallax shows); orbit = azimuth over eased `t` around the target; truck/pedestal = translation perpendicular to view; crane = elevation plus translation with the target locked; handheld = noise on position (about 0.5% of frame) and roll (about 0.3°). Easing: the sampled curve first, a named ease second. For scroll, pose is a pure function of progress ([scroll-conductor](scroll-conductor.md)).
-- Lens defaults by shot type live in [brief-spec](brief-spec.md); this file only converts. Orthographic (isometric, true iso: elevation 35.26°, azimuth 45°): size the frustum, not FOV.
+- Lens defaults by shot type live in [brief-spec](brief-spec.md); this file only converts. Orthographic (isometric, true iso: elevation 35.26°, azimuth 45°): size the frustum, not FOV. Stylised iso: azimuth 55-65° turns the long face across the frame; elevation 30°, 40-50° to look into open things, never below ~25° (tops vanish); one camera per set.
 
 ## Light
 

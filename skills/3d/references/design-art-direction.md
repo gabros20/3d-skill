@@ -21,7 +21,7 @@ Produces:
 
 1. **Intake**: ask only what cannot be inferred, using [intake-grill](intake-grill.md); topology (continuous, connected sets, layered reveal) is the one extra decision here. If a working scene or approved reference exists, copy its measured constants into the ledger; never replace measured details with adjectives.
 2. **World sentence** = subject + spatial journey + transformation ("A reader falls through the model's layers until the chip lights up"). Add an interaction sentence: scroll owns the camera and global time; pointer, touch, keyboard reveal local evidence. Reject any sentence that only describes style.
-3. **Concept-to-form.** Write "This scene shows ___, moving like ___, because ___" before geometry. Icosahedra, torus knots and floating glass blobs are the default trap. **"No hero object" is a valid answer**: real product UI, a gradient field, type, or video can carry the page better. Motion borrows from the referent (mechanical = stepped, signal = pulse then rest). Calm is not frozen: per-node sine drift with a random phase.
+3. **Concept-to-form.** Write "This scene shows ___, moving like ___, because ___" before geometry. Icosahedra, torus knots and floating glass blobs are the default trap. **"No hero object" is a valid answer**: real product UI, a gradient field, type, or video can carry the page better. Motion borrows from the referent (mechanical = stepped, signal = pulse then rest). Calm is not frozen: per-node sine drift with a random phase, but only on what drifts in the referent (dust, water, foliage); a held product, card or UI may be completely still while its content changes (bobbing panels read as aimless).
 4. **World bible** with real constants, committed in writing before markup: unit (1 u = 1 m), human reference 1.7, bevel 0.5-2% of width, silhouette > structure > accent, palette by role name (one hue family, never one grey), FOV range, horizon, copy-safe zones per breakpoint, motion table (camera damping 4.5-7, pointer parallax 0.1-0.5 deg, dust 0.02-0.12 u/s, word reveal 40-90 ms), named anti-references.
 5. **Scene ledger**, 4-8 chapters, one row each:
 
@@ -29,7 +29,7 @@ Produces:
 |---|---|---|---|---|---|---|---|---|---|
 
    Reject a chapter whose landmark, change and camera cannot be named. Weight is the scroll share of the leg to the next chapter ([scroll-conductor](scroll-conductor.md)).
-6. **Camera ledger before curves**: endpoints per breakpoint, roll, near/far, failure risk (clipping, target flips, velocity spikes at joins, copy overlap). Compose endpoints at desktop and mobile first, then interpolate. Sample against coarse proxies offline; do not collide per frame.
+6. **Camera ledger before curves**: endpoints per breakpoint, roll, near/far, failure risk (clipping, target flips, velocity spikes at joins, copy overlap). Compose endpoints at desktop and mobile first, then interpolate. Sample the whole path and every moving part against coarse proxies offline (≥ 64 samples, denser where rotation is fastest) and record the minimum-clearance pose; do not collide per frame.
 7. **Tempo map**: rests, accents, max groups moving at once, one primary peak. At most three scroll-trigger pattern families on a page. Reduced motion is an alternative direction, not zero.
 
 ## Composition
@@ -51,7 +51,7 @@ Lens numbers (full-frame equivalent defaults by shot type) live in [brief-spec](
 | Macro / detail | very long, shallow DOF | push-in | one feature, close-up texture |
 | Reveal | wide-normal | pedestal or track past an occluder | change of state or place |
 
-Move the camera, not the object, unless the object is the story. One lateral or vertical component per path; at least five control points; fog 0.005-0.02, never above 0.03 (unmeasured taste, [U]). Waypoint copy needs a backdrop.
+Move the camera, not the object, unless the object is the story. Stage subjects in the shot's own basis (forward, right, up from camera to target) instead of nudging world coordinates after framing. One lateral or vertical component per path; at least five control points; fog 0.005-0.02, never above 0.03 (unmeasured taste, [U]). Waypoint copy needs a backdrop.
 
 ## Critique: "looks flat / CG / amateur"
 
@@ -65,7 +65,9 @@ Move the camera, not the object, unless the object is the story. One lateral or 
 | Six identical chapters | centred dolly-ins, no change | ledger rule above; vary shot, landmark, world state |
 | Dead | nothing moves at rest | life at three tempos: slow drift, 2-4 s accents, rare flicker |
 
-Disable each effect in turn in QA; delete any with no named job. Verify with screenshots at 390, 768 and 1440 px that someone actually looks at ([shared-verification](shared-verification.md)).
+Disable each effect in turn in QA; delete any with no named job.
+
+Heuristic [P], for a 3D element in a page: pick one dominant lane from the page's intent: a subtle depth field (SaaS, readability first), a data or particle system showing system behaviour toward the CTA (AI, infrastructure), one object moment with a short loop and a fast poster (hardware, launch), or a cinematic world with strict fallback and perf gates (campaign). Pricing and high-intent pages keep 3D decorative; never three heavy effects in one hero; headline and CTA read within ~3 s over the live canvas. Verify with screenshots at 390, 768 and 1440 px that someone actually looks at ([shared-verification](shared-verification.md)).
 
 ## Traps
 

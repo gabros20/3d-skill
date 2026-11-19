@@ -44,6 +44,7 @@ Suitability gate, before any spend:
 1. One clear object, not a scene; opaque and solid; an identity-defining silhouette. Reject glass, lace, smoke, liquid, text and logos (text and logos are always rebuilt, never generated).
 2. Hero prop or static set piece only. Animated rigs need manual cleanup first.
 3. The user accepts triangle-soup output that needs retopology.
+4. The concept image carries the realism (it bakes into the textures): flat, even, neutral light with no rim or hard shadow, plain grey background, a front orthographic-style view; characters in an A-pose with background visible between arm and torso (fused arms cannot be rigged), fingers apart, empty hands. Triangle count is not the lever: decimate afterwards. Say the limits: close-up faces read painted, one fused mesh, no finger rig.
 
 Paid-job rules:
 1. Explicit approval per job, naming service, mode and expected credits. Approval for one job is not approval for the next.

@@ -69,7 +69,7 @@ Numeric budgets stay in [shared-performance](shared-performance.md).
 
 1. `import { WebGPUPathTracer } from 'three-gpu-pathtracer/webgpu'` (v0.0.25+, three r185+); `setScene(scene, camera)`; `renderSample()` once per frame. `maxSamples` is a property (0 = render forever); the denoiser runs only once it is reached, and `OIDNDenoiser` needs `oidn-web` plus a weights URL injected by you.
 2. Limits: WebGPU only; Standard/Physical materials only; environment must be a `Color`, `CubeTexture` or equirect texture, never a PMREM; Spot/Directional/Point lights need MIS on (leave `multipleImportanceSampling` enabled); emissives are traced but not MIS-sampled, so use area lights for clean light; do not use `@react-three/gpu-pathtracer` (wraps the deprecated WebGL tracer); any scene change resets accumulation; BVH rebuilds on geometry change.
-3. Uses: the twin capture (see [realism-gate](realism-gate.md)), poster/hero stills, refine-when-idle only: with a static camera, swap in the accumulated image when the page is idle and drop it on the first input.
+3. Uses: the twin capture (see [realism-gate](realism-gate.md)), poster/hero stills, refine-when-idle only: with a static camera, swap in the accumulated image when the page is idle and drop it on the first input. Accumulate in a half-float target with weight `1 / (n + 1)`; the first frame after a reset is unjittered (else the still snaps a sub-pixel at every start and stop) and replaces the history outright. Accumulation converges sampling noise, never step error.
 4. NEVER ship path-traced clips as live rendering: that replaces the deliverable and is a brief change (B3), not a technique.
 
 ## Direction menu map

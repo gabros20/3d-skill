@@ -42,6 +42,8 @@ The fresh critic ([shared-verification](shared-verification.md)) stays blind to 
 - `CEILING(G#)`: valid only if that G is OFFLINE-ONLY for this pipeline (or BAKE-ONLY on a dynamic brief) AND no untried T id closes it. A defect visible in the twin is a design defect, never CEILING.
 - `ARTEFACT(R#)`: the reference itself is inconsistent; needs the provenance result or a named frame pair.
 
+Against overfitting: with enough references, hold some frames back from the builder and let the critic judge against them; never feed a generated image back as a reference.
+
 Spend rounds only on FIXABLE items, highest gain first, one change-set per version. Name it: `<skill>/scripts/preview new-version --technique T1,T8 --note "…"`. Tried-status is computed from version manifests, never told to the critic. The builder may contest a CEILING label once, only with twin evidence; without a twin it stays FIXABLE. Append one `rounds.v1` line per round to `.3d/rounds.jsonl`: `{schema, round, version, scores{}, avg, defects[{id,category,label,technique|feature|ref,gain,note}], twin?}`.
 
 Core integrity is an automatic fail in a live-3D brief: reference pixels used as colour or lighting (plate, projection, reference frame as texture), 2D warps standing in for 3D motion, overlays, fog or glow standing in for geometry. Allowed: tileable roughness/normal detail derived from a reference crop (D50).

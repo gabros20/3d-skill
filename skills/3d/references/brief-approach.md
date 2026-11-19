@@ -54,7 +54,7 @@ State it in the brief, top to bottom, and give the trigger for each step:
 3. **Poster plus video**: pre-rendered clip or scrub frames from the same `shots.json`. Trigger: no WebGL, low-power mode, data saver.
 4. **Static composition**: the poster from the first real frame. Trigger: `prefers-reduced-motion`, no JS, failed load.
 
-Poster, reduced-motion frame and live first frame must match; the poster carries first paint.
+Poster, reduced-motion frame and live first frame must match; the poster carries first paint. Render the desktop and phone posters from the final scene, each at its own crop. A canvas fading in by `u` over its poster sets the poster's opacity to `(1 - u) / (1 - u * α)` (α = canvas alpha where it matters): a linear `1 - u` makes mid-fade paler than either end. An OBJECT live viewer the visitor drives stays live under reduced motion: a representative steady state, `uTime` frozen, event envelopes zeroed, redrawn only on input.
 
 ## Feasibility gate
 
