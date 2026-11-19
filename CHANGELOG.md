@@ -49,12 +49,14 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
   result most; installs and paid jobs still wait for a yes. SKILL.md workflow step 2 and front-door
   row, the output eval (`headless-stops-at-questions` is now `headless-proceeds-on-assumptions`),
   the compression-ablation preserve list, README, `docs/loop.md`, `docs/usage.md`, the site intake
-  card, `llms.txt` and the Remotion grill caption follow; the rendered hero video still says six
-  until it is re-rendered.
-- SKILL.md offset for the new section (3498 → 3662 tokens): rule 2 and route step 3 now point at
-  the context check and the debug lane that already say them; the invocation line, the mission's
-  out-of-scope list, script flags restated in references (`ref-extract`, `preview`, `glb-report`),
-  and core-workflow steps 2–7 tightened, each step still naming its reference.
+  card, `llms.txt` and the Remotion grill caption follow; the site video's `aria-label` and `docs/usage.md` say four;
+  the rendered hero video still says six until it is re-rendered.
+- SKILL.md offset for the new section (3498 → 3451 tokens): the Tools table moved, whole and with
+  its full flags, to `shared-preflight.md` "The pack's scripts and assets"; SKILL.md keeps the
+  script and asset names and an exact-heading pointer. Rule 2 and route step 3 point at the context
+  check and the debug lane that already say them; the invocation line and the mission's
+  out-of-scope list are cut and core-workflow steps 2–7 tightened, each step still naming its
+  reference. The question label reads "a pool — ask the top four that step 1 left open" (D11).
 
 ### Fixed
 

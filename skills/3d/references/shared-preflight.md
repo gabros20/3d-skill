@@ -5,6 +5,7 @@ Purpose: A read-only detection pass that settles tools, stack, defaults and one 
 Read when:
 - Starting 3D work in a project that has no `3D.md`, or a task would change a recorded decision (new renderer, new scroll owner, new tool).
 - A script or step fails with "command not found" or a missing MCP server.
+- You need a pack script's or asset's usage and outputs ("The pack's scripts and assets").
 
 Skip when:
 - `3D.md` exists and the task fits its decisions (→ the area reference).
@@ -21,6 +22,7 @@ Produces:
 - Procedure
 - The proposal round
 - Tools
+- The pack's scripts and assets
 - Traps
 
 ## Procedure
@@ -83,6 +85,21 @@ MCP servers (agent checks its own tool list):
 | Spline MCP | drive the live Spline editor | ships inside the Spline desktop app (macOS/Windows), auto-registers; not available from the browser | free-account; "not connected" means say so, never silently fall back to code |
 
 Paid generative 3D is never part of preflight: it needs per-job approval ([asset-acquire](asset-acquire.md)).
+
+## The pack's scripts and assets
+
+Run every script by path with the user's project root as the working directory.
+
+| Tool | Usage | Gives |
+|---|---|---|
+| `<skill>/scripts/capabilities` | `[--root PROJECT] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender, MCP hints; never installs |
+| `<skill>/scripts/ref-extract` | `INPUT... [--out .3d/refs] [--frames 12] [--scene 0.3]` | per ref metadata, frames, contact sheet, palette, luma; video cuts and motion; needs ffmpeg |
+| `<skill>/scripts/glb-report` | `FILE [--budget hero\|world\|ar\|none] [--target desktop\|mobile] [--json]` | tris, draw calls, textures, size; PASS/WARN/FAIL, exit 1 on FAIL |
+| `<skill>/scripts/spec-check` | `FILE...` | validates `refspec`, `shots`, `look`, `feasibility`, `rounds` (v1); exit 1 names bad fields |
+| `<skill>/scripts/preview` | `serve` · `new-version --note [--technique T#]` · `capture [--version] [--url] [--pathtrace]` · `diff A B` · `board` · `rounds` · `feedback` · `stop`; all take `--dir` (default `.3d`) | viewer, versions, captures (path-traced twin), SSIM/PSNR, contact sheet, stop verdict, notes ([shared-preview](shared-preview.md)) |
+| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …`; flags in each `--help` | `inspect_scene` · `export_web` · `render_shots` · `bake_maps` · `material_from_maps` · `texture_prep` · `uv_check` · `rig_check` |
+| `<skill>/assets/web/` | copy and own; read each header first | `conductor.ts`, `adapters/*`, `r3f/SceneCanvas.tsx`, `bridge.ts` (dev-only; ask before adding) |
+| `<skill>/assets/templates/` | copy into the project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` |
 
 ## Traps
 

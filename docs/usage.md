@@ -37,7 +37,7 @@ The request decides what is read; you never name a lane. Detail in [loop.md](loo
 
 | Moment | What you do | Why it matters |
 |---|---|---|
-| Intake | answer with "yes" to accept a recommended answer, or change one | rounds are capped at six questions |
+| Intake | answer with "yes" to accept a recommended answer, or change one | rounds are capped at four questions, two rounds at most |
 | Gate 0 | reply to the restated brief with an explicit yes, or edit it | "sounds good" is re-asked as an A/B, not taken as approval |
 | Style frames | pick "A, B or C plus one change" | three directions that genuinely differ |
 | Installs | approve or decline each proposed tool | nothing installs without your yes; `sudo` is yours to run |

@@ -38,7 +38,7 @@ Before producing anything the user will have to live with:
    answers that would change it most.
 6. **Write it down.** Answers and assumptions go to the LEDGER's Context block.
 
-This pack's questions:
+This pack's questions (a pool — ask the top four that step 1 left open):
 1. Where does it live and how is it seen: a hero, a scroll story, a product render, AR?
    (Recommended: a hero with a poster for first paint.)
 2. Is there a reference image or video: match it, or only its style? (Recommended: style.)
@@ -144,16 +144,9 @@ context goes to the LEDGER.
 
 ### Tools
 
-| Tool | Usage | Gives |
-|---|---|---|
-| `<skill>/scripts/capabilities` | `[--root PROJECT] [--json]` | `.3d/capabilities.md`: tools with cost, stack, Blender, MCP hints; never installs |
-| `<skill>/scripts/ref-extract` | `INPUT... [--out .3d/refs]`; flags in [intake-references](references/intake-references.md) | per ref metadata, frames, contact sheet, palette, luma; video cuts and motion; needs ffmpeg |
-| `<skill>/scripts/glb-report` | `FILE [--budget …] [--target …] [--json]` ([shared-performance](references/shared-performance.md)) | tris, draw calls, textures, size; PASS/WARN/FAIL, exit 1 on FAIL |
-| `<skill>/scripts/spec-check` | `FILE...` | validates `refspec`, `shots`, `look`, `feasibility`, `rounds` (v1); exit 1 names bad fields |
-| `<skill>/scripts/preview` | `serve` · `new-version` · `capture` · `diff A B` · `board` · `rounds` · `feedback` · `stop`; flags in [shared-preview](references/shared-preview.md) | viewer, versions, captures (path-traced twin), SSIM/PSNR, contact sheet, stop verdict, notes |
-| `<skill>/assets/blender/*.py` | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` ([blender-scripting](references/blender-scripting.md)) | `inspect_scene` · `export_web` · `render_shots` · `bake_maps` · `material_from_maps` · `texture_prep` · `uv_check` · `rig_check` |
-| `<skill>/assets/web/` | copy and own; read each header first | `conductor.ts`, `adapters/*`, `r3f/SceneCanvas.tsx`, `bridge.ts` (dev-only; ask before adding) |
-| `<skill>/assets/templates/` | copy into the project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` |
+Scripts in `<skill>/scripts/`: `capabilities` · `ref-extract` · `glb-report` · `spec-check` ·
+`preview`. Assets in `<skill>/assets/`: `blender/*.py` · `web/` · `templates/`. Usage and outputs:
+[shared-preflight](references/shared-preflight.md) "The pack's scripts and assets".
 
 ## Universal rules
 
