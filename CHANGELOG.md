@@ -12,6 +12,35 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+### Added
+
+- **shader-effects** (new, router-wired): recipes for particles, holograms and shape handovers,
+  scan, build-up and scene-to-scene reveals, raymarched volumes and god rays, water, parallax
+  relief, stars, holographic foil, fire ramps, rooted wind and backdrop terrain, accumulation on a
+  model, and 2D shader backgrounds, each as technique, starting values and the failure it prevents.
+- **shader-glsl:** Aliasing and footprint (fwidth edges, band fading to the mean, specular AA, gated
+  dither), Procedural fields (shared causal fields, baked periodic noise), Envelopes and edges, and
+  Canvas over a page (light-page ink, premultiplied compositing, layering inside 2D art).
+- **threejs-interaction:** inspect and pick-up contract, exploded views, one camera writer with
+  single-interpolation handoffs, procedural motion (frame-rate-independent decay, springs, posing by
+  direction), fixed-step physics guards, picking state machine.
+- **shared-verification:** observable invariants, seed sweeps, per-pass debug captures, half-pixel
+  shimmer metric, temporal checkpoints, composed-page brightness, the full scroll path list, anchored
+  sub-metrics with layer ablation and min(metric, critic).
+- Material values for metals (linear F0), fabric, soap film, wood and wet surfaces; texture residency;
+  PMREM sigma, sky and look-state rules; bloom, AO, LUT, vignette and adaptive-exposure detail; joins,
+  bevel classes and pre-merge audits in Blender modeling; image-to-3D concept prep.
+
+### Fixed
+
+- `mod(uTime, 1000.)` advice replaced: it jumps at every wrap; wrap oscillator phases on the CPU.
+- `renderer.dispose()` keeps the WebGL context (r186): vanilla teardown now adds `forceContextLoss()`.
+- Mobile precision: three defaults to `highp`; an explicit `mediump` is probed and promoted; the
+  `sin`-hash is flagged as unreliable on Metal and some Android GPUs.
+- Traps verified against r186: `PointsMaterial.size` already includes the pixel ratio,
+  `Float32BufferAttribute` copies its array, physical lobes recompile when crossing 0, undefined
+  `smoothstep` with reversed edges, GLSL ES 3.00 reserved identifiers.
+
 ## [0.8.0] - 2026-10-17
 
 ### Changed

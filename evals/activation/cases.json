@@ -158,5 +158,10 @@
     "id": "near-miss-davinci-vlog",
     "prompt": "Edit my vlog in DaVinci Resolve and add captions.",
     "should_trigger": false
+  },
+  {
+    "id": "implicit-particle-hero",
+    "prompt": "Add a WebGL particle field behind the hero that drifts toward the CTA and reacts to the cursor.",
+    "should_trigger": true
   }
 ]

@@ -161,6 +161,22 @@ Short commit SHA as fetched on 2026-10-16 unless the lane file says otherwise. L
 | sparkjsdev/spark `docs` | 4e0b58c | MIT |
 | splinetool/docs `spline-mcp-and-skill` | n/a | vendor docs |
 
+### Design-fold sweep (2026-11-19)
+
+Effect recipes, shader mechanics, interaction and verification craft, folded through a reader-and-writer pass. Every rule was rewritten; no code was carried. three.js API claims were checked against the r186.1 source. The scottstts rain example derives from GPL code and informed nothing.
+
+| Source | Commit | Licence |
+|---|---|---|
+| scottstts/Threejs-Awesome-Graphics-Agent-Skills (all 24 skills) | 53eb5a2 | MIT |
+| paper-design/shaders `packages/shaders` | e7003a2 | Apache-2.0 (NOTICE) |
+| MengTo/skills `agent-skills` (3d, web-design, game-development, game-combat) | 3cc9345 | MIT |
+| wheresryan22/anatomy | 1482e84 | MIT |
+| gcomartins/myfskills `awesome-webgl` | 98b8bb4 | MIT |
+| Leonxlnx/taste-skill | f6b7657 | MIT |
+| pbakaus/impeccable | d41d986 | Apache-2.0 |
+| jakubkrehel/skills | 547d415 | MIT |
+| nateherkai/scroll-craft | 75d81f7 | MIT |
+
 ## Own work
 
 The `refspec.v1` and `shots.v1` schemas, the loop and its fresh-critic gate, the pixel-parity gate, the claim-scoped verdict scorecard, the preview tool and viewer, `scripts/capabilities`, `glb-report` and `ref-extract`, the `SceneCanvas`, conductor and adapter blocks, and the budget and decision defaults are this repository's own synthesis (2026-10-16), grounded in primary documentation (three.js, glTF-Transform, meshoptimizer, KTX-Software, Blender manual and API notes) as recorded in the ground-truth files.

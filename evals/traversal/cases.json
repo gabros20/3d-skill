@@ -370,5 +370,45 @@
     "forbidden_references": [
       "references/blender-rigging.md"
     ]
+  },
+  {
+    "id": "effect-hologram-handover",
+    "prompt": "Make the three product shapes appear as holograms that hand over one to the next in our R3F scene.",
+    "expected_references": [
+      "references/shader-effects.md"
+    ],
+    "forbidden_references": [
+      "references/blender-channels.md",
+      "references/intake-grill.md",
+      "references/scroll-video.md",
+      "references/asset-acquire.md"
+    ]
+  },
+  {
+    "id": "debug-procedural-shimmer",
+    "prompt": "Our procedural brushed-metal shader sparkles and shows moiré when the camera dollies back.",
+    "expected_references": [
+      "references/shared-debug.md",
+      "references/shader-glsl.md"
+    ],
+    "forbidden_references": [
+      "references/shader-effects.md",
+      "references/intake-grill.md",
+      "references/blender-modeling.md",
+      "references/scroll-adapters.md"
+    ]
+  },
+  {
+    "id": "one-thing-inspect-pickup",
+    "prompt": "Let visitors click a vase on the shelf to lift it to the camera and turn it, then put it back.",
+    "expected_references": [
+      "references/threejs-interaction.md"
+    ],
+    "forbidden_references": [
+      "references/scroll-conductor.md",
+      "references/shader-effects.md",
+      "references/blender-rigging.md",
+      "references/intake-grill.md"
+    ]
   }
 ]

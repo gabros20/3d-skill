@@ -210,5 +210,23 @@
       "Bakes the sim stepped from the first frame, not by jumping frames",
       "Chooses a web delivery route (shape-key/vertex animation, baked video, or GLB animation) and gives the reason"
     ]
+  },
+  {
+    "id": "shader-footprint-and-time",
+    "prompt": "The stripe shader on our hero shimmers on phones and jumps every few minutes; it uses step() and mod(uTime, 1000.0).",
+    "assertions": [
+      "Replaces step() with a footprint-widened smoothstep (fwidth) and fades the stripes toward their mean as they shrink",
+      "Explains that mod(uTime, 1000.0) jumps at the wrap and wraps each oscillator's phase on the CPU instead",
+      "Proves the fix with a half-pixel shimmer check or a temporal capture, not a single still"
+    ]
+  },
+  {
+    "id": "canvas-over-light-page",
+    "prompt": "Our glowing reactor shader looks great on the dark theme but is a white blob on the light theme.",
+    "assertions": [
+      "Uses normal premultiplied blending on the light page, never screen",
+      "Builds the glow from saturation and contrast (saturated body, pale core, coloured rim) with an alpha floor, solving the ink for the colour seen",
+      "Judges the result on the composed page, not the raw canvas"
+    ]
   }
 ]
