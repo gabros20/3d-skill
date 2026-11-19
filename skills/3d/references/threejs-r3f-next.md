@@ -39,7 +39,7 @@ Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount
 - Mount the Canvas lazily: render the poster or static fallback first, mount when the section nears the viewport (`IntersectionObserver` with `rootMargin` ≈ one viewport) or after idle. Keep the poster until the canvas reports its first rendered frame, never on mount, so a failed init leaves the page complete; same crop for poster and scene.
 - A canvas shared across routes lives in a layout that survives navigation (one context, scenes swapped per route).
 - Heavy scene = separate chunk; `loading` shows the poster, not a spinner.
-- Reduced motion and no-WebGL: render the fallback image, never an empty box.
+- Reduced motion and no-WebGL: render the fallback image, never an empty box (except an OBJECT live viewer: [brief-approach](brief-approach.md) Fallback ladder).
 
 ## Pause
 

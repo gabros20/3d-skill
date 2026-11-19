@@ -38,7 +38,7 @@ Starting contracts, not laws: no official three.js numbers exist. Pick by target
 3. Cap DPR: `min(devicePixelRatio, 2)` desktop, 1.5 or lower on phones; drei `AdaptiveDpr` / `PerformanceMonitor` for steps. A pixel budget beats a constant: `dpr = clamp(sqrt(budget / (cssW * cssH)), 1, max)` (one gallery: 1.0 MP and max 1.25 on mobile, 1.65 MP and max 1.5 on desktop), the same DPR for every composer; per-pass scale (blur at 0.4×) handles effect bandwidth.
 4. `matrixAutoUpdate = false` plus `updateMatrix()` for static objects; raycast a filtered list; `InstancedMesh` for 100+ identical meshes; merge only static, non-interactive geometry. LOD swaps with hysteresis (`lod.addLevel(obj, dist, 0.1-0.2)`) and one height function across levels.
 5. Time from `THREE.Timer`, clamp delta, `timer.connect(document)` so a hidden tab does not produce a giant step.
-6. Pause when off-screen (IntersectionObserver) and when `document.hidden`. Stop drawing once every envelope is below ~1e-3 (one settling at 0.54 instead of 0 keeps the loop at 60 fps forever); an effect that never rests (a pilot flame) runs alone at a reduced rate while the rest sleeps; skip costly terms behind uniform checks.
+6. Pause when off-screen (IntersectionObserver) and when `document.hidden`. Stop drawing once every envelope is below ~1e-3 (a settle that stops short keeps the loop running); an effect that never rests (a pilot flame) runs alone at a reduced rate while the rest sleeps; skip costly terms behind uniform checks.
 7. Never animate material or light counts at runtime: new programs compile and stall.
 
 ## Triage order

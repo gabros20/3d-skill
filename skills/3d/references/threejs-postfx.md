@@ -59,7 +59,7 @@ Order: AO on indirect only, never stacked on baked AO. AO radius is world units 
 ## Grade and lens
 
 - LUT after tone map; 32³ is enough. A LUT authored after tone mapping is display-domain (clamped 0–1): never move it before tone mapping without rebuilding it. Sample with a half-texel inset, `uv = saturate(c) * (N - 1) / N + 0.5 / N`.
-- Vignette/grain are cheap; chromatic aberration only if the brief names it. A vignette after the tone curve must be exactly 1.0 over the focal area or it caps peak white (brightest 0.1 % landed at 211–226, not 247–255); a lens falloff belongs in linear HDR before tone mapping.
+- Vignette/grain are cheap; chromatic aberration only if the brief names it. A vignette after the tone curve must be exactly 1.0 over the focal area or it caps peak white; a lens falloff belongs in linear HDR before tone mapping.
 - Adaptive exposure only if the brief needs it; fixed exposure is the marketing default. When needed: meter a tiny target (64×36), weighted log-average (down-weight near-black), read back async every ~12 frames, `target = clamp(0.18 / avg * 2^EC, 0.45, 1.85)`, adapt with `1 - exp(-dt * speed)`, faster up than down; mask sky and UI; a failed readback holds its value.
 - DOF: `target` is a world position, not a ref; SSAO in the wrapper needs `enableNormalPass`. DOF and SSAO are the expensive ones: budget one.
 

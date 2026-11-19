@@ -31,7 +31,7 @@ Produces:
 5. Camera moving under a still pointer: call `state.events.update()` in `useFrame` only for those cases.
 6. Touch: give tiny objects DOM buttons on mobile; a hit proxy follows the camera's rendered pose, not target state.
 7. Cursor feedback via CSS `cursor` on the canvas wrapper, set from hover handlers.
-8. Each interactive object runs `unavailable → idle ↔ hover/focus → active` through ONE setter shared by pointer and DOM focus; availability comes from exact progress, hidden or occluded proxies never take a hit.
+8. Each interactive object runs `unavailable → idle ↔ hover/focus → active` through ONE setter shared by pointer and DOM focus; availability comes from exact progress, hidden or occluded proxies never take a hit; an open detail never blocks scroll and closes when progress leaves its range.
 9. A pointerdown on an interactive object disables orbit until release, cancel or leave (else the camera turns mid-drag, or stays dead); a moving camera moves the drag plane.
 
 ## Inspect and pick-up
@@ -39,7 +39,7 @@ Produces:
 - Click and drag share one pointerdown: under 6 px and 600 ms opens, anything else is a drag and never opens. Hover state comes from the last `pointerType`, not `(hover: hover)` (wrong on hybrid laptops and headless).
 - Freeze camera lean on pointerdown and while inspecting; raycast again at pointerup.
 - Lift by layer, not clone: room on layer 0, a dim full-screen quad, `clearDepth()`, then layer 1, with `autoClear = false`, `setClearColor` and no `scene.background` (it re-clears the second pass); lights need `layers.enable(1)` or the piece renders black. Draw both states once at load (first-click compile hitch); flag shadows `needsUpdate` when the piece leaves (ghost shadow).
-- Interpolate the hand-off in camera space (x/z and y/z first, then depth) so it moves sideways at once; close runs on its own clock from the current eased value. Lean bounded and damped (±0.30 / ±0.09 rad), zoom 0.70-1.45 of fit, pitch bounds that ease home.
+- Interpolate the hand-off in camera space (x/z and y/z first, then depth) so it moves sideways at once; close runs on its own clock from the current eased value. Lean bounded and damped, zoom clamped around the fit distance (one demo: ±0.30 / ±0.09 rad, 0.70-1.45 of fit), pitch bounds that ease home.
 - `touch-action: none` only while inspecting. A real button opens it; focus Close; Esc closes and returns focus; announce through a separate `role="status"` node. Reduced motion: an instant lift, direct manipulation kept.
 
 ## Exploded views

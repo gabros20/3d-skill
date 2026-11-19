@@ -50,17 +50,17 @@ Produces:
 - Fresnel: `float f = pow(1.0 - saturate(dot(normalize(vNormal), normalize(vViewPosition))), 3.0);` — both in view space. `normalMatrix * normal` is view space: never dot it with a world-space camera vector.
 - Dissolve: `float n = noise(vWorldPos * scale); if (n < uProgress) discard;` + emissive edge `smoothstep(uProgress, uProgress + 0.05, n)`. Mirror in `customDepthMaterial` or shadows ignore the cut. Many objects: per-instance attributes (seed, start time) on one material, never a cloned material each.
 - Gradient: mix on `vUv.y` or local `position.y`; colours in linear (OKLab mixing for 2D fields: [shader-effects](shader-effects.md)).
-- Vertex deformation: raise subdivisions, recompute normals, mirror in `customDepthMaterial`/`customDistanceMaterial`. Culling and raycast bounds do not follow GPU displacement: set `frustumCulled = false` or enlarge `geometry.boundingSphere`. Hard-surface normals: `BufferGeometryUtils.toCreasedNormals(geo, angle)` (~32-50°), never a plain `computeVertexNormals()` (rounds edges). Deforming textured surfaces keep rest UVs, or the weave swims.
+- Vertex deformation: raise subdivisions, recompute normals, mirror in `customDepthMaterial`/`customDistanceMaterial`. Culling and raycast bounds do not follow GPU displacement: set `frustumCulled = false` or enlarge `geometry.boundingSphere`. Hard-surface normals (CPU, once at load): `BufferGeometryUtils.toCreasedNormals(geo, angleRad)` (~0.55-0.87 rad; returns non-indexed geometry), never a plain `computeVertexNormals()` (rounds edges). Deforming textured surfaces keep rest UVs, or the weave swims.
 
 ## Aliasing and footprint
 
 Procedural detail has no mip chain: filter every band yourself. MSAA fixes none of this.
 
-1. Edges: `smoothstep(e - s, e + s + fwidth(v), v)`, so a designed softness of 0 still gets a one-pixel floor. Never `step()`.
+1. Edges: `smoothstep(e - s, e + s + max(fwidth(v), 1e-4), v)`, so a designed softness of 0 still gets a one-pixel floor (and the edges never meet). Never `step()`.
 2. Periodic bands fade by footprint, `* (1. - smoothstep(a, b, fwidth(coord) * freq))`, toward the band's MEAN, never to zero (receding surfaces darken); frequencies stay fixed, bump fades before colour, and a period under ~2.5-5 device px is gone.
 3. Specular AA for procedural or bumpy normals: `v = max(dot(dFdx(N), dFdx(N)), dot(dFdy(N), dFdy(N)))`, `rough = clamp(sqrt(rough * rough + v), 0., 1.)`.
 4. Thin lines stay ≥ ~1 device px wide; below that, fade coverage. Never displace with frequencies the mesh cannot represent.
-5. Output of a standalone effect: tone-map, never `clamp`; then ±1 LSB animated triangular dither gated by `smoothstep(0., 1.5/255., maxChannel)` so empty pixels stay exactly 0 (premultiplied: dither rgb and alpha together). Ungated soft terms staircase into 8-bit bands.
+5. Output of a standalone effect: tone-map, never `clamp`; then ±1 LSB animated triangular dither gated by `smoothstep(0., 1.5/255., maxChannel)` so empty pixels stay exactly 0 (premultiplied: dither rgb and alpha together).
 
 Prove it with the half-pixel shimmer check in [shared-verification](shared-verification.md).
 
@@ -68,27 +68,26 @@ Prove it with the half-pixel shimmer check in [shared-verification](shared-verif
 
 - Write the bundle before code: coordinates → macro form → meso structure → causes (wear, wetness, exposure) → channels. The same named fields feed every channel; independent noise per channel reads as printed on.
 - One stable domain per cause: object or undeformed coordinates for form (noise on displaced positions stretches), one shared world plane for water and wetness, a stable per-instance seed. Warp coordinates, not results; separate bands for silhouette, regions, breakup and micro-normal; perceptual names (`ridgeWidth`, not `noise3Amount`) and a debug view per field.
-- Bake periodic noise once (1024² RGBA8, repeat, mipmapped, `NoColorSpace`) and sample it at several stretches: mips filter for free (one full-screen pass fell from 1.5-3 to 0.3-0.6 ms). Slopes of a baked field: finite differences a few px apart, never `dFdx` of one texel. Clamp bump gradients so steps never flip the normal.
-- Fire, smoke, water and mist evolve in place: drift a warp field through the noise. Scrolling or spinning the noise reads as sliding cloth or a printed ball.
+- Bake periodic noise once (1024² RGBA8, repeat, mipmapped, `NoColorSpace`) and sample it at several stretches: mips filter for free and cost a fraction of live octaves. Slopes of a baked field: finite differences a few px apart, never `dFdx` of one texel. Clamp bump gradients so steps never flip the normal.
+- Fire, smoke, water and mist evolve in place: drift a warp field through the noise; scrolled or spun noise reads as sliding cloth.
 
 ## Envelopes and edges
 
 - **Nothing pops.** Every animated uniform rides an envelope: an event keeps its start time, a `smoothstep` attack (40-120 ms, zero slope at onset), then exponential decay; overlapping events sum (a list, never one overwritten start). Phase changes crossfade on the physical quantity; hue settles separately and slower (~0.3-0.5 s); brightness only falls in a fade-out. Frame-rate-independent decay: [threejs-interaction](threejs-interaction.md) Procedural motion.
 - **No hard cut-offs.** Every term reaches 0 before any `if`, bound or canvas edge. Cell noise keeps offset + radius + tail under half a cell or samples the 3×3 neighbours; radial noise uses the direction vector, not `atan` (seam at ±π).
-- Build effects in world space with the scene camera: a screen-space glow runs through floors and columns.
+- Build effects in world space with the scene camera (a screen-space glow runs through floors).
 
 ## Canvas over a page
 
-- **Light page:** normal blending, premultiplied, never `screen` (over white it stays white). Nothing is brighter than the paper, so light reads through saturation and contrast: saturated body, pale core, coloured rim, an alpha floor at the hot end (else the core reads as a hole). Design the colour seen, then solve the ink: `absorbed = 1. - seen; a = max(maxChannel(absorbed), cover); rgb = a - absorbed` (composites to exactly `seen` over white). A darkened dark-theme glow reads as red ink smoke.
+- **Light page:** normal blending, premultiplied, never `screen` (over white it stays white). Nothing is brighter than the paper, so light reads through saturation and contrast: saturated body, pale core, coloured rim, an alpha floor at the hot end (else the core reads as a hole). Design the colour seen, then solve the ink: `absorbed = 1. - seen; a = max(maxChannel(absorbed), cover); rgb = a - absorbed` (composites to exactly `seen` over white).
 - One accumulator per kind of light (emission alpha ≤ ~.97; light on a surface as a tint, ≤ .5-.8; haze `1. - exp(-density * k)`; sparks on top), composited back to front with `top + under * (1. - top.a)`; inking the summed energy loses the core. Clamp `rgb ≤ a` after sums; no halos in empty air; the cavity holding the light gets a darker physical ground, never a black box.
 - `AdditiveBlending` also adds alpha: on an `alpha: true` canvas over the page use `CustomBlending` (src `One`, dst `One`, srcAlpha `Zero`, dstAlpha `One`).
 - **Inside 2D art** nothing depth-tests: stack back art, canvas (`pointer-events: none`), front art in one box and viewBox; a part on both sides is split or modelled in the shader as a simple occluder. Ink ends at a stroke's inner edge.
-- Judge brightness on the composed page: [shared-verification](shared-verification.md).
 
 ## Mobile and precision
 
 - three compiles at `highp` unless unsupported. An explicit `mediump` (`material.precision`, `RawShaderMaterial`, a raw WebGL canvas) is 23-bit on desktops but 10-bit on many phones, so it passes on a laptop and breaks on Android: read `gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).precision` and promote below 23. Positions, UVs and time stay `highp`.
-- A growing `uTime` loses float32 precision, and `mod(uTime, 1000.)` jumps at every wrap unless each frequency × 1000 is a whole multiple of 2π. Wrap each oscillator's phase `ω·t` to [0, 2π) on the CPU (float64) and upload the phase: large `sin()` arguments jitter (a 3 m water wave passes 16,000 rad within an hour).
+- A growing `uTime` loses float32 precision, and `mod(uTime, 1000.)` jumps at every wrap unless each frequency × 1000 is a whole multiple of 2π. Wrap each oscillator's phase `ω·t` to [0, 2π) on the CPU (float64) and upload the phase: large `sin()` arguments jitter.
 - `fract(sin(x) * 43758.5)` repeats or biases on Apple Metal and some Android GPUs: use an integer or sine-free arithmetic hash, or a small noise texture.
 - Loops compile a constant maximum (e.g. 64) and `break` on an integer quality uniform. Texture reads in loops or non-uniform branches have undefined derivatives: use explicit LOD or gradients. Replace per-pixel `pow` chains with a lookup texture.
 - Test noise-heavy shaders with DPR 3 on a phone: fill rate is the cost.
@@ -97,9 +96,9 @@ Prove it with the half-pixel shimmer check in [shared-verification](shared-verif
 
 - A backtick or `${` anywhere in GLSL (even a comment) inside a JS template literal ends the string early; a `//` comment in a one-line template string comments out the rest of the shader (nothing draws, no error): use `/* */`.
 - three compiles GLSL ES 3.00: `texture`, `sample`, `filter`, `input`, `output`, `flat`, `smooth` are reserved or built-in and fail as identifiers. Uniform names clash with built-ins (`time`, `color`) if declared twice; prefix `u`.
-- `smoothstep(e0, e1, x)` is undefined when `e0 >= e1` (works on one driver, garbage on another): write `1. - smoothstep(lo, hi, x)`. `pow` of a negative base is undefined: clamp it. Guard every normalisation (`sum / max(wsum, 1e-5)`; rgb and alpha separately).
+- `smoothstep(e0, e1, x)` is undefined when `e0 >= e1` (driver-dependent): write `1. - smoothstep(lo, hi, x)`. `pow` of a negative base is undefined: clamp it. Guard every normalisation (`sum / max(wsum, 1e-5)`; rgb and alpha separately).
 - `PointsMaterial.size` is already multiplied by the renderer pixel ratio (r186): scaling by `devicePixelRatio` doubles it. A custom `gl_PointSize` must multiply by it itself.
 - `Float32BufferAttribute` copies its array (r186): mutate `attr.array`, then `needsUpdate = true`, or nothing moves; animated attributes `setUsage(DynamicDrawUsage)`.
-- Data targets (distance, normal) are half-float, nearest-filtered (linear filtering at a silhouette invents distances), `samples: 0`. Data masks upload as a `DataTexture` from `getImageData`, never a canvas texture with alpha (premultiplication loses RGB). Stochastic taps use stable per-pixel noise, or identical frames shimmer.
+- Data targets (distance, normal): half-float, nearest-filtered, `samples: 0`. Data masks: a `DataTexture` from `getImageData`, never an alpha canvas texture (premultiplied). Stochastic taps: stable per-pixel noise.
 - GLSL does not run on `WebGPURenderer`; the same effect must be re-expressed in TSL.
 - A shader that compiles proves nothing about the look: compare with a no-shader baseline screenshot ([shared-verification](shared-verification.md)).

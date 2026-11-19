@@ -67,7 +67,7 @@ Move the camera, not the object, unless the object is the story. Stage subjects 
 
 Disable each effect in turn in QA; delete any with no named job.
 
-Heuristic [P], for a 3D element in a page: pick one dominant lane from the page's intent: a subtle depth field (SaaS, readability first), a data or particle system showing system behaviour toward the CTA (AI, infrastructure), one object moment with a short loop and a fast poster (hardware, launch), or a cinematic world with strict fallback and perf gates (campaign). Pricing and high-intent pages keep 3D decorative; never three heavy effects in one hero; headline and CTA read within ~3 s over the live canvas. Verify with screenshots at 390, 768 and 1440 px that someone actually looks at ([shared-verification](shared-verification.md)).
+A 3D element in a page gets one dominant lane; never three heavy effects in one hero; pricing and high-intent pages keep 3D decorative; headline and CTA read within ~3 s over the live canvas. Verify with screenshots at 390, 768 and 1440 px that someone actually looks at ([shared-verification](shared-verification.md)).
 
 ## Traps
 

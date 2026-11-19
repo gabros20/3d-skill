@@ -32,7 +32,7 @@ Produces:
 
 ## Holograms and handovers
 
-- Shell: front faces, `AdditiveBlending`, `depthWrite: false` (order-free, reads as projection). `f = pow(1. - abs(dot(N, V)), 2.)` shaped by `smoothstep(.8, 0., f)` (squared Fresnel alone is a hard outline); incidence in view space via `normalMatrix`.
+- Shell: front faces, `AdditiveBlending`, `depthWrite: false` (order-free, reads as projection). `f = pow(1. - abs(dot(N, V)), 2.)` softened as `f * (1. - smoothstep(0., .8, f))` (squared Fresnel alone is a hard outline); incidence in view space via `normalMatrix`.
 - Scanlines phased on world height so the shape turns inside them, footprint-faded to the band's mean, never to zero. Glitch: a band gated by three incommensurate sines, so most of the surface sits at exactly 0.
 - Shape handover: one normalised sweep over the UNION of all shapes' bounds (+0.1; per-shape ranges make the line jump); complementary discards (`n < p` outgoing, `n >= p` incoming) so additive passes never double; a linear sweep (eased lines brake visibly); index from absolute time (`floor(t * rate) % N`); every shape preallocated.
 
@@ -45,14 +45,14 @@ Produces:
 
 ## Volumes and light shafts
 
-- March only the occupied interval (ray-box or shell entry and exit), clipped at opaque scene depth. Density = a shaped mask eroded by detail. Front to back with early exit at low transmittance; a capped ray returns mean radiance, not wherever it stopped. Start jitter ≤ ¼ step from a stable per-pixel pattern (interleaved gradient noise), so held stills do not crawl.
+- March only the occupied interval (ray-box or shell entry and exit), clipped at opaque scene depth. Density = a shaped mask eroded by detail. Front to back with early exit at low transmittance; a capped ray returns mean radiance, not wherever it stopped. Start jitter: without temporal accumulation ≤ ¼ step from a stable per-pixel pattern (interleaved gradient noise), so stills do not crawl; with a temporal resolve, full-step spatiotemporal blue noise.
 - Render at ½-¼ resolution into a half-float single-sample target; upsample depth-aware, or with a temporal resolve that resets on cuts and resizes and rejects disocclusion. Shadows from a cheap separate representation, never the beauty march. The low tier keeps silhouette and one short light march.
 - Screen-space god rays: a dedicated sky-visibility mask (cutouts and wind matched); one sun direction for sky, rays and light; skip a sun behind the camera; divide by the weight sum (sample count must not change exposure); reject UVs outside the mask and fade as the sun leaves frame (edge clamping paints bands); add in linear HDR before tone mapping; 24-48 samples at half resolution. Whiteout is a bad mask or intensity, not missing bloom.
 - Cheap shafts: additive planes faded by world height, kept behind solids (a plane through a solid draws a bright wedge), tone-mapped once. On an alpha canvas: [shader-glsl](shader-glsl.md) Canvas over a page.
 
 ## Water
 
-- Per-pixel analytic normals from the same wave bundle as the displacement (a scrolling normal map that disagrees with the crests is the tell). Gerstner steepness ΣQ < 1 or the surface folds. Fade each wave by footprint, `1 - smoothstep(.18 * L, .5 * L, footprint)`, in vertex and fragment.
+- Per-pixel analytic normals from the same wave bundle as the displacement (a scrolling normal map that disagrees with the crests is the tell). Gerstner steepness ΣQ < 1 or the surface folds. Fade each wave by footprint, `1 - smoothstep(.18 * L, .5 * L, footprint)` (pixel: `2. * (fwidth(x) + fwidth(z))`; vertex: ~1.2 × grid spacing).
 - Fresnel with `F0 = ((1 - η) / (1 + η))²` (0.02), never constant opacity. Reflect the visible sky and sun with `R.y = abs(R.y) + .002` (else grey smears on wave backs). Clear water has no colour: refraction + Fresnel + absorption; screen-space refraction depth-rejects foreground objects. Foam from the crest or Jacobian metric, never a scrolling texture. Fog takes the sky's horizon haze.
 - Above or below water is decided once per draw, never per triangle; floating objects read height by inverting horizontal displacement.
 
@@ -71,7 +71,7 @@ Hue from wavelength under the real light and view directions (grating equation),
 
 ## Fire and glow
 
-Hot ramps run dull red → orange → yellow → near-white, only in that order (red mixed toward white is a salmon no temperature makes); rims cooler than centres, the pale core only where emission peaks. One stop table feeds the shader and its fallback. Spark streaks ≥ ~1.25 device px, saturated head, cooler tail. Smoke and steam stay light grey, never glow-inked.
+Hot ramps run dull red → orange → yellow → near-white, only in that order (red mixed toward white is a salmon no temperature makes); rims cooler than centres, the pale core only where emission peaks. One stop table feeds the shader and its fallback. Spark streaks ≥ ~1.25 device px, saturated head, cooler tail. On a light page, smoke and steam stay light grey, never glow-inked.
 
 ## Wind and terrain
 
@@ -80,11 +80,11 @@ Hot ramps run dull red → orange → yellow → near-white, only in that order 
 
 ## Accumulation
 
-Snow, moss, dust or wetness on a model: coverage in model-locked coordinates (world coordinates swim when it moves), gated by `smoothstep(.3, .85, worldNormal.y)` × a shelter tag (upward normals alone whiten covered floors), displaced along the normal in world thickness. One mask drives coverage, height and every PBR channel; coverage never moves the seed. Falling particles and the surface read the same wind and time uniforms; the settled amount is its own slow variable with separate build and melt rates.
+Snow, moss, dust or wetness on a model: coverage in model-locked coordinates (world coordinates swim when it moves), gated by `smoothstep(.3, .85, worldNormal.y)` × a shelter tag (upward normals alone whiten covered floors), displaced along the normal in world thickness. One mask drives coverage, height and every PBR channel; raising coverage grows the same patches, never re-rolls them. Falling particles and the surface read the same wind and time uniforms; the settled amount is its own slow variable with separate build and melt rates.
 
 ## 2D shader backgrounds
 
 - Mix gradient colours in OKLab, neutralising hue at very low chroma (sRGB mixing greys the middle); add the gated dither in [shader-glsl](shader-glsl.md) Aliasing and footprint.
 - Object shaders fit a virtual world box (contain or cover) so composition survives any aspect; pattern shaders size in CSS pixels so density never stretches; screen-locked grain or dither grids come from `gl_FragCoord`.
-- Size the canvas from ResizeObserver `devicePixelContentBoxSize` (fallback: DPR × rounded CSS size) × `visualViewport.scale`, capped (~8 MP) by `min(1, sqrt(cap / (w * h)))`. A heavy full-screen march renders at a fixed internal size, cover-fitted.
+- Size the canvas from ResizeObserver `devicePixelContentBoxSize` (fallback: DPR × rounded CSS size) × `visualViewport.scale`, capped by the pixel budget in [shared-performance](shared-performance.md). A heavy full-screen march renders at a fixed internal size, cover-fitted.
 - Precompute logo masks once on the CPU (edge distance, opacity) and animate them in the shader.
