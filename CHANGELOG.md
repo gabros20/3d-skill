@@ -12,6 +12,8 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-11-20
+
 ### Changed
 
 - Scroll feed ownership, by the family seam ruling: inside a `scroll-animation` pin, its scene
@@ -305,6 +307,7 @@ Fixes and features from a live end-to-end test (recreating a generated video loo
 - Repository: README, docs, evals (activation, traversal, output, compression ablation), tests,
   `scripts/check-sync`, a documentation site and hero-video project, `SOURCES.md` provenance.
 
-[Unreleased]: https://github.com/gabros20/3d-skill/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/gabros20/3d-skill/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/gabros20/3d-skill/releases/tag/v0.9.1
 [0.9.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.9.0
 [0.1.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.1.0
