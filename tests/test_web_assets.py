@@ -184,6 +184,8 @@ r.empty = g.shaderVerdict([], null);
 r.clean = g.shaderVerdict([], [{}, { name: 'a', diagnostics: { runnable: true, programLog: 'warning only' } }]);
 r.dead = g.shaderVerdict([], [{ name: 'MergedPass', diagnostics: { runnable: false, programLog: '', fragmentShader: { log: "ERROR: 0:58: 'LinearTransferOETF' : function already has a body" } } }]);
 r.errorFirst = g.shaderVerdict(['from handler'], [{ diagnostics: { runnable: false, programLog: 'x' } }]);
+// Chrome's program log only says a stage failed; the cause is in the shader's log, which must come first
+r.causeFirst = g.shaderVerdict([], [{ name: 'Merged', diagnostics: { runnable: false, programLog: 'Fragment shader is not compiled.', fragmentShader: { log: "ERROR: 0:12: 'x' : undeclared identifier" } } }]);
 
 const logged = []; const orig = console.error; console.error = (...a) => logged.push(a.join(' '));
 const renderer = { debug: { checkShaderErrors: false, onShaderError: null }, info: { programs: [] } };
@@ -191,10 +193,16 @@ const seen = [];
 const guard = g.guardShaders(renderer, (reason) => seen.push(reason));
 r.checksOn = renderer.debug.checkShaderErrors;
 r.beforeFailure = guard.check();
-const gl = { getProgramInfoLog: () => '', getShaderInfoLog: (s) => (s === 'fs' ? "  ERROR: 0:64: 'sRGBTransferOETF' : function already has a body\n" : '') };
+const gl = { getProgramInfoLog: () => 'Fragment shader is not compiled.\n', getShaderInfoLog: (s) => (s === 'fs' ? "  ERROR: 0:64: 'sRGBTransferOETF' : function already has a body\n" : '') };
 renderer.debug.onShaderError(gl, {}, 'vs', 'fs');           // three calls this at the program's first use
 console.error = orig;
 r.seen = seen; r.logged = logged.length === 1 && logged[0].includes('sRGBTransferOETF');
+const bare = { getProgramInfoLog: () => '', getShaderInfoLog: () => null };
+const quiet = { debug: { checkShaderErrors: true, onShaderError: null }, info: { programs: [] } };
+const quietSeen = []; console.error = () => {};
+g.guardShaders(quiet, (reason) => quietSeen.push(reason)); quiet.debug.onShaderError(bare, {}, 'vs', 'fs');
+console.error = orig;
+r.noLogs = quietSeen;
 r.afterFailure = guard.check();
 const silent = { debug: { checkShaderErrors: true, onShaderError: null }, info: { programs: [{ name: 'p', diagnostics: { runnable: false, programLog: 'link failed' } }] } };
 r.diagnosticsOnly = g.guardShaders(silent).check();
@@ -208,9 +216,13 @@ console.log(JSON.stringify(r));
         self.assertIn("MergedPass", o["dead"]["reason"])
         self.assertIn("function already has a body", o["dead"]["reason"])
         self.assertEqual(o["errorFirst"], {"ok": False, "reason": "from handler"})
+        self.assertTrue(o["causeFirst"]["reason"].startswith("Merged: ERROR: 0:12: 'x' : undeclared identifier"))
+        self.assertIn("Fragment shader is not compiled.", o["causeFirst"]["reason"])
         self.assertTrue(o["checksOn"])                               # the guard turns checks back on
         self.assertEqual(o["beforeFailure"], {"ok": True})
-        self.assertEqual(o["seen"], ["ERROR: 0:64: 'sRGBTransferOETF' : function already has a body"])
+        # the shader's own log leads; the program's "not compiled" line follows it
+        self.assertEqual(o["seen"], ["ERROR: 0:64: 'sRGBTransferOETF' : function already has a body\nFragment shader is not compiled."])
+        self.assertEqual(o["noLogs"], ["link failed"])
         self.assertTrue(o["logged"])                                 # the handler replaces three's log, so it logs
         self.assertFalse(o["afterFailure"]["ok"])
         self.assertEqual(o["diagnosticsOnly"], {"ok": False, "reason": "p: link failed"})

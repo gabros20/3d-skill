@@ -22,6 +22,17 @@ interface ProgramDiagnostics {
   fragmentShader?: { log?: string }
 }
 
+/**
+ * The shaders' logs before the program's: when a stage fails, the program log only says so ("Fragment shader is
+ * not compiled."), and the compile error itself is in that shader's log.
+ */
+function joinLogs(logs: readonly (string | null | undefined)[]): string {
+  return logs
+    .map((log) => log?.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 /** Pure: the verdict from the errors the handler saw and `renderer.info.programs` after a warm render. */
 export function shaderVerdict(errors: readonly string[], programs: readonly unknown[] | null | undefined): ShaderVerdict {
   if (errors.length) return { ok: false, reason: errors[0] as string }
@@ -29,7 +40,7 @@ export function shaderVerdict(errors: readonly string[], programs: readonly unkn
     const d = (p as { diagnostics?: ProgramDiagnostics } | null)?.diagnostics
     if (d && d.runnable === false) {
       const name = (p as { name?: string }).name || 'program'
-      const log = d.programLog || d.fragmentShader?.log || d.vertexShader?.log || 'not runnable'
+      const log = joinLogs([d.fragmentShader?.log, d.vertexShader?.log, d.programLog]) || 'not runnable'
       return { ok: false, reason: `${name}: ${log}` }
     }
   }
@@ -54,8 +65,8 @@ export function guardShaders(renderer: WebGLRenderer, onError?: (reason: string)
   renderer.debug.checkShaderErrors = true
   renderer.debug.onShaderError = (gl, program, vs, fs) => {
     const raw = program as unknown as globalThis.WebGLProgram // three passes the GL program, not its wrapper
-    const log = gl.getProgramInfoLog(raw) || gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || 'link failed'
-    const reason = log.trim()
+    const reason =
+      joinLogs([gl.getShaderInfoLog(fs), gl.getShaderInfoLog(vs), gl.getProgramInfoLog(raw)]) || 'link failed'
     errors.push(reason)
     console.error('[scene] shader program failed:', reason)
     onError?.(reason)
