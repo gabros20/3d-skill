@@ -94,11 +94,28 @@ publish(html, 'settled'); await tick();                      // tail skipped by 
 r.tailSkipped = skip();
 
 html.setAttribute('data-entrance', 'pending');
-const t0 = Date.now();
-r.timeout = await gate.whenEntrance('settled', { timeoutMs: 30 });
-r.timeoutWaited = Date.now() - t0 >= 25;
+const t0 = performance.now();
+r.timeout = await gate.whenEntrance('settled', { timeoutMs: 30, since: performance.now() });
+r.timeoutWaited = performance.now() - t0 >= 25;
 r.zeroTimeout = await gate.whenEntrance('settled', { timeoutMs: 0 });
 r.listenersAfterTimeout = listeners;
+
+// The page's clock: the timeout counts from navigation start (performance.now() 0), never from the call. A caller
+// that runs at hydration, after the deadline, must not get a fresh one.
+let t = performance.now();
+r.pastDeadline = await gate.whenEntrance('settled', { timeoutMs: Math.max(0, t - 50) });
+r.pastDeadlineMs = performance.now() - t;
+t = performance.now();
+r.ahead = await gate.whenEntrance('settled', { timeoutMs: t + 60 });   // the deadline is 60 ms after navigation's "now"
+r.aheadMs = performance.now() - t;
+t = performance.now();
+r.since = await gate.whenEntrance('settled', { timeoutMs: 40, since: t });   // a route's own entrance, from its mount
+r.sinceMs = performance.now() - t;
+const early = state(gate.whenEntrance('settled', { timeoutMs: performance.now() + 5000 }));
+publish(html, 'settled'); await tick();                      // the phase still wins before the deadline
+r.phaseBeforeDeadline = early();
+r.listenersAfterClock = listeners;
+html.setAttribute('data-entrance', 'pending');
 
 const ac = new AbortController();
 const aborted = state(gate.whenEntrance('settled', { timeoutMs: 5000, signal: ac.signal }));
@@ -138,6 +155,17 @@ console.log(JSON.stringify(r));
         self.assertTrue(o["timeoutWaited"])
         self.assertEqual(o["zeroTimeout"], "timeout")
         self.assertEqual(o["listenersAfterTimeout"], 0)
+        # the hydration clock: a deadline already past at the call resolves on the next task, not after timeoutMs
+        self.assertEqual(o["pastDeadline"], "timeout")
+        self.assertLess(o["pastDeadlineMs"], 25)
+        self.assertEqual(o["ahead"], "timeout")
+        self.assertGreaterEqual(o["aheadMs"], 50)
+        self.assertLess(o["aheadMs"], 400)
+        self.assertEqual(o["since"], "timeout")
+        self.assertGreaterEqual(o["sinceMs"], 35)
+        self.assertLess(o["sinceMs"], 400)
+        self.assertEqual(o["phaseBeforeDeadline"], "phase")
+        self.assertEqual(o["listenersAfterClock"], 0)
         self.assertEqual(o["abort"], "rejected:AbortError")
         self.assertEqual(o["listenersAfterAbort"], 0)
         self.assertEqual(o["preAborted"], "rejected:AbortError")

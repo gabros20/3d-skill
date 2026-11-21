@@ -9,6 +9,11 @@
  *
  * Contract: an absent attribute means "no entrance" and resolves 'none' at once. Phases only move
  * forward; `tail` may be skipped. An unknown value is treated as absent.
+ *
+ * The timeout runs on the page's clock, not the caller's: it counts from navigation start
+ * (`performance.now()` 0), where a load entrance starts (its CSS plays from first paint). A caller
+ * runs at hydration, hundreds of ms later on a slow phone, so a timer started there fires that much
+ * late. A route's own entrance after a client-side navigation starts with the route: pass `since`.
  */
 
 export type EntrancePhase = 'pending' | 'running' | 'tail' | 'settled'
@@ -17,8 +22,16 @@ export type EntranceWait = 'phase' | 'none' | 'timeout'
 export interface WhenEntranceOptions {
   /** The element carrying `data-entrance`. Default `document.documentElement`. */
   scope?: Element
-  /** Failsafe: resolve 'timeout' after this many ms. Default 2500. `Infinity` waits for the phase. */
+  /**
+   * Failsafe: resolve 'timeout' once `performance.now()` reaches `since + timeoutMs`. Default 2500.
+   * `Infinity` waits for the phase.
+   */
   timeoutMs?: number
+  /**
+   * The `performance.now()` the timeout counts from. Default 0, the navigation start. A scope whose
+   * entrance starts later (a route root after a client-side navigation) passes the time it mounted.
+   */
+  since?: number
   /** Abort rejects with `signal.reason` and removes the listener and timer. */
   signal?: AbortSignal
 }
@@ -36,7 +49,8 @@ export function readEntrance(scope?: Element): EntrancePhase | null {
 
 /**
  * Resolves 'phase' once the scope's phase is at or past `phase`, 'none' when the attribute is
- * absent (now, or removed while waiting), 'timeout' after `timeoutMs`.
+ * absent (now, or removed while waiting), 'timeout' once `since + timeoutMs` has passed (at once,
+ * on the next task, if it already has: a page past its load entrance never waits).
  */
 export function whenEntrance(
   phase: 'running' | 'tail' | 'settled',
@@ -55,7 +69,7 @@ export function whenEntrance(
   const immediate = check()
   if (immediate) return Promise.resolve(immediate)
 
-  const timeoutMs = opts.timeoutMs ?? 2500
+  const { timeoutMs = 2500, since = 0 } = opts
   return new Promise<EntranceWait>((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout> | undefined
     const cleanup = (): void => {
@@ -77,10 +91,13 @@ export function whenEntrance(
     scope.addEventListener('entrance:phase', onPhase)
     signal?.addEventListener('abort', onAbort, { once: true })
     if (Number.isFinite(timeoutMs)) {
-      timer = setTimeout(() => {
-        cleanup()
-        resolve('timeout')
-      }, Math.max(0, timeoutMs))
+      timer = setTimeout(
+        () => {
+          cleanup()
+          resolve('timeout')
+        },
+        Math.max(0, since + timeoutMs - performance.now()),
+      )
     }
   })
 }
