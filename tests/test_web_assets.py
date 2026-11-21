@@ -229,6 +229,45 @@ console.log(JSON.stringify(r));
         self.assertTrue(o["restored"])
 
 
+def code_only(source: str) -> str:
+    """The TSX with its comments removed (the file has no '//' or '/*' inside a string)."""
+    source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    return re.sub(r"(?m)//.*$", "", source)
+
+
+class SceneCanvasRevealPathTests(unittest.TestCase):
+    """r3f/SceneCanvas.tsx can't render under node (no react-dom here), so this guards the source's contract:
+    the poster path downloads no three, nothing on the reveal path goes through React.lazy (React 19 holds a shown
+    fallback's reveal ~300 ms, FALLBACK_THROTTLE_MS), and the failsafe counts from navigation start, not mount."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.code = code_only((WEB / "r3f" / "SceneCanvas.tsx").read_text(encoding="utf-8"))
+
+    def test_poster_path_downloads_no_three(self):
+        static = re.findall(r"(?m)^import\s+(?!type\b)[^;]*?from\s+'([^']+)'", self.code)
+        self.assertNotIn("three", static)
+        self.assertNotIn("@react-three/fiber", static)
+        self.assertIn("import('three')", self.code)
+        self.assertIn("import('@react-three/fiber')", self.code)
+
+    def test_no_suspense_hold_on_the_reveal(self):
+        lazies = re.findall(r"(\w+)\s*=\s*lazy\(", self.code)
+        self.assertEqual(lazies, ["LazyDriver"])              # only the driver's fallback outside a SceneCanvas
+        self.assertEqual(self.code.count("<Suspense"), 1)      # the one inside the Canvas, for asset children
+        self.assertIn("setLoaded({ Live, Scene:", self.code)    # the loaded modules render from state
+        self.assertRegex(self.code, r"<Canvas[\s\S]*<Suspense fallback=\{null\}>[\s\S]*</Suspense>[\s\S]*</Canvas>")
+
+    def test_failsafe_counts_from_navigation_start(self):
+        self.assertNotRegex(self.code, r"performance\.now\(\)\s*\+")
+        self.assertNotIn("deadline", self.code)
+        self.assertIn("whenEntrance(phase, { timeoutMs: entranceTimeoutMs, signal })", self.code)
+
+    def test_composer_compiles_the_target_variant(self):
+        self.assertIn("compileFor(three, gl, scene, camera, composer)", self.code)
+        self.assertRegex(self.code, r"gl\.setRenderTarget\(target\)\s*compiling = gl\.compileAsync\(scene, camera\)")
+
+
 class BridgeFrameStatsTests(unittest.TestCase):
     def test_draw_calls_cover_every_pass(self):
         script = r"""
