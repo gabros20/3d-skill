@@ -12,6 +12,55 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+### Fixed
+
+- A failed shader program could fade in an empty canvas while frame stats read 60 fps.
+  `r3f/SceneCanvas.tsx` now guards every program: `renderer.debug.onShaderError` (it replaces
+  three's own console error, so the guard logs) and `info.programs[].diagnostics` after the warm
+  render (three r186 fills both only under `checkShaderErrors`, at a program's first use). A failure
+  sets `data-scene-mode="error"`, keeps the poster and calls the new `onError` prop; it never reaches
+  `data-scene-ready="true"`, a late failure included.
+- The warm-up skipped the post chain: `compileAsync(scene)` never sees composer pass materials, so
+  they compiled on the reveal frame. `SceneCanvas` prepare and `threejs-loading.md` now render one
+  warm frame through the full chain at final size (R3F: one `advance()`), then run the guard and a
+  WebGL2 fence; the Firefox caveat (no `KHR_parallel_shader_compile`) is stated.
+- `bridge.ts` `info().drawCalls` and `tris` sum every pass of the frame the bridge drew; a composer
+  used to report only its last pass.
+
+### Added
+
+- `assets/web/entrance-gate.ts`: `whenEntrance(phase, { scope, timeoutMs, signal })` and
+  `readEntrance()`, the DOM-only consumer of the page-load entrance signal (`data-entrance` on
+  `<html>`, `entrance:phase` event) that `scroll-animation` publishes.
+- `assets/web/shader-guard.ts`: `guardShaders(renderer, onError)` and the pure `shaderVerdict()`,
+  for vanilla renderers too.
+- `SceneCanvas` props: `startAfter: 'none' | 'entrance'` (default `'none'`, unchanged order) with
+  `entranceTimeoutMs` (2500), `data-scene-stage="prepare|reveal|run"`; `antialias` and `alpha`
+  (defaults unchanged, true and true); `onError`.
+- `references/threejs-orchestration.md`: a live scene behind a page-load entrance — the signal,
+  stages, start budget, main-thread prepare in `scheduler.yield()` slices, and the worker as an
+  opt-in for vanilla three (never R3F, never scroll-synced, Safari 17.0 floor and probe). Routed
+  from `SKILL.md`.
+- Traps and rules: `colorspace_pars_fragment` in a `ShaderMaterial`/`ShaderPass`
+  (`shader-glsl.md`); `threejs-renderer.md` "Shader errors"; `shared-verification.md` "Frame stats
+  prove the loop, not the picture"; a `shared-debug.md` symptom row.
+- `threejs-postfx.md` "Merged final pass" (fixed order, aliases, MSAA on the target, not the
+  context); `shared-performance.md` tiered hero pixel budget, 60 fps cap on 120 Hz and "Measuring";
+  `3D.md` template "Hero stages".
+- Node tests for the entrance gate, the shader guard and the bridge's frame stats
+  (`tests/test_web_assets.py`); two traversal eval cases.
+
+### Changed
+
+- `SceneCanvas` reveals only proven frames: prepare (compile, warm render, guard, fence) gates the
+  reveal instead of two frames after creation, and the frameloop starts at `run`. Without a poster
+  the canvas fades in itself (build-up reveal). The poster unmounts after its fade instead of staying
+  at `opacity: 0`, and remounts on failure.
+- `brief-approach.md`: HERO live splits into subject (poster first) and ambient (build-up reveal from
+  the background colour; the poster only on the fallback path).
+- `scroll-conductor.md` ownership: the page-load entrance clock and its signal are
+  `scroll-animation`'s; the scene's stage cues key off it, never fixed times.
+
 ## [0.9.1] — 2026-11-20
 
 ### Changed
