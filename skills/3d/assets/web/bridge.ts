@@ -44,7 +44,9 @@ export interface BridgeInfo {
   shot: string | null;
   renderer: string;
   size: [number, number];
+  /** Whole frame, every pass summed, for the last frame the bridge drew (else the renderer's last render call). */
   tris: number;
+  /** Same scope as `tris`. Zero means nothing was drawn, whatever the frame rate says. */
   drawCalls: number;
   textures: number;
   geometries: number;
@@ -190,13 +192,24 @@ export function installBridge(opts: BridgeOptions): () => void {
 
   let rollRad = 0;
   const draw = opts.render ?? ((): void => gl.render(scene, camera));
+  // A composer renders several times per frame and info auto-resets on each, so the renderer's own
+  // numbers show only the last pass: count the whole frame here.
+  let lastFrame: { calls: number; triangles: number } | null = null;
   // roll_deg is applied around the draw only: OrbitControls re-aims the camera on every update() and would drop it.
   const render = (): void => {
     if (rollRad) {
       camera.rotateZ(rollRad);
       camera.updateMatrixWorld(true);
     }
-    draw();
+    const autoReset = gl.info.autoReset;
+    gl.info.autoReset = false;
+    gl.info.reset?.();
+    try {
+      draw();
+      lastFrame = { calls: gl.info.render.calls, triangles: gl.info.render.triangles };
+    } finally {
+      gl.info.autoReset = autoReset;
+    }
     if (rollRad) {
       camera.rotateZ(-rollRad);
       camera.updateMatrixWorld(true);
@@ -275,8 +288,8 @@ export function installBridge(opts: BridgeOptions): () => void {
         shot: current,
         renderer: name,
         size: [gl.domElement.width, gl.domElement.height],
-        tris: i.render.triangles,
-        drawCalls: i.render.calls,
+        tris: lastFrame?.triangles ?? i.render.triangles,
+        drawCalls: lastFrame?.calls ?? i.render.calls,
         textures: i.memory.textures,
         geometries: i.memory.geometries,
         visibility: document.visibilityState,
