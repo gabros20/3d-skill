@@ -179,6 +179,6 @@ Effect recipes, shader mechanics, interaction and verification craft, folded thr
 
 ## Own work
 
-The `refspec.v1` and `shots.v1` schemas, the loop and its fresh-critic gate, the pixel-parity gate, the claim-scoped verdict scorecard, the preview tool and viewer, `scripts/capabilities`, `glb-report` and `ref-extract`, the `SceneCanvas`, conductor and adapter blocks, and the budget and decision defaults are this repository's own synthesis (2026-10-16), grounded in primary documentation (three.js, glTF-Transform, meshoptimizer, KTX-Software, Blender manual and API notes) as recorded in the ground-truth files.
+The `refspec.v1` and `shots.v1` schemas, the loop and its fresh-critic gate, the pixel-parity gate, the claim-scoped verdict scorecard, the preview tool and viewer, `scripts/capabilities`, `glb-report` and `ref-extract`, the `SceneCanvas`, conductor and adapter blocks, and the budget and decision defaults are this repository's own synthesis (2026-10-16), grounded in primary documentation (three.js, glTF-Transform, meshoptimizer, KTX-Software, Blender manual and API notes) as recorded in the ground-truth files. The shader guard, entrance gate and staged `SceneCanvas` start, and `threejs-orchestration.md` (2026-11-21), come from the field report in issue #1, checked against three r186.1's `WebGLProgram` and `WebGLRenderer` source and MDN browser-compat-data.
 
 Maintainers: add a row here and in `skills/3d/references/SOURCES.md` whenever a reference draws on a new outside source.

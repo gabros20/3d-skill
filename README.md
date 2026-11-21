@@ -81,7 +81,7 @@ straight to [shared-debug](skills/3d/references/shared-debug.md), a single chang
 
 ## Areas
 
-49 references in `skills/3d/references/`, read on demand, never preloaded
+50 references in `skills/3d/references/`, read on demand, never preloaded
 ([docs/areas.md](docs/areas.md) says when each one routes).
 
 | Area | References | Covers |
@@ -89,7 +89,7 @@ straight to [shared-debug](skills/3d/references/shared-debug.md), a single chang
 | Front door (7) | [intake-grill](skills/3d/references/intake-grill.md), [intake-references](skills/3d/references/intake-references.md), [refspec](skills/3d/references/refspec.md), [refspec-mapping](skills/3d/references/refspec-mapping.md), [brief-spec](skills/3d/references/brief-spec.md), [brief-lexicon](skills/3d/references/brief-lexicon.md), [brief-approach](skills/3d/references/brief-approach.md) | grilling, reference decomposition, brief, storyboard, shots, gates, pipeline choice |
 | Engine and realism (4) | [engine-choice](skills/3d/references/engine-choice.md), [realism-gap](skills/3d/references/realism-gap.md), [realism-toolbox](skills/3d/references/realism-toolbox.md), [realism-gate](skills/3d/references/realism-gate.md) | three.js vs another engine; what real-time can match (live, bake-only, offline-only, artefact); ranked techniques; feasibility gate and deterministic stop rules |
 | Shared (5) | [shared-preflight](skills/3d/references/shared-preflight.md), [shared-debug](skills/3d/references/shared-debug.md), [shared-performance](skills/3d/references/shared-performance.md), [shared-preview](skills/3d/references/shared-preview.md), [shared-verification](skills/3d/references/shared-verification.md) | tooling, symptom triage, budgets, versions and captures, evidence and critic |
-| three.js and R3F (6) | [threejs-renderer](skills/3d/references/threejs-renderer.md), [threejs-r3f-next](skills/3d/references/threejs-r3f-next.md), [threejs-lookdev](skills/3d/references/threejs-lookdev.md), [threejs-loading](skills/3d/references/threejs-loading.md), [threejs-postfx](skills/3d/references/threejs-postfx.md), [threejs-interaction](skills/3d/references/threejs-interaction.md) | renderer, Next App Router, light and materials, loaders, post, picking and clips |
+| three.js and R3F (7) | [threejs-renderer](skills/3d/references/threejs-renderer.md), [threejs-r3f-next](skills/3d/references/threejs-r3f-next.md), [threejs-lookdev](skills/3d/references/threejs-lookdev.md), [threejs-loading](skills/3d/references/threejs-loading.md), [threejs-postfx](skills/3d/references/threejs-postfx.md), [threejs-interaction](skills/3d/references/threejs-interaction.md), [threejs-orchestration](skills/3d/references/threejs-orchestration.md) | renderer, Next App Router, light and materials, loaders, post, picking and clips, a live scene behind a page-load entrance |
 | Shaders (3) | [shader-glsl](skills/3d/references/shader-glsl.md), [shader-tsl](skills/3d/references/shader-tsl.md), [shader-effects](skills/3d/references/shader-effects.md) | GLSL on `WebGLRenderer`; TSL and `WebGPURenderer` when needed; effect recipes (particles, water, volumes, reveals) |
 | Design (2) | [design-art-direction](skills/3d/references/design-art-direction.md), [design-lookdev-presets](skills/3d/references/design-lookdev-presets.md) | world sentence, scene ledger, presets, one colour policy |
 | Assets (2) | [asset-acquire](skills/3d/references/asset-acquire.md), [asset-pipeline](skills/3d/references/asset-pipeline.md) | stock and generative sourcing with licences; meshopt, KTX2, budgets |
@@ -123,7 +123,7 @@ never run them from the skill directory. `preview` takes `--dir` (default `.3d`)
 | `preview feedback` | `… feedback [--version vNNN] [--json]` | your notes grouped by version and shot |
 | `preview stop` | `… stop` | ends the server named in `.3d/preview.pid` |
 | Blender scripts | `blender -b in.blend --factory-startup --python-exit-code 1 --python <skill>/assets/blender/<x>.py -- …` | `inspect_scene.py --json out` · `export_web.py --out x.glb [--apply auto\|none\|all]` · `render_shots.py --shots .3d/shots.json --out dir [--import GLB]` · `bake_maps.py --object O --maps … --out-dir D` · `material_from_maps.py --dir D` · `texture_prep.py --seam\|--tile\|--delight\|--derive IMG` · `uv_check.py --res N` · `rig_check.py` |
-| TypeScript blocks | copy into your project and own them; read each header first | `assets/web/conductor.ts`, `adapters/{native,motion,gsap}.ts`, `r3f/SceneCanvas.tsx`, `bridge.ts` |
+| TypeScript blocks | copy into your project and own them; read each header first | `assets/web/conductor.ts`, `adapters/{native,motion,gsap}.ts`, `r3f/SceneCanvas.tsx`, `shader-guard.ts`, `entrance-gate.ts`, `bridge.ts` |
 | Templates | copy into your project | `3D.md`, `brief.md`, `shots.json`, `refspec.example.json` in `assets/templates/` |
 
 Every script is Python 3 standard library, exits 0 ok / 1 problems / 2 usage, and is executed by

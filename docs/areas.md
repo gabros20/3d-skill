@@ -1,6 +1,6 @@
 # Areas
 
-The `3d` pack is one skill with 49 flat, area-prefixed references in
+The `3d` pack is one skill with 50 flat, area-prefixed references in
 [`skills/3d/references/`](../skills/3d/references). The router
 ([`SKILL.md`](../skills/3d/SKILL.md)) links every one directly; nothing depends on directory
 discovery, and a reference is read only when its condition matches. This page lists each area, what
@@ -59,7 +59,8 @@ Used by every lane.
 | [threejs-r3f-next](../skills/3d/references/threejs-r3f-next.md) | `<Canvas>` in Next or React; `ssr: false` errors; double mount; GPU burning off-screen | a client-only scene behind a lazy wrapper, paused off-screen |
 | [threejs-lookdev](../skills/3d/references/threejs-lookdev.md) | lighting rig, environment, materials, shadows; metals render black | environment, one to three lights, material roles, shadow cost |
 | [threejs-loading](../skills/3d/references/threejs-loading.md) | loaders and decoders (meshopt, Draco, KTX2); freeze after the preloader | one loader module, a gated reveal |
-| [threejs-postfx](../skills/3d/references/threejs-postfx.md) | bloom, LUT, DOF, SSAO; double tone mapping | one pipeline, a no-post baseline toggle |
+| [threejs-postfx](../skills/3d/references/threejs-postfx.md) | bloom, LUT, DOF, SSAO; double tone mapping; merging the final passes | one pipeline, a no-post baseline toggle |
+| [threejs-orchestration](../skills/3d/references/threejs-orchestration.md) | a live scene behind a page-load entrance; the entrance jumps or the scene lags | stages keyed to the entrance signal, a start budget, a worker verdict |
 | [threejs-interaction](../skills/3d/references/threejs-interaction.md) | picking, inspect and exploded views, orbit or transform controls, glTF clips, procedural motion, physics proposals | event wiring, one camera writer, one mixer owner |
 | [shader-glsl](../skills/3d/references/shader-glsl.md) | custom GLSL or patched materials on `WebGLRenderer`; shimmer, pops, a canvas over a light page | stable uniforms, a cache key, footprint-filtered detail, a tested mobile fallback |
 | [shader-effects](../skills/3d/references/shader-effects.md) | particles, hologram, reveal, fog or god rays, water, stars, foil, wind, terrain, accumulation, 2D shader backgrounds | per effect: technique, starting values, failure modes |
@@ -141,7 +142,8 @@ or textures must be sourced, shared-verification for the exit criteria.
 | Use | Strategy | Read next |
 |---|---|---|
 | OBJECT live | real-time GLB the visitor spins, zooms or configures; compressed, poster first | threejs-interaction, threejs-lookdev, threejs-loading, asset-pipeline, threejs-r3f-next (Next or React) |
-| Hero, live | real-time three.js or R3F, compressed GLB, poster first | threejs-renderer, threejs-r3f-next, threejs-lookdev, threejs-loading, asset-pipeline |
+| Hero, live, subject | real-time three.js or R3F, compressed GLB, poster first | threejs-renderer, threejs-r3f-next, threejs-lookdev, threejs-loading, asset-pipeline |
+| Hero, live, ambient | the same build behind text, revealed by a build-up from the background colour; the poster only as fallback | as above, plus threejs-orchestration behind a page-load entrance |
 | Hero simple, video loop | pre-rendered WebM or MP4 (or frame sequence) from Blender, with a poster | blender-lookdev-render, blender-channels, shared-performance |
 | Scroll world | real-time scene driven by normalised scroll; camera path from `shots.json` | scroll-conductor, scroll-adapters, threejs-r3f-next or threejs-renderer |
 | Scroll scrub | pre-rendered frames or keyframe-dense video scrubbed by progress | blender-lookdev-render, scroll-conductor, scroll-adapters (and scroll-video for the encode and player) |

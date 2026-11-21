@@ -95,6 +95,7 @@ context goes to the LEDGER.
 | `<Canvas>` in Next or React; `ssr: false` errors; GPU burning off-screen | [threejs-r3f-next](references/threejs-r3f-next.md) | client-only lazy scene |
 | Lighting rig, environment, materials, shadows; metals render black | [threejs-lookdev](references/threejs-lookdev.md) | env, 1–3 lights, material roles, shadow cost |
 | Loaders and decoders (meshopt, Draco, KTX2); freeze after the preloader | [threejs-loading](references/threejs-loading.md) | one loader config, gated reveal |
+| Live scene behind a page-load entrance; entrance jumps, scene lags | [threejs-orchestration](references/threejs-orchestration.md) | stages keyed to the entrance, start budget |
 | Bloom, LUT, DOF, SSAO; double tone mapping | [threejs-postfx](references/threejs-postfx.md) | one pipeline, no-post baseline |
 | Picking, orbit or transform controls, glTF clips, physics proposals | [threejs-interaction](references/threejs-interaction.md) | event wiring, one mixer owner |
 | Which effect closes this gap; the realism stack | [realism-toolbox](references/realism-toolbox.md) | ranked techniques (T ids) with cost, gain and recipe home |

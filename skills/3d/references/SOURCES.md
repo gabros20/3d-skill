@@ -130,4 +130,5 @@ three.js docs, source and release notes (r186); pmndrs React Three Fiber 9, drei
 migration notes; Next.js App Router docs; Khronos glTF 2.0, PBR Neutral and KTX-Software; glTF
 Transform and meshoptimizer (`gltfpack`) docs; Blender 5.x manual, Python API and release notes;
 Blender Lab MCP docs; Blender manual and Python API; Poly Haven and ambientCG licence pages; Meshy and Tripo API docs; licence texts of CHORD, Hunyuan3D-2.1, StableGen, DeepBump and Material Maker; Spline, Spark and model-viewer docs; Apple AR Quick Look and WebXR; Motion,
-GSAP and Lenis docs; FFmpeg filters; Playwright.
+GSAP and Lenis docs; FFmpeg filters; Playwright; MDN browser-compat-data (`KHR_parallel_shader_compile`,
+OffscreenCanvas WebGL); the npm registry entry for `@react-three/offscreen`.

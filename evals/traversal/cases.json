@@ -410,5 +410,32 @@
       "references/blender-rigging.md",
       "references/intake-grill.md"
     ]
+  },
+  {
+    "id": "hero-behind-entrance",
+    "prompt": "Our hero headline animates in word by word on page load, with a live three.js scene behind it. The headline jumps at the end of its entrance and the scene stutters while the text comes in.",
+    "expected_references": [
+      "references/threejs-orchestration.md"
+    ],
+    "forbidden_references": [
+      "references/scroll-conductor.md",
+      "references/scroll-adapters.md",
+      "references/blender-channels.md",
+      "references/intake-grill.md"
+    ]
+  },
+  {
+    "id": "debug-scene-60fps-but-blank",
+    "prompt": "After merging my post passes into one ShaderPass the canvas fades in empty, but my stats still say 60 fps.",
+    "expected_references": [
+      "references/shared-debug.md",
+      "references/shader-glsl.md",
+      "references/shared-verification.md"
+    ],
+    "forbidden_references": [
+      "references/intake-grill.md",
+      "references/blender-channels.md",
+      "references/scroll-conductor.md"
+    ]
   }
 ]
