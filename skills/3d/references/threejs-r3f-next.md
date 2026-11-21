@@ -27,18 +27,20 @@ R3F 9.8.x (`latest`) needs React `>=19 <19.4`; drei 10.7.x needs fiber `^9`; pos
 ## Boundary
 
 1. Any file with `<Canvas>`, `useFrame`, `useThree`, drei, or `window` starts with `'use client'`.
-2. `dynamic(() => import('./Scene'), { ssr: false })` is legal only inside a Client Component. In a Server Component (e.g. `app/page.tsx`) it fails the build. Put it in a `'use client'` wrapper; keep copy and SEO text in Server Components around it.
+2. `dynamic(() => import('./Scene'), { ssr: false })` is legal only inside a Client Component. In a Server Component (e.g. `app/page.tsx`) it fails the build. Put it in a `'use client'` wrapper; keep copy and SEO text in Server Components around it. A scene revealed on a cue loads without it ("Mount").
 3. Never call `useThree`/`useFrame`/loader hooks in the component that renders `<Canvas>`; they belong in children.
 4. `<Canvas>` parent needs a non-zero height. DOM UI lives outside, or in drei `Html`.
 
-Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount, visibility pause, warm render and shader guard, stages behind an entrance via `startAfter`). Prefer it over hand-rolling.
+Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, gated load with the scene chunk as `scene={() => import('./Scene')}`, visibility pause, warm render and shader guard, stages behind an entrance via `startAfter`, poster on any failure). Prefer it over hand-rolling.
 
 ## Mount
 
 - A tiny gate module decides before the heavy chunk is requested: backend support, a fine hover pointer when the effect is pointer-driven, `prefers-reduced-motion`, `prefers-reduced-transparency`, `forced-colors`, document visible, section intersecting.
-- Mount the Canvas lazily: render the poster or static fallback first, mount when the section nears the viewport (`IntersectionObserver` with `rootMargin` ≈ one viewport) or after idle. Keep the poster until the canvas reports its first rendered frame, never on mount, so a failed init leaves the page complete; same crop for poster and scene.
+- Mount the Canvas lazily: first paint shows the poster (a subject scene) or the background colour (an ambient one, built up from empty: [brief-approach](brief-approach.md)); mount when the section nears the viewport (`IntersectionObserver` with `rootMargin` ≈ one viewport) or after idle. Reveal on a proven frame (compiled, warm-rendered, guarded: [threejs-loading](threejs-loading.md)), never on mount, so a failed init leaves the page complete; same crop for poster and scene.
 - A canvas shared across routes lives in a layout that survives navigation (one context, scenes swapped per route).
-- Heavy scene = separate chunk; `loading` shows the poster, not a spinner.
+- Heavy scene = separate chunk over the poster or background, never a spinner. A cued reveal never goes through Suspense: `next/dynamic` and `React.lazy` reveal no sooner than ~300 ms after their fallback showed (React 19 `FALLBACK_THROTTLE_MS`), however soon the chunk lands. Keep the loaded module in state and render it; `SceneCanvas` does, and counts its failsafe from navigation start, not hydration. The rule for any cue: the `scroll-animation` skill's `entrances.md` §11.
+- Inside the Canvas, R3F's own boundary suspends the whole Canvas in the page when a child suspends (its `Block` fallback). Keep a `<Suspense>` inside (as `SceneCanvas` does) and preload what the first frame needs (`useGLTF.preload` in the scene chunk): R3F's reconciler holds that reveal ~300 ms too.
+- A canvas in a background layer (`-z-10`) behind copy: the copy's wrapper gets its own stacking level (`relative z-10`), or Safari can paint the canvas over the copy once its entrance ends ([shared-debug](shared-debug.md); the mechanism: the `scroll-animation` skill's `ios-safari-motion.md` §8).
 - Reduced motion and no-WebGL: render the fallback image, never an empty box (except an OBJECT live viewer: [brief-approach](brief-approach.md) Fallback ladder).
 
 ## Pause

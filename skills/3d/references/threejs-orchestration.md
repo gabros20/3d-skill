@@ -23,11 +23,10 @@ Produces:
 
 ## The signal
 
-The entrance's owner publishes its phase; this skill only reads it. Neither imports the other: the DOM is the interface.
+The entrance's owner publishes its phase (the `scroll-animation` skill's `entrances.md` §11 owns the contract); this skill only reads it. Neither imports the other: the DOM is the interface.
 
-- `data-entrance="pending | running | tail | settled"` on a scope element (default `<html>`), plus a bubbling `entrance:phase` event at each change. The author writes `pending` into the server HTML; no attribute means no entrance, so the scene proceeds at once.
-- Phases only move forward. `tail` (display type within about 1 px of rest) is optional. Reduced motion, the publisher's failsafe or no JS mean `settled` at once.
-- Read it with `<skill>/assets/web/entrance-gate.ts`: `whenEntrance('tail' | 'settled', { timeoutMs: 2500 })` resolves `'phase'`, `'none'` or `'timeout'`. A fixed cue time survives only as that timeout: hydration moves the entrance by hundreds of milliseconds on a slow phone.
+- `data-entrance="pending | running | tail | settled"` on `<html>`, plus a bubbling `entrance:phase` event at each change; it only moves forward, and `tail` (display type within about 1 px of rest) may be skipped. No attribute means no entrance: the scene proceeds at once.
+- Read it with `<skill>/assets/web/entrance-gate.ts`: `whenEntrance('tail' | 'settled', { timeoutMs: 2500 })` resolves `'phase'`, `'none'` or `'timeout'`. A fixed cue time survives only as that timeout, and the timeout counts from navigation start, not from the call: the entrance starts at first paint, the scene's code runs at hydration, hundreds of milliseconds later on a slow phone. A route's own entrance after a client-side navigation passes `since` (its mount).
 
 ## Stages
 
@@ -35,15 +34,15 @@ The entrance's owner publishes its phase; this skill only reads it. Neither impo
 
 | Stage | Starts when | Does |
 |---|---|---|
-| prepare | main thread: before the entrance starts, else after `settled`; a worker: at once | lazy chunk, `compileAsync`, one warm render through the full post chain, the shader guard, a GPU fence ([threejs-loading](threejs-loading.md)) |
+| prepare | main thread: before the entrance starts, else after `settled`; a worker: at once | the load (three, R3F, the `scene` chunk, into state: no Suspense hold), `compileAsync`, one warm render through the full post chain, the shader guard, a GPU fence ([threejs-loading](threejs-loading.md)) |
 | reveal | prepared and proven, and `tail` or later (or the timeout) | one still frame fades in; a static layer costs the compositor almost nothing |
 | run | `settled` (or the timeout), and revealed | the frameloop starts; an ambient scene's intro builds it up from empty, so the late start reads as choreography |
 
-A shader failure at any stage → `data-scene-mode="error"`, the poster, `onError`; never `ready`. Ambient scene or subject scene decides poster versus build-up reveal: [brief-approach](brief-approach.md).
+A failure in prepare (a shader, a load, a throw) never reaches `ready`; a later one drops `ready` to false and shows the poster. Either way `data-scene-mode="error"` and `onError`. Ambient scene or subject scene decides poster versus build-up reveal: [brief-approach](brief-approach.md).
 
 ## Start budget
 
-While the phase is `running`, only compositor work runs. On `settled`, costly starts queue one per task, about two frames apart: the WebGL run, video `play()`, the looping strip, embeds. Fonts are solved before the entrance (preloaded, metric-matched fallback). One tick drives scroll and scene (Lenis `autoRaf: false`). Cap the scene at 60 fps on 120 Hz displays ([shared-performance](shared-performance.md)). No blur or blend over the live canvas until `settled`. The entrance side of the same budget is the `scroll-animation` skill's.
+The hero budget (compositor work only while `running`; costly starts one per task after `settled`; fonts, one tick, no blur over live media) is the `scroll-animation` skill's: `performance.md` §14. The scene's part: its run is first in the start queue, it caps at 60 fps on 120 Hz displays ([shared-performance](shared-performance.md)), and nothing blurs or blends over the canvas until `settled`.
 
 ## Main-thread prepare
 
@@ -78,5 +77,6 @@ Not the default, and never for R3F: `@react-three/offscreen` (0.0.8, May 2023) p
 ## Traps
 
 - Cue times copied from one machine (0.3 / 1.0 / 1.8 s): they encode that machine's compile time. Key to phases.
+- A cue timer started at mount (hydration's clock), or a scene behind `React.lazy` / `next/dynamic`: each puts the reveal hundreds of ms late ([threejs-r3f-next](threejs-r3f-next.md) "Mount").
 - Revealing at `tail` without the warm render: the post programs compile on the reveal frame.
 - A worker for a scene that scroll drives.

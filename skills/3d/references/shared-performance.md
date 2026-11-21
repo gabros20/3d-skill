@@ -50,7 +50,7 @@ A full-bleed hero with thin lines and bloom looks soft at the gallery numbers. S
 |---|---|
 | Desktop, strong GPU | 5 MP, max DPR 1.75 (a ceiling, not the default) |
 | Desktop, default | 3.2 MP, max 1.5 |
-| Mobile | 1.0–1.6 MP, max 1.25 |
+| Mobile | 1.0–1.6 MP, max 1.25 (mobile Safari starts at DPR 1: ladder step 6) |
 
 Pick the starting tier from cheap hints (`navigator.hardwareConcurrency`, `deviceMemory` where present); the ladder corrects a wrong guess downwards. At 5 MP one half-float target is about 40 MB and a bloom chain holds several. For thin lines, compare 4× MSAA on the scene target at 1.5 against 1.75 without it before raising the budget.
 
@@ -75,6 +75,7 @@ A simple "120 frames over 22 ms, degrade" rule produces false positives; use the
 - Cold and warm runs apart: the browser's shader cache means only a cold profile compiles from scratch; repeat a cold run three times before trusting or dismissing a stall.
 - During an entrance: Long Animation Frames (`long-animation-frame`, Chromium) or rAF deltas, p50 and p95.
 - One build per round, every check batched against it; stop the servers and close the tabs right after. Repeated build, serve and headless loops pile up heavy processes.
+- Next 16 keeps the dev server's output in `.next/dev`, and `next build` leaves it alone (its clean skips `dev`; read in Next 16.3), so `next build` and `next start -p <another port>` run beside the user's dev server without touching it. Stop that `next start` when the round ends; the dev server is theirs.
 
 ## Preload and warm-up
 
