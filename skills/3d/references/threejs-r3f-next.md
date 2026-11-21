@@ -40,7 +40,7 @@ Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, gated load
 - A canvas shared across routes lives in a layout that survives navigation (one context, scenes swapped per route).
 - Heavy scene = separate chunk over the poster or background, never a spinner. A cued reveal never goes through Suspense: `next/dynamic` and `React.lazy` reveal no sooner than ~300 ms after their fallback showed (React 19 `FALLBACK_THROTTLE_MS`), however soon the chunk lands. Keep the loaded module in state and render it; `SceneCanvas` does, and counts its failsafe from navigation start, not hydration. The rule for any cue: the `scroll-animation` skill's `entrances.md` §11.
 - Inside the Canvas, R3F's own boundary suspends the whole Canvas in the page when a child suspends (its `Block` fallback). Keep a `<Suspense>` inside (as `SceneCanvas` does) and preload what the first frame needs (`useGLTF.preload` in the scene chunk): R3F's reconciler holds that reveal ~300 ms too.
-- A canvas in a background layer (`-z-10`) behind copy: the copy's wrapper gets its own stacking level (`relative z-10`), or Safari can paint the canvas over the copy once its entrance ends ([shared-debug](shared-debug.md); the mechanism: the `scroll-animation` skill's `ios-safari-motion.md` §8).
+- A canvas in a background layer (`-z-10`) behind copy: the copy's wrapper gets its own stacking level (`relative z-10`), or Safari can paint the canvas over the copy once its entrance ends ([shared-debug](shared-debug.md); the trap's home: the `scroll-animation` skill's `ios-safari-motion.md` §9).
 - Reduced motion and no-WebGL: render the fallback image, never an empty box (except an OBJECT live viewer: [brief-approach](brief-approach.md) Fallback ladder).
 
 ## Pause
