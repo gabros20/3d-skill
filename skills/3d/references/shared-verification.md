@@ -63,6 +63,12 @@ For scroll-video seams, ssim between one clip's last frame and the next clip's f
 - A performance claim needs: a production build, DPR 2, a named viewport, a warm-up, p50 and p95 frame time, on the named target. The dev server costs roughly 2x per frame.
 - Fullscreen passes (bloom, DoF, grain) scale with pixels, so test them at DPR 2.
 
+## Frame stats prove the loop, not the picture
+
+A program that failed to link draws nothing while the loop ticks at 60 fps. A "renders" or "fast" verdict needs, after every shader or post change and before any perf number:
+- a capture of a named proof frame showing the expected content, not one flat clear colour (not frame 0 of a build-up, which is legitimately empty), and a console free of `THREE.WebGLProgram` and `shader program failed` ([threejs-renderer](threejs-renderer.md) "Shader errors");
+- draw calls beside fps, summed over every pass of the frame (`info().drawCalls` from the bridge; in your own stats set `info.autoReset = false` and `reset()` once per frame); zero is a fail at any fps.
+
 ## Scorecard (0–3 each; score the real page state, not a showroom)
 
 Composition and hierarchy · lighting · materials · colour and tone · motion and timing · performance evidence · fidelity to the refspec.

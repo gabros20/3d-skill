@@ -20,7 +20,7 @@ Produces:
 
 ## Contents
 
-- Backend rule · WebGL setup · WebGPU setup · Colour · Resize and DPR · Lifecycle · Version traps
+- Backend rule · WebGL setup · WebGPU setup · Colour · Resize and DPR · Lifecycle · Shader errors · Version traps
 
 ## Backend rule
 
@@ -69,6 +69,15 @@ Skipping `init()` gives a blank canvas and no error. Guard against unmount racin
 - A shot or scene that changes FOV, near, far or background snapshots them and restores them on teardown; a warm-up that re-aims the camera restores its pose in `finally`.
 - Context loss: listen for `webglcontextlost` (`preventDefault()`) and `webglcontextrestored`; on restore rebuild GPU content from source, not from disposed objects. Test with `renderer.forceContextLoss()`.
 - `timer.connect(document)` stops huge deltas after a hidden tab; `timer.dispose()` on teardown.
+
+## Shader errors
+
+A program that fails to link draws nothing while the loop keeps ticking, so fps stays at 60.
+
+- `renderer.debug.checkShaderErrors` (default true) gates every check: `false` silences the console error, `onShaderError` and `diagnostics` alike. Keep it on.
+- `debug.onShaderError(gl, program, vs, fs)` REPLACES three's console error: the handler must log, then route to the host's fallback.
+- `renderer.info.programs[i].diagnostics` (`runnable`, logs) exists only after the program's first use in a draw, never right after `compileAsync`: check it after the warm render ([threejs-loading](threejs-loading.md)).
+- `<skill>/assets/web/shader-guard.ts` does all three; `r3f/SceneCanvas.tsx` wires it to `data-scene-mode="error"` and `onError`.
 
 ## Version traps
 

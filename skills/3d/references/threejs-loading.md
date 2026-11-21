@@ -52,11 +52,13 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 
 ## Hide compile and upload behind the preloader
 
-1. Mount the scene while the preloader is up (paused CSS animation, un-paused on the ready signal).
-2. `await renderer.compileAsync(scene, camera)`. Layer-masked cameras and each state that switches materials are separate programs: compile each. On Safari await the second compile before reveal. On WebGPU `compileAsync` is also on the renderer.
-3. Warm render: a few real frames through the full post chain; set `frustumCulled = false` on meshes for the warm pass so off-screen meshes compile, restore after. Force texture upload with an actual render (or `renderer.initTexture(tex)`, after `init()` on WebGPU) so GPU upload happens now, not on first scroll.
-4. Gate the reveal on rendered frames, not asset progress or timers: count frames in `useFrame(..., -999)` and fire at about frame 8. Then wait two `requestAnimationFrame`s before fading. Two timer-based gates failed in production.
-5. Chunk one-shot procedural work (noise textures, buffers) across frames and start at creation, not first use.
+1. Mount the scene while the preloader is up (paused CSS animation, un-paused on the ready signal). Behind a page-load entrance, prepare runs before it starts or after it settles: [threejs-orchestration](threejs-orchestration.md).
+2. `await renderer.compileAsync(scene, camera)`. It walks the scene only: composer pass materials (bloom's blur chain, a merged final pass) are not in it. Layer-masked cameras and each state that switches materials are separate programs: compile each. On Safari await the second compile before reveal. On WebGPU `compileAsync` is also on the renderer.
+3. Warm render the full chain: `composer.render()` (R3F: one `advance()`, which runs the composer's `useFrame`) at final size, so every pass program compiles and draws now, not on the reveal frame. A linked program is not a warm one: Metal and D3D back ends build pipeline state at the first draw. Set `frustumCulled = false` for the warm pass so off-screen meshes compile, restore after. The draw also uploads textures (or `renderer.initTexture(tex)`, after `init()` on WebGPU).
+4. Prove it: the shader guard (`<skill>/assets/web/shader-guard.ts`, [threejs-renderer](threejs-renderer.md) "Shader errors") after the warm render, then a WebGL2 fence: `gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)`, `gl.flush()`, poll `clientWaitSync(sync, 0, 0)` from a timer until it stops returning `TIMEOUT_EXPIRED`. `SceneCanvas` does all three.
+5. Gate the reveal on proven frames, not asset progress or timers: two timer-based gates failed in production. A loop already running can count frames in `useFrame(..., -999)` and fire at about frame 8, then wait two `requestAnimationFrame`s.
+6. Firefox has no `KHR_parallel_shader_compile`: `compileAsync` resolves after about 10 ms without waiting, and the warm render blocks while it compiles. Schedule it where a block is harmless (under a veil, before the entrance, after `settled`).
+7. Chunk one-shot procedural work (noise textures, buffers) across frames and start at creation, not first use.
 
 ## Texture residency
 
@@ -68,7 +70,7 @@ loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/draco/'));
 
 - Throttled network + cold cache: no decoder 404, no frame over ~100 ms after reveal.
 - DevTools Network lists `.wasm`/transcoder files from your paths, not a CDN you did not choose.
-- `renderer.info.programs.length` stops growing after reveal.
+- `renderer.info.programs.length` stops growing after reveal; a new program after it means the warm render missed a pass or a state.
 
 ## Traps
 

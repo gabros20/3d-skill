@@ -101,5 +101,6 @@ Prove it with the half-pixel shimmer check in [shared-verification](shared-verif
 - `PointsMaterial.size` is already multiplied by the renderer pixel ratio (r186): scaling by `devicePixelRatio` doubles it. A custom `gl_PointSize` must multiply by it itself.
 - `Float32BufferAttribute` copies its array (r186): mutate `attr.array`, then `needsUpdate = true`, or nothing moves; animated attributes `setUsage(DynamicDrawUsage)`.
 - Data targets (distance, normal): half-float, nearest-filtered, `samples: 0`. Data masks: a `DataTexture` from `getImageData`, never an alpha canvas texture (premultiplied). Stochastic taps: stable per-pixel noise.
+- `#include <colorspace_pars_fragment>` in a `ShaderMaterial` or `ShaderPass` fails with "function already has a body" (`LinearTransferOETF`, `sRGBTransferOETF`): three already prefixes it. Only `RawShaderMaterial` includes it. `<colorspace_fragment>` (the call) stays. The failure is silent unless loud: [threejs-renderer](threejs-renderer.md) "Shader errors".
 - GLSL does not run on `WebGPURenderer`; the same effect must be re-expressed in TSL.
 - A shader that compiles proves nothing about the look: compare with a no-shader baseline screenshot ([shared-verification](shared-verification.md)).
