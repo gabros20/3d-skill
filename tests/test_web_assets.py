@@ -1,7 +1,8 @@
 """Runs the DOM-only web assets (entrance-gate.ts, shader-guard.ts, bridge.ts frame stats) under node.
 
 Each module is transpiled with the repo's typescript and imported by a script that fakes only the
-DOM it touches (an EventTarget with attributes, a renderer with `debug` and `info`).
+DOM it touches (an EventTarget with attributes, a renderer with `debug` and `info`). The shader guard
+also runs on the repo's real three in the installed Chrome (python playwright), where both exist.
 """
 from __future__ import annotations
 
@@ -227,6 +228,131 @@ console.log(JSON.stringify(r));
         self.assertFalse(o["afterFailure"]["ok"])
         self.assertEqual(o["diagnosticsOnly"], {"ok": False, "reason": "p: link failed"})
         self.assertTrue(o["restored"])
+
+
+GUARD_PAGE = r"""<!doctype html>
+<html><head><meta charset="utf-8"><script type="importmap">{"imports": {"three": "./three.module.js"}}</script></head>
+<body><script type="module">
+import * as THREE from 'three'
+import { guardShaders } from './shader-guard.js'
+const r = { webgl: false }
+try {
+  const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 64 })
+  document.body.append(canvas)
+  const renderer = new THREE.WebGLRenderer({ canvas })
+  r.webgl = true
+  r.revision = THREE.REVISION
+  const seen = []
+  const guard = guardShaders(renderer, (reason) => seen.push(reason))
+  r.checksOn = renderer.debug.checkShaderErrors
+  const scene = new THREE.Scene()
+  const camera = new THREE.PerspectiveCamera()
+  camera.position.z = 2
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial({ color: 0xff8800 })))
+  await renderer.compileAsync(scene, camera)
+  renderer.render(scene, camera)
+  r.valid = guard.check()
+  // The field report's bug: three already prefixes colorspace_pars_fragment to every ShaderMaterial.
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.ShaderMaterial({
+    vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: '#include <colorspace_pars_fragment>\nvoid main() { gl_FragColor = vec4(1.0); }',
+  })))
+  await renderer.compileAsync(scene, camera)
+  r.afterCompile = guard.check()            // nothing yet: three checks a program at its first use
+  r.seenAfterCompile = seen.length
+  renderer.render(scene, camera)             // the warm render: the first use
+  r.afterRender = guard.check()
+  r.seen = seen
+  r.notRunnable = renderer.info.programs.filter((p) => p.diagnostics && !p.diagnostics.runnable).length
+} catch (e) {
+  r.error = String((e && e.message) || e)
+}
+window.__result = r
+</script></body></html>
+"""
+
+# Headless Chrome's own GL first, then software WebGL (the flag set scripts/preview falls back to).
+GL_FLAGS = ([], ["--use-gl=angle", "--use-angle=swiftshader-webgl", "--enable-unsafe-swiftshader"])
+
+
+def browser_skip_reason() -> str | None:
+    try:
+        import playwright.sync_api  # noqa: F401
+    except ImportError:
+        return "python playwright not installed"
+    if not (Path("/Applications/Google Chrome.app").exists() or shutil.which("google-chrome")
+            or shutil.which("google-chrome-stable") or shutil.which("chrome")):
+        return "Google Chrome not found"
+    if not (ROOT / "node_modules" / "three" / "build" / "three.core.js").is_file():
+        return "repo node_modules (three) required: run npm install at the repo root"
+    if not shutil.which("node") or not (ROOT / "node_modules" / "typescript").is_dir():
+        return "node + repo node_modules (typescript) required"
+    return None
+
+
+def transpile(path: Path) -> str:
+    script = ("const ts = require('typescript'), fs = require('fs');"
+              "process.stdout.write(ts.transpileModule(fs.readFileSync(process.argv[1], 'utf8'),"
+              " { compilerOptions: { module: 'ESNext', target: 'ES2022' } }).outputText)")
+    r = subprocess.run([shutil.which("node"), "-e", script, str(path)], cwd=ROOT, capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr[-600:])
+    return r.stdout
+
+
+class ShaderGuardInChromeTests(unittest.TestCase):
+    """The forced shader error on real three (the repo's r186) in the installed Chrome: compileAsync alone reports
+    nothing, the warm render's first use trips the guard with the shader's own log, and three's console error is
+    replaced by the guard's. SceneCanvas turns that verdict into data-scene-mode="error" (its source contract above)."""
+
+    def test_forced_shader_error_trips_the_guard_after_the_warm_render(self):
+        reason = browser_skip_reason()
+        if reason:
+            self.skipTest(reason)
+        build = ROOT / "node_modules" / "three" / "build"
+        files = {
+            "index.html": (GUARD_PAGE.encode(), "text/html"),
+            "shader-guard.js": (transpile(WEB / "shader-guard.ts").encode(), "text/javascript"),
+            "three.module.js": ((build / "three.module.js").read_bytes(), "text/javascript"),
+            "three.core.js": ((build / "three.core.js").read_bytes(), "text/javascript"),
+        }
+        from playwright.sync_api import sync_playwright
+
+        def serve(route) -> None:
+            name = route.request.url.rsplit("/", 1)[-1]
+            body, ctype = files.get(name, (b"", "text/plain"))
+            route.fulfill(status=200 if name in files else 404, body=body, content_type=ctype)
+
+        result, console = {"webgl": False}, []
+        with sync_playwright() as p:
+            for flags in GL_FLAGS:
+                browser = p.chromium.launch(channel="chrome", headless=True, args=flags)
+                try:
+                    page = browser.new_page()
+                    console = []
+                    page.on("console", lambda m: console.append(m.text))
+                    page.route("http://guard.test/**", serve)
+                    page.goto("http://guard.test/index.html")
+                    page.wait_for_function("window.__result !== undefined", timeout=30000)
+                    result = page.evaluate("window.__result")
+                finally:
+                    browser.close()
+                if result.get("webgl"):
+                    break
+        if not result.get("webgl"):
+            self.skipTest("no WebGL in headless Chrome here: " + str(result.get("error", ""))[:200])
+        self.assertNotIn("error", result, result.get("error"))
+        self.assertTrue(result["checksOn"])
+        self.assertEqual(result["valid"], {"ok": True})
+        self.assertEqual(result["afterCompile"], {"ok": True})        # compileAsync never fills diagnostics
+        self.assertEqual(result["seenAfterCompile"], 0)
+        self.assertFalse(result["afterRender"]["ok"])
+        self.assertIn("function already has a body", result["afterRender"]["reason"])
+        self.assertFalse(result["afterRender"]["reason"].startswith("Fragment shader is not compiled"))
+        self.assertTrue(result["seen"] and "function already has a body" in result["seen"][0])
+        self.assertGreaterEqual(result["notRunnable"], 1)
+        self.assertTrue(any("[scene] shader program failed" in text for text in console))
+        self.assertFalse(any("THREE.WebGLProgram: Shader Error" in text for text in console))  # replaced, not doubled
 
 
 def code_only(source: str) -> str:

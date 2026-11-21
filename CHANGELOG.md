@@ -79,7 +79,10 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
   a Next 16 production build beside the user's dev server.
 - Node tests for the entrance gate (its clock included), the shader guard and the bridge's frame
   stats, and a source-contract test for `SceneCanvas`'s reveal path (`tests/test_web_assets.py`);
-  two traversal eval cases.
+  two traversal eval cases. The forced shader error also runs on the repo's three r186 in the
+  installed Chrome (python playwright; skipped without them): `compileAsync` alone reports nothing,
+  the warm render's first use trips the guard with the shader's own log, and three's console error
+  gives way to the guard's.
 
 ### Changed
 
