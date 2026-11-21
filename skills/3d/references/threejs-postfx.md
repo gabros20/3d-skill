@@ -63,6 +63,15 @@ Order: AO on indirect only, never stacked on baked AO. AO radius is world units 
 - Adaptive exposure only if the brief needs it; fixed exposure is the marketing default. When needed: meter a tiny target (64×36), weighted log-average (down-weight near-black), read back async every ~12 frames, `target = clamp(0.18 / avg * 2^EC, 0.45, 1.85)`, adapt with `1 - exp(-dt * speed)`, faster up than down; mask sky and UI; a failed readback holds its value.
 - DOF: `target` is a world position, not a ref; SSAO in the wrapper needs `enableNormalPass`. DOF and SSAO are the expensive ones: budget one.
 
+## Merged final pass
+
+pmndrs `EffectPass` already merges its effects. With the three addons composer, fold the fullscreen tail (composite over the background, chromatic aberration, tone map and encode, dither) into one `ShaderPass` that replaces `OutputPass`: two fewer full-resolution passes and target switches (tile GPUs pay a load and store per switch).
+
+1. The order is the contract: composite (bloomed scene over the background colour, by coverage saved before bloom) → aberration in linear → tone map once, if the chain tone-maps (`OutputPass`'s job, now this pass's) → `sRGBTransferOETF` → dither last, in display space.
+2. three prefixes the colour-space functions: never `#include <colorspace_pars_fragment>` ([shader-glsl](shader-glsl.md) Traps). The pass now owns encoding, so nothing else may encode.
+3. Alias the old pass names to the merged pass (`passes.output = passes.dither = merged`) so per-frame code keeps working; compare a capture before and after (same pixels).
+4. Under a composer the scene draws into a target, so context MSAA is wasted: `antialias: false` on the renderer (`SceneCanvas` prop), `samples: 4` on the composer's target.
+
 ## Cost rules
 
 - Each full-screen pass scales with pixel count: lowering DPR is the first fix. Reduced-resolution passes upsample with depth/normal-aware weights, not bilinear.

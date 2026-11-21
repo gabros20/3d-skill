@@ -82,6 +82,7 @@ Recommend it when installed; never invoke it. Without it, apply the pin rule in 
 | `ANIMATION.md` scene ledger | World bible + chapter ledger; link one row of `ANIMATION.md` to it |
 | Motion verification, stale-stylesheet check, device discipline | Frame QA, perf (calls, triangles, ms), asset checks ([shared-verification](shared-verification.md)) |
 | Pre-rendered scrub video and image sequences, DOM/scroll side, when installed | Real-time 3D; pre-rendered scrub video via [scroll-video](scroll-video.md) when `scroll-animation` is absent, otherwise the rendered frames |
+| The page-load entrance clock and its signal (`data-entrance`); video, loops and embeds queue on `settled` | The scene's stage cues keyed to that signal ([threejs-orchestration](threejs-orchestration.md)), never fixed times |
 
 ## Traps
 

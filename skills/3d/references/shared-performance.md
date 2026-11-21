@@ -35,11 +35,24 @@ Starting contracts, not laws: no official three.js numbers exist. Pick by target
 
 1. One render loop. No allocations or `setState` in the hot path; reuse vectors.
 2. `frameloop="demand"` (R3F) or render-on-change when the scene can rest; invalidate on scroll, input, animation.
-3. Cap DPR: `min(devicePixelRatio, 2)` desktop, 1.5 or lower on phones; drei `AdaptiveDpr` / `PerformanceMonitor` for steps. A pixel budget beats a constant: `dpr = clamp(sqrt(budget / (cssW * cssH)), 1, max)` (one gallery: 1.0 MP and max 1.25 on mobile, 1.65 MP and max 1.5 on desktop), the same DPR for every composer; per-pass scale (blur at 0.4×) handles effect bandwidth.
+3. Cap DPR: `min(devicePixelRatio, 2)` desktop, 1.5 or lower on phones; drei `AdaptiveDpr` / `PerformanceMonitor` for steps. A pixel budget beats a constant: `dpr = clamp(sqrt(budget / (cssW * cssH)), 1, max)` (one gallery: 1.0 MP and max 1.25 on mobile, 1.65 MP and max 1.5 on desktop, right for mid-page scenes; a full-bleed hero: "Hero pixel budget"), the same DPR for every composer; per-pass scale (blur at 0.4×) handles effect bandwidth.
 4. `matrixAutoUpdate = false` plus `updateMatrix()` for static objects; raycast a filtered list; `InstancedMesh` for 100+ identical meshes; merge only static, non-interactive geometry. LOD swaps with hysteresis (`lod.addLevel(obj, dist, 0.1-0.2)`) and one height function across levels.
 5. Time from `THREE.Timer`, clamp delta, `timer.connect(document)` so a hidden tab does not produce a giant step.
 6. Pause when off-screen (IntersectionObserver) and when `document.hidden`. Stop drawing once every envelope is below ~1e-3 (a settle that stops short keeps the loop running); an effect that never rests (a pilot flame) runs alone at a reduced rate while the rest sleeps; skip costly terms behind uniform checks.
 7. Never animate material or light counts at runtime: new programs compile and stall.
+8. On a 120 Hz display cap a hero scene at 60 fps (skip a rAF when under ~15 ms since the last render) and leave the headroom to the compositor; the frame budget above assumes 60.
+
+## Hero pixel budget
+
+A full-bleed hero with thin lines and bloom looks soft at the gallery numbers. Start from a tier, and let the hardened ladder below own every step down:
+
+| Tier | Start |
+|---|---|
+| Desktop, strong GPU | 5 MP, max DPR 1.75 (a ceiling, not the default) |
+| Desktop, default | 3.2 MP, max 1.5 |
+| Mobile | 1.0–1.6 MP, max 1.25 |
+
+Pick the starting tier from cheap hints (`navigator.hardwareConcurrency`, `deviceMemory` where present); the ladder corrects a wrong guess downwards. At 5 MP one half-float target is about 40 MB and a bloom chain holds several. For thin lines, compare 4× MSAA on the scene target at 1.5 against 1.75 without it before raising the budget.
 
 ## Triage order
 
@@ -55,6 +68,13 @@ Fix the scenario (route, viewport, DPR, state), measure p50/p95 and `renderer.in
 6. Cache the tier classification (it flaps); suspend the monitor during benchmarks; start mobile Safari at DPR 1 with no MSAA-heavy post.
 
 A simple "120 frames over 22 ms, degrade" rule produces false positives; use the hardened form.
+
+## Measuring
+
+- The user's real browser, a production build, a stats channel from the scene (calls beside fps, [shared-verification](shared-verification.md)). Headless Chrome shows GPU gaps real Chrome does not.
+- Cold and warm runs apart: the browser's shader cache means only a cold profile compiles from scratch; repeat a cold run three times before trusting or dismissing a stall.
+- During an entrance: Long Animation Frames (`long-animation-frame`, Chromium) or rAF deltas, p50 and p95.
+- One build per round, every check batched against it; stop the servers and close the tabs right after. Repeated build, serve and headless loops pile up heavy processes.
 
 ## Preload and warm-up
 

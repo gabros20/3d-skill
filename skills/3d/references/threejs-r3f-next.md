@@ -31,7 +31,7 @@ R3F 9.8.x (`latest`) needs React `>=19 <19.4`; drei 10.7.x needs fiber `^9`; pos
 3. Never call `useThree`/`useFrame`/loader hooks in the component that renders `<Canvas>`; they belong in children.
 4. `<Canvas>` parent needs a non-zero height. DOM UI lives outside, or in drei `Html`.
 
-Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount, visibility pause). Prefer it over hand-rolling.
+Copy-and-own block: `assets/web/r3f/SceneCanvas.tsx` (client wrapper, lazy mount, visibility pause, warm render and shader guard, stages behind an entrance via `startAfter`). Prefer it over hand-rolling.
 
 ## Mount
 

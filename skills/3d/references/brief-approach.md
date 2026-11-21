@@ -31,7 +31,8 @@ Engine: default is three.js + R3F; run the engine gate in [engine-choice](engine
 | Use | Strategy | Choose when | Read next |
 |---|---|---|---|
 | OBJECT live | Real-time GLB the visitor spins, zooms or configures; compressed, poster first | the object is the point: inspect, compare, configure, a product page | [threejs-interaction](threejs-interaction.md), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React) |
-| HERO live | Real-time three.js or R3F scene, compressed GLB, poster first | interactivity, brand-reactive, crisp at any size | [threejs-renderer](threejs-renderer.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md) |
+| HERO live, subject | Real-time three.js or R3F scene, compressed GLB, poster first, crossfaded on a matched frame | the object is the point and the poster is the LCP element | [threejs-renderer](threejs-renderer.md), [threejs-r3f-next](threejs-r3f-next.md) (Next/React), [threejs-lookdev](threejs-lookdev.md), [threejs-loading](threejs-loading.md), [asset-pipeline](asset-pipeline.md) |
+| HERO live, ambient | The same build behind text, with a build-up reveal: background colour at first paint, the scene fades in, its intro draws it from empty. The poster exists only on the fallback path | the headline is the LCP element; a poster cutting to a scene at another moment reads as a cut | as HERO live, subject; behind a page-load entrance add [threejs-orchestration](threejs-orchestration.md) |
 | HERO simple, VIDEO loop | Pre-rendered WebM/MP4 (or frame sequence) from Blender, poster image | no interaction, photoreal wanted, zero GPU risk | [blender-lookdev-render](blender-lookdev-render.md), [blender-channels](blender-channels.md), [shared-performance](shared-performance.md) (weight) |
 | SCROLL world | Real-time scene driven by normalised scroll progress; camera path from `shots.json` | camera freedom, interactivity, copy synced to state | [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md), [threejs-r3f-next](threejs-r3f-next.md) or [threejs-renderer](threejs-renderer.md) |
 | SCROLL scrub | Pre-rendered frames or keyframe-dense video scrubbed by progress | photoreal, no interaction, mobile risk | [blender-lookdev-render](blender-lookdev-render.md), [scroll-conductor](scroll-conductor.md), [scroll-adapters](scroll-adapters.md) |
@@ -54,7 +55,7 @@ State it in the brief, top to bottom, and give the trigger for each step:
 3. **Poster plus video**: pre-rendered clip or scrub frames from the same `shots.json`. Trigger: no WebGL, low-power mode, data saver.
 4. **Static composition**: the poster from the first real frame. Trigger: `prefers-reduced-motion`, no JS, failed load.
 
-Poster, reduced-motion frame and live first frame must match; the poster carries first paint. Render the desktop and phone posters from the final scene, each at its own crop. A canvas fading in by `u` over its poster sets the poster's opacity to `(1 - u) / (1 - u * α)` (α = canvas alpha where it matters): a linear `1 - u` makes mid-fade paler than either end. An OBJECT live viewer the visitor drives stays live under reduced motion: a representative steady state, `uTime` frozen, event envelopes zeroed, redrawn only on input.
+Poster, reduced-motion frame and live first frame must match; the poster carries first paint for a subject scene, the background colour for an ambient one, and every fallback for both. Render the desktop and phone posters from the final scene, each at its own crop. A canvas fading in by `u` over its poster sets the poster's opacity to `(1 - u) / (1 - u * α)` (α = canvas alpha where it matters): a linear `1 - u` makes mid-fade paler than either end. An OBJECT live viewer the visitor drives stays live under reduced motion: a representative steady state, `uTime` frozen, event envelopes zeroed, redrawn only on input.
 
 ## Feasibility gate
 
@@ -83,4 +84,4 @@ Recommend, never invoke: see the universal rules in [SKILL.md](../SKILL.md). Pro
 - Picking real-time because it is fashionable when the thesis needs no interaction.
 - Choosing pre-render and then promising a pointer response.
 - A ladder with no triggers; the fallback is never reached.
-- Treating the poster as an afterthought; it is the LCP element.
+- Treating the poster as an afterthought; it is the LCP element of a subject scene and the fallback of every scene.
