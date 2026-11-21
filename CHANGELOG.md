@@ -12,6 +12,11 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 
 ## [Unreleased]
 
+### Added
+- Queue unreleased changes here.
+
+## [0.10.0] — 2026-11-21
+
 ### Fixed
 
 - A failed shader program could fade in an empty canvas while frame stats read 60 fps.
