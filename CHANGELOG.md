@@ -15,6 +15,14 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 ### Added
 - Queue unreleased changes here.
 
+## [0.10.1] — 2026-11-21
+
+### Added
+- `tests/test_web_assets.py`: a real-browser test of the shader guard on the repo's three r186 in the installed
+  Chrome (skipped where Python Playwright, Chrome or WebGL is missing). It reproduces the field report's bug:
+  `compileAsync` alone reports nothing, then the warm render trips the guard with the shader's own log
+  ("function already has a body"), and three's console error gives way to the guard's.
+
 ## [0.10.0] — 2026-11-21
 
 ### Fixed
