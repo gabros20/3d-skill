@@ -18,12 +18,31 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
   `r3f/SceneCanvas.tsx` now guards every program: `renderer.debug.onShaderError` (it replaces
   three's own console error, so the guard logs) and `info.programs[].diagnostics` after the warm
   render (three r186 fills both only under `checkShaderErrors`, at a program's first use). A failure
-  sets `data-scene-mode="error"`, keeps the poster and calls the new `onError` prop; it never reaches
-  `data-scene-ready="true"`, a late failure included.
+  sets `data-scene-mode="error"`, keeps the poster and calls the new `onError` prop. A failure in
+  prepare never reaches `data-scene-ready="true"`; a later one drops it to false and shows the
+  poster. The guard keeps `checkShaderErrors` on after the warm-up, where the advisory turned it
+  off: in r186 it costs only the status queries at each program's first use.
+- The guard's reason leads with the failing shader's own log: the program log only says a stage
+  failed ("Fragment shader is not compiled.").
 - The warm-up skipped the post chain: `compileAsync(scene)` never sees composer pass materials, so
   they compiled on the reveal frame. `SceneCanvas` prepare and `threejs-loading.md` now render one
   warm frame through the full chain at final size (R3F: one `advance()`), then run the guard and a
   WebGL2 fence; the Firefox caveat (no `KHR_parallel_shader_compile`) is stated.
+- Under a composer, `compileAsync` compiled the canvas's program variant (sRGB, tone mapped) while
+  the RenderPass draws into a target (linear, none), so the real programs compiled synchronously in
+  the warm render. `threejs-loading.md` binds the composer's buffer for the compile; `SceneCanvas`
+  takes `composer` and does it for you.
+- The entrance failsafe counted from `SceneCanvas`'s mount, which runs on hydration's clock, hundreds
+  of ms after the entrance began at first paint. `whenEntrance` now counts `timeoutMs` from
+  navigation start (`performance.now()`), with `since` for a route's own entrance after a
+  client-side navigation, and `entranceTimeoutMs` means the same.
+- The canvas loaded through `React.lazy` + `<Suspense>`: once its fallback showed, React 19 held the
+  reveal until ~300 ms after it (`FALLBACK_THROTTLE_MS`), however soon the chunk landed.
+  `SceneCanvas` now loads three, R3F and the new `scene` chunk as promises into state and renders
+  them directly; `ConductorDriver` renders without a lazy hold inside it. The poster path still
+  downloads no three.
+- A failed chunk load or a scene that throws fell through to the page's error boundary.
+  `SceneCanvas` now catches both: `data-scene-mode="error"`, the poster, `onError`.
 - `bridge.ts` `info().drawCalls` and `tris` sum every pass of the frame the bridge drew; a composer
   used to report only its last pass.
 
@@ -35,8 +54,9 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 - `assets/web/shader-guard.ts`: `guardShaders(renderer, onError)` and the pure `shaderVerdict()`,
   for vanilla renderers too.
 - `SceneCanvas` props: `startAfter: 'none' | 'entrance'` (default `'none'`, unchanged order) with
-  `entranceTimeoutMs` (2500), `data-scene-stage="prepare|reveal|run"`; `antialias` and `alpha`
-  (defaults unchanged, true and true); `onError`.
+  `entranceTimeoutMs` (2500, from navigation start), `data-scene-stage="prepare|reveal|run"`;
+  `scene` (the scene's chunk, `() => import('./Scene')`); `composer`; `antialias` and `alpha`
+  (defaults unchanged, true and true); `onError`. `children` is now optional.
 - `references/threejs-orchestration.md`: a live scene behind a page-load entrance — the signal,
   stages, start budget, main-thread prepare in `scheduler.yield()` slices, and the worker as an
   opt-in for vanilla three (never R3F, never scroll-synced, Safari 17.0 floor and probe). Routed
@@ -47,8 +67,14 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 - `threejs-postfx.md` "Merged final pass" (fixed order, aliases, MSAA on the target, not the
   context); `shared-performance.md` tiered hero pixel budget, 60 fps cap on 120 Hz and "Measuring";
   `3D.md` template "Hero stages".
-- Node tests for the entrance gate, the shader guard and the bridge's frame stats
-  (`tests/test_web_assets.py`); two traversal eval cases.
+- `threejs-r3f-next.md` "Mount": a cued reveal never goes through Suspense, R3F's own boundary
+  inside the Canvas, and the Safari trap where a background canvas paints over copy once its
+  entrance ends (relative z-index on the copy's wrapper); matching `shared-debug.md` rows.
+  `brief-approach.md`: a poster is never a blur placeholder. `shared-performance.md` "Measuring":
+  a Next 16 production build beside the user's dev server.
+- Node tests for the entrance gate (its clock included), the shader guard and the bridge's frame
+  stats, and a source-contract test for `SceneCanvas`'s reveal path (`tests/test_web_assets.py`);
+  two traversal eval cases.
 
 ### Changed
 
@@ -60,6 +86,11 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
   the background colour; the poster only on the fallback path).
 - `scroll-conductor.md` ownership: the page-load entrance clock and its signal are
   `scroll-animation`'s; the scene's stage cues key off it, never fixed times.
+  `threejs-orchestration.md` points to `scroll-animation` for the contract and the hero budget
+  instead of restating them, and keeps the scene's part.
+- `threejs-r3f-next.md` "Mount": first paint is the poster for a subject scene, the background
+  colour for an ambient one; the reveal waits for a proven frame. `shared-performance.md`: the
+  mobile hero tier notes mobile Safari's DPR 1 start.
 
 ## [0.9.1] — 2026-11-20
 

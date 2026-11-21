@@ -1,5 +1,6 @@
 .DS_Store
-node_modules/
+# No trailing slash: a worktree links node_modules, and `node_modules/` matches directories only.
+node_modules
 .vercel
 .env*
 __pycache__/
