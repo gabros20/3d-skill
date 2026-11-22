@@ -15,6 +15,14 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 ### Added
 - Queue unreleased changes here.
 
+## [0.11.1] — 2026-11-22
+
+### Changed (documentation)
+- `docs/areas.md`, the site and `llms.txt` say the live scene waits for the page's entrance on every visit, so after
+  a client-side navigation it waits for the new page; the failsafe counts from the entrance's start.
+- README "Versioning" points at the changelog for the current release instead of a stale number.
+- Changelog link references cover every release.
+
 ## [0.11.0] — 2026-11-22
 
 ### Added
@@ -421,7 +429,19 @@ Fixes and features from a live end-to-end test (recreating a generated video loo
 - Repository: README, docs, evals (activation, traversal, output, compression ablation), tests,
   `scripts/check-sync`, a documentation site and hero-video project, `SOURCES.md` provenance.
 
-[Unreleased]: https://github.com/gabros20/3d-skill/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/gabros20/3d-skill/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/gabros20/3d-skill/releases/tag/v0.11.1
+[0.11.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.11.0
+[0.10.1]: https://github.com/gabros20/3d-skill/releases/tag/v0.10.1
+[0.10.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.10.0
 [0.9.1]: https://github.com/gabros20/3d-skill/releases/tag/v0.9.1
 [0.9.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.9.0
+[0.8.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.8.0
+[0.7.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.7.0
+[0.6.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.6.0
+[0.5.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.5.0
+[0.4.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.4.0
+[0.3.1]: https://github.com/gabros20/3d-skill/releases/tag/v0.3.1
+[0.3.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.3.0
+[0.2.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.2.0
 [0.1.0]: https://github.com/gabros20/3d-skill/releases/tag/v0.1.0
