@@ -240,7 +240,7 @@ paths), compiles and tests every script, and type-checks `assets/web`.
 Semantic versions live in `.codex-plugin/plugin.json`, [CHANGELOG.md](CHANGELOG.md), git tags and
 GitHub Releases, never in `SKILL.md`. **MAJOR** is an artifact-contract or invocation break (`3D.md`,
 the `.3d/` layout, `refspec.v1`, `shots.v1`), **MINOR** is new areas or behavior-changing reference
-material, **PATCH** is fixes and wording. Current: 0.1.0.
+material, **PATCH** is fixes and wording. The current release is the newest heading in the changelog.
 
 ## Credits
 
