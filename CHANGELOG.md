@@ -13,6 +13,11 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 ## [Unreleased]
 
 ### Added
+- Queue unreleased changes here.
+
+## [0.11.0] — 2026-11-22
+
+### Added
 - `entrance-gate.ts`: `entranceStartedAt()`, the clock a wait's timeout counts from, and `trackEntranceAlone(el)`,
   a small publisher for a page with no entrance owner (the skill used alone beside a CSS entrance). It stands down
   when `scroll-animation`'s lifecycle is on the page.
