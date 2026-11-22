@@ -13,7 +13,20 @@ The release procedure synchronizes `.codex-plugin/plugin.json`, this changelog, 
 ## [Unreleased]
 
 ### Added
-- Queue unreleased changes here.
+- `entrance-gate.ts`: `entranceStartedAt()`, the clock a wait's timeout counts from, and `trackEntranceAlone(el)`,
+  a small publisher for a page with no entrance owner (the skill used alone beside a CSS entrance). It stands down
+  when `scroll-animation`'s lifecycle is on the page.
+
+### Changed
+- **The entrance is read per visit.** `scroll-animation`'s page lifecycle restarts the phase on `<html>` for each
+  client-side navigation, so a `SceneCanvas` mounted by one waits for the new page's entrance instead of reading the
+  last page's `settled`. A route change held at `pending` counts as mid-entrance: prepare waits for `settled`.
+- **The failsafe counts from the entrance's start**, not from navigation start: the owner's stamp
+  (`data-entrance-started`), else first contentful paint, else navigation start. While the owner holds a visit at
+  `pending` no timeout runs. `since` still overrides.
+- `threejs-orchestration.md`: on the main thread, with no loader, prepare runs after `settled` and the still frame
+  lands after it; `tail` is reachable only under a loader or from a worker. Fetching and worker builds may run while
+  the entrance runs. Pointers to `scroll-animation` name headings in its `lifecycle.md`, not section numbers.
 
 ## [0.10.1] — 2026-11-21
 
