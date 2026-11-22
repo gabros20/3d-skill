@@ -175,8 +175,102 @@ console.log(JSON.stringify(r));
         self.assertEqual(o["scopedAfter"], "phase")
         self.assertEqual(o["listenersEnd"], 0)
 
+    def test_per_visit_clock_and_standalone_publisher(self):
+        script = r"""
+const gate = await load(process.argv[2], 'gate');
+const r = {};
+class El extends EventTarget {
+  attrs = new Map();
+  getAttribute(n) { return this.attrs.has(n) ? this.attrs.get(n) : null; }
+  setAttribute(n, v) { this.attrs.set(n, String(v)); }
+  removeAttribute(n) { this.attrs.delete(n); }
+}
+const html = new El();
+const frames = [];
+globalThis.document = { documentElement: html, timeline: {} };
+globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+globalThis.cancelAnimationFrame = () => {};
+const flush = () => frames.splice(0).forEach((fn) => fn(0));
+const tick = (ms = 5) => new Promise((res) => setTimeout(res, ms));
+const state = (p) => { let s = 'waiting'; p.then((v) => { s = v; }, (e) => { s = 'rejected:' + (e && e.name); }); return () => s; };
+// the owner's order: the stamp and the attribute first, then the event with the visit
+const publish = (phase, visit) => {
+  if (phase === 'pending') html.removeAttribute('data-entrance-started');
+  if (phase === 'running') html.setAttribute('data-entrance-started', String(performance.now()));
+  html.setAttribute('data-entrance', phase);
+  if (visit) html.setAttribute('data-visit', String(visit));
+  html.dispatchEvent(new CustomEvent('entrance:phase', { bubbles: true, detail: { phase, visit } }));
+};
+
+// The owner's stamp is the clock: long after navigation start, a fresh entrance still gets its full timeout.
+await tick(60);
+html.setAttribute('data-entrance', 'running');
+html.setAttribute('data-entrance-started', String(performance.now()));
+r.stampedStart = gate.entranceStartedAt() > 50;
+let t = performance.now();
+r.stamped = await gate.whenEntrance('settled', { timeoutMs: 40 });
+r.stampedMs = performance.now() - t;
+
+// A client-side navigation: the owner restarts the phase. Held at pending, no timeout runs.
+publish('pending', 2);
+r.heldStart = gate.entranceStartedAt();
+r.readsNewVisit = gate.readEntrance();
+const held = state(gate.whenEntrance('settled', { timeoutMs: 30 }));
+await tick(60);
+r.heldWaits = held();
+publish('running', 2);
+await tick(10);
+r.runningWaits = held();
+await tick(40);
+r.afterClock = held();
+
+// A wait open across a visit carries on into the new one.
+publish('pending', 3); publish('running', 3);
+const open = state(gate.whenEntrance('settled', { timeoutMs: 5000 }));
+publish('pending', 4);
+await tick();
+r.acrossVisit = open();
+publish('running', 4); publish('settled', 4);
+await tick();
+r.acrossVisitSettled = open();
+
+// Standalone: no owner, a CSS entrance. running at once, settled when its animations have finished.
+html.removeAttribute('data-visit'); html.removeAttribute('data-entrance-started'); html.setAttribute('data-entrance', 'pending');
+let done;
+const animation = { playState: 'running', timeline: document.timeline, effect: { getComputedTiming: () => ({ endTime: 1300 }) }, finished: new Promise((res) => { done = res; }) };
+const root = { animations: [animation], getAnimations() { return this.animations; } };
+const stop = gate.trackEntranceAlone(root);
+r.aloneRunning = gate.readEntrance();
+flush(); flush(); await tick();
+r.aloneStillRunning = gate.readEntrance();
+root.animations = []; done(); await tick(); flush(); flush();
+r.aloneSettled = gate.readEntrance();
+stop();
+// With an owner on the page it stands down.
+html.setAttribute('data-visit', '5'); html.setAttribute('data-entrance', 'pending');
+gate.trackEntranceAlone(root);
+r.standsDown = gate.readEntrance();
+console.log(JSON.stringify(r));
+"""
+        o = run_node(self, script, WEB / "entrance-gate.ts")
+        self.assertTrue(o["stampedStart"])
+        self.assertEqual(o["stamped"], "timeout")
+        self.assertGreaterEqual(o["stampedMs"], 35)
+        self.assertIsNone(o["heldStart"])
+        self.assertEqual(o["readsNewVisit"], "pending")
+        self.assertEqual(o["heldWaits"], "waiting")
+        self.assertEqual(o["runningWaits"], "waiting")
+        self.assertEqual(o["afterClock"], "timeout")
+        self.assertEqual(o["acrossVisit"], "waiting")
+        self.assertEqual(o["acrossVisitSettled"], "phase")
+        self.assertEqual(o["aloneRunning"], "running")
+        self.assertEqual(o["aloneStillRunning"], "running")
+        self.assertEqual(o["aloneSettled"], "settled")
+        self.assertEqual(o["standsDown"], "pending")
+
 
 class ShaderGuardTests(unittest.TestCase):
+
     def test_verdict_and_handler(self):
         script = r"""
 const g = await load(process.argv[2], 'guard');
@@ -384,10 +478,14 @@ class SceneCanvasRevealPathTests(unittest.TestCase):
         self.assertIn("setLoaded({ Live, Scene:", self.code)    # the loaded modules render from state
         self.assertRegex(self.code, r"<Canvas[\s\S]*<Suspense fallback=\{null\}>[\s\S]*</Suspense>[\s\S]*</Canvas>")
 
-    def test_failsafe_counts_from_navigation_start(self):
+    def test_failsafe_counts_from_the_entrance_start(self):
         self.assertNotRegex(self.code, r"performance\.now\(\)\s*\+")
         self.assertNotIn("deadline", self.code)
         self.assertIn("whenEntrance(phase, { timeoutMs: entranceTimeoutMs, signal })", self.code)
+
+    def test_a_held_route_change_is_mid_entrance(self):
+        self.assertIn("getAttribute('data-entrance-held') === 'pause'", self.code)
+        self.assertRegex(self.code, r"phase === 'running' \|\| phase === 'tail' \|\| routeHeld \? wait\('settled', signal\)")
 
     def test_composer_compiles_the_target_variant(self):
         self.assertIn("compileFor(three, gl, scene, camera, composer)", self.code)

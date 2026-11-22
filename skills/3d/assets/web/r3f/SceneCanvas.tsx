@@ -14,10 +14,13 @@
  *   prepare: the load, `compileAsync`, ONE warm render through every useFrame subscriber (so a
  *            composer's pass programs compile and draw now, not at the reveal), the shader guard,
  *            then a GPU fence. With `startAfter="entrance"` none of it runs while the page entrance
- *            is `running` or `tail`: it runs before the entrance starts or after `settled`.
+ *            is `running` or `tail`, or held for a route change: it runs before a load's entrance
+ *            starts (under a loader), else after `settled`.
  *   reveal:  prepared and proven, and the entrance at `tail` (or the timeout): one still frame shows.
  *   run:     the entrance `settled` (or the timeout): the frameloop starts.
- * Timeouts count from navigation start, where the entrance starts, not from this mount (hydration).
+ * The phase is read per visit: after a client-side navigation the entrance's owner has restarted it
+ * before this mounts, so the scene waits for the new page's entrance, not the last one's `settled`.
+ * Timeouts count from the entrance's start (entrance-gate.ts), not from navigation start or this mount.
  * A failure in prepare never reaches `reveal`; a later one (a shader at first use, a thrown render, a
  * lost context) drops `data-scene-ready` to false and shows the poster again. `data-scene-mode`
  * ("error" or "poster") says which, and `onError` or `onContextLost` fires.
@@ -79,7 +82,7 @@ export interface SceneCanvasProps {
    * entrance's owner). Default 'none': prepare, reveal and run follow each other at once.
    */
   startAfter?: 'none' | 'entrance'
-  /** Failsafe for `startAfter="entrance"`, ms from navigation start (not from mount). Default 2500. */
+  /** Failsafe for `startAfter="entrance"`, ms from the entrance's start (not navigation start, not mount). Default 2500. */
   entranceTimeoutMs?: number
   /** Context MSAA. Default true; false under a composer (put `samples` on its target instead). */
   antialias?: boolean
@@ -357,17 +360,20 @@ export function SceneCanvas(props: SceneCanvasProps): ReactNode {
     latest.current = { onError: props.onError, onContextLost: props.onContextLost, scene: props.scene }
   })
 
-  // The entrance's clock: whenEntrance counts the failsafe from navigation start, where the entrance starts.
+  // The entrance's clock: whenEntrance counts the failsafe from where the entrance started, per visit.
   const wait = useCallback(
     (phase: 'tail' | 'settled', signal: AbortSignal): Promise<EntranceWait> =>
       startAfter === 'entrance' ? whenEntrance(phase, { timeoutMs: entranceTimeoutMs, signal }) : Promise.resolve('none'),
     [startAfter, entranceTimeoutMs],
   )
-  // Main-thread prepare work runs before the entrance starts or after it settles, never mid-entrance.
+  // Main-thread prepare work runs before the entrance starts or after it settles, never mid-entrance. A route
+  // change held at `pending` (`data-entrance-held="pause"`: a crossfade, then the entrance at once) is mid-entrance
+  // too; a load held by a loader is the time to prepare.
   const clear = useCallback(
     (signal: AbortSignal): Promise<unknown> => {
       const phase = startAfter === 'entrance' ? readEntrance() : null
-      return phase === 'running' || phase === 'tail' ? wait('settled', signal) : Promise.resolve()
+      const routeHeld = phase === 'pending' && document.documentElement.getAttribute('data-entrance-held') === 'pause'
+      return phase === 'running' || phase === 'tail' || routeHeld ? wait('settled', signal) : Promise.resolve()
     },
     [startAfter, wait],
   )
